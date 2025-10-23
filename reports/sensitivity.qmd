@@ -1,0 +1,111 @@
+---
+title: "ExDyn Sandbox: Response-only Sensitivity"
+format: html
+execute:
+  echo: false
+---
+
+## Overview
+
+This report maps where the response-only classifier succeeds across the expanded sensitivity sweep and highlights the controls that most influence correct scenario identification.
+
+```{r setup}
+if (!requireNamespace("exdyn.sandbox", quietly = TRUE)) {
+  if (requireNamespace("pkgload", quietly = TRUE)) {
+    pkgload::load_all(export_all = FALSE, helpers = FALSE, attach_testthat = FALSE)
+  } else {
+    stop("exdyn.sandbox package is not available and pkgload is missing.")
+  }
+} else {
+  library(exdyn.sandbox)
+}
+library(targets)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+library(readr)
+store_path <- if (dir.exists("../_targets")) "../_targets" else "_targets"
+sweep_results <- tar_read(sweep_results, store = store_path)
+sweep_predictions <- tar_read(sweep_predictions, store = store_path)
+sweep_f1_by_scenario <- tar_read(sweep_f1_by_scenario, store = store_path)
+sweep_f1_by_archetype <- tar_read(sweep_f1_by_archetype, store = store_path)
+sweep_macro_overall <- tar_read(sweep_macro_overall, store = store_path)
+partial_files <- list.files(file.path("outputs", "partial_dependence"), pattern = "\\.csv$", full.names = TRUE)
+partial_png <- list.files(file.path("outputs", "partial_dependence"), pattern = "\\.png$", full.names = TRUE)
+heatmap_png <- list.files(file.path("outputs", "heatmaps"), pattern = "\\.png$", full.names = TRUE)
+design_table_path <- file.path("outputs", "design_table.csv")
+design_table <- if (file.exists(design_table_path)) readr::read_csv(design_table_path, show_col_types = FALSE) else tibble::tibble()
+```
+
+Overall response-only macro F1 (hold-out): **`r sprintf("%.3f", sweep_macro_overall)`**.
+
+## Scenario and Archetype Performance
+
+```{r f1-tables}
+knitr::kable(sweep_f1_by_scenario, digits = 3, caption = "Macro F1 by scenario (response-only)")
+knitr::kable(sweep_f1_by_archetype, digits = 3, caption = "Macro F1 by archetype (response-only)")
+```
+
+## Partial Dependence on Controls
+
+```{r partials}
+if (length(partial_files)) {
+  partial_tbls <- purrr::map(partial_files, ~ readr::read_csv(.x, show_col_types = FALSE) %>% mutate(source = basename(.x)))
+  combined <- dplyr::bind_rows(partial_tbls)
+  knitr::kable(head(combined, 20), digits = 3, caption = "Sample of partial dependence tables")
+  purrr::walk(partial_png, function(path) {
+    cat("### ", tools::file_path_sans_ext(basename(path)), "\n\n", sep = "")
+    knitr::include_graphics(path)
+    cat("\n\n")
+  })
+} else {
+  cat("Partial dependence artefacts missing; rerun `tar_make()` to regenerate.")
+}
+```
+
+## Heatmaps of Macro F1
+
+```{r heatmaps}
+if (length(heatmap_png)) {
+  purrr::walk(heatmap_png, function(path) {
+    cat("### ", tools::file_path_sans_ext(basename(path)), "\n\n", sep = "")
+    knitr::include_graphics(path)
+    cat("\n\n")
+  })
+} else {
+  cat("Heatmap artefacts missing; rerun `tar_make()` to regenerate.")
+}
+```
+
+## Failing Regimes (Bottom Decile)
+
+```{r failing}
+if (nrow(sweep_predictions)) {
+  predictions_aug <- sweep_predictions %>%
+    left_join(sweep_results %>% select(exp_id, dispersal_mean_km, pred_speed, effort_strength,
+      allee_A_over_K), by = "exp_id") %>%
+    mutate(correct = as.numeric(truth == estimate))
+  bottom_runs <- predictions_aug %>%
+    group_by(exp_id, species, scenario, alpha, dispersal_mean_km, pred_speed, presence_rate, effort_strength, allee_A_over_K) %>%
+    summarise(correct = mean(correct), .groups = "drop") %>%
+    arrange(correct)
+  take_n <- max(1, ceiling(nrow(bottom_runs) * 0.1))
+  bottom_runs <- bottom_runs %>% slice_head(n = take_n)
+  knitr::kable(bottom_runs, digits = 3, caption = "Bottom decile runs by correct-classification rate")
+} else {
+  cat("Predictions not available.")
+}
+```
+
+## Design Guidance
+
+```{r design-table}
+if (nrow(design_table)) {
+  knitr::kable(design_table, digits = 3, caption = "Design guidance summary")
+} else {
+  cat("Design guidance table missing; rerun `tar_make()`.")
+}
+```
+
+> Guidance: focus on parameter ranges with macro F1 ≥ 0.8; use the heatmaps and partial dependence curves to tune dispersal, observation rate, and front speed in future designs.

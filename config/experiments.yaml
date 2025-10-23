@@ -23,9 +23,33 @@ defaults:
     ramp_end: [90, 120]
   climate:
     drift_per_century: [0.0, 0.2]
+  allee:
+    A_over_K: [0.05, 0.2]
   obs:
     presence_only_rate: 0.0015
     effort_strength: [1.2, 2.0]
     fossil_sites: 60
     fossil_date_sd_y: 30
 replicates: 3
+sweep:
+  nx: [40, 60]
+  ny: [40, 60]
+  years: [120, 180]
+  dispersal:
+    alpha: [0.0, 0.6]
+    mean_km: [5, 40]
+  predation:
+    speed_cells_per_year: [0.1, 1.5]
+    c: [0.3, 0.9]
+    h: [10, 60]
+  habitat:
+    beta: [0.2, 0.7]
+    ramp_start: [30, 70]
+    ramp_end: [80, 140]
+  allee:
+    A_over_K: [0.0, 0.3]
+  obs:
+    presence_only_rate: [0.0002, 0.004]
+    effort_strength: [1.0, 3.0]
+  replicates: 2
+  n_sweep: 240

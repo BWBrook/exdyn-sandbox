@@ -4,6 +4,7 @@ tar_option_set(
   packages = c(
     "yaml","data.table","ggplot2","matrixStats","tibble",
     "dplyr","purrr","tidyr","stringr","ranger","yardstick","lhs",
+    "viridisLite","rlang",
     "rsample","glmnet"
   ),
   error = "continue"
@@ -64,6 +65,222 @@ list(
       dplyr::mutate(importance = tidyr::replace_na(importance, -Inf)) %>%
       dplyr::arrange(dplyr::desc(importance)) %>%
       dplyr::mutate(importance = dplyr::if_else(importance == -Inf, NA_real_, importance))
+  }),
+  tar_target(sweep_grid, exdyn_sweep_grid("config/experiments.yaml")),
+  tar_target(sweep_summaries, exdyn_run_once(sweep_grid), pattern = map(sweep_grid), iteration = "list"),
+  tar_target(sweep_results, dplyr::bind_rows(sweep_summaries)),
+  tar_target(sweep_feature_sets, exdyn_feature_sets(sweep_results)),
+  tar_target(sweep_clf_response_only, exdyn_fit_and_eval(sweep_results, sweep_feature_sets$response_only)),
+  tar_target(sweep_cv, exdyn_cv_macro_f1(sweep_results, sweep_feature_sets$response_only, v = 5, seed = 987)),
+  tar_target(sweep_predictions, sweep_cv$predictions),
+  tar_target(sweep_macro_overall, sweep_clf_response_only$primary$macro_f1),
+  tar_target(sweep_f1_by_scenario, {
+    preds <- sweep_predictions
+    levels <- levels(preds$truth)
+    conf <- table(preds$truth, preds$estimate)
+    diag_vals <- diag(conf)
+    precision <- diag_vals / pmax(1, colSums(conf))
+    recall <- diag_vals / pmax(1, rowSums(conf))
+    f1 <- ifelse(precision + recall == 0, NA_real_, 2 * precision * recall / (precision + recall))
+    tibble::tibble(
+      scenario = levels,
+      macro_f1 = f1
+    )
+  }),
+  tar_target(sweep_f1_by_archetype, {
+    helper <- function(df) {
+      if (nrow(df) < 3) return(NA_real_)
+      truth <- factor(df$truth, levels = levels(sweep_predictions$truth))
+      est <- factor(df$estimate, levels = levels(truth))
+      conf <- table(truth, est)
+      diag_vals <- diag(conf)
+      precision <- diag_vals / pmax(1, colSums(conf))
+      recall <- diag_vals / pmax(1, rowSums(conf))
+      f1 <- ifelse(precision + recall == 0, NA_real_, 2 * precision * recall / (precision + recall))
+      mean(f1, na.rm = TRUE)
+    }
+    sweep_predictions %>%
+      dplyr::group_by(species) %>%
+      dplyr::summarise(macro_f1 = helper(dplyr::cur_data_all()), .groups = "drop")
+  }),
+  tar_target(save_sweep_tables, {
+    dir.create("outputs", showWarnings = FALSE)
+    data.table::fwrite(sweep_f1_by_scenario, "outputs/sweep_f1_by_scenario.csv")
+    data.table::fwrite(sweep_f1_by_archetype, "outputs/sweep_f1_by_archetype.csv")
+    c("outputs/sweep_f1_by_scenario.csv", "outputs/sweep_f1_by_archetype.csv")
+  }),
+  tar_target(save_partial_dependence, {
+    dir.create(file.path("outputs", "partial_dependence"), recursive = TRUE, showWarnings = FALSE)
+    joined <- sweep_predictions %>%
+      dplyr::left_join(sweep_results %>% dplyr::select(exp_id, dispersal_mean_km, pred_speed, effort_strength,
+        allee_A_over_K, habitat_beta, habitat_ramp_start, habitat_ramp_end, nx, ny, years), by = "exp_id") %>%
+      dplyr::mutate(correct = as.numeric(truth == estimate))
+    ctrl_vars <- c("alpha", "dispersal_mean_km", "pred_speed", "presence_rate", "effort_strength", "allee_A_over_K", "habitat_beta")
+    pd_data <- joined %>% dplyr::select(any_of(ctrl_vars), correct)
+    pd_data <- tidyr::drop_na(pd_data)
+    ctrl_formula <- stats::as.formula(paste("factor(correct, levels = c(0,1)) ~", paste(ctrl_vars, collapse = " + ")))
+    rf <- tryCatch(
+      ranger::ranger(ctrl_formula, data = pd_data, probability = TRUE, importance = "impurity", num.trees = 600, seed = 2468),
+      error = function(e) NULL
+    )
+    importance <- if (is.null(rf)) {
+      tibble::tibble(feature = ctrl_vars, importance = NA_real_)
+    } else {
+      tibble::tibble(feature = names(rf$variable.importance), importance = as.numeric(rf$variable.importance)) %>%
+        dplyr::arrange(dplyr::desc(importance))
+    }
+    top_features <- head(importance$feature[is.finite(importance$importance)], 4)
+    if (!length(top_features)) top_features <- head(ctrl_vars, 4)
+    out_files <- character(0)
+    for (feat in top_features) {
+      if (!feat %in% names(joined)) next
+      data_feat <- joined[, c(feat, "correct"), drop = FALSE]
+      names(data_feat)[1] <- "value"
+      data_feat <- tidyr::drop_na(data_feat)
+      if (!nrow(data_feat)) next
+      breaks <- unique(stats::quantile(data_feat$value, probs = seq(0, 1, length.out = 20), na.rm = TRUE))
+      if (length(breaks) < 2) {
+        pd_tbl <- tibble::tibble(variable = feat, value = mean(data_feat$value), mean_correct = mean(data_feat$correct), n = nrow(data_feat))
+      } else {
+        bins <- cut(data_feat$value, breaks = breaks, include.lowest = TRUE, labels = FALSE)
+        pd_tbl <- tibble::tibble(
+          variable = feat,
+          value = as.numeric(tapply(data_feat$value, bins, mean, na.rm = TRUE)),
+          mean_correct = as.numeric(tapply(data_feat$correct, bins, mean, na.rm = TRUE)),
+          n = as.numeric(tapply(data_feat$correct, bins, length))
+        ) %>% tidyr::drop_na()
+      }
+      csv_path <- file.path("outputs", "partial_dependence", paste0(feat, ".csv"))
+      data.table::fwrite(pd_tbl, csv_path)
+      plt <- ggplot2::ggplot(pd_tbl, ggplot2::aes(x = value, y = mean_correct)) +
+        ggplot2::geom_line(color = "#2b8cbe", linewidth = 1) +
+        ggplot2::geom_point(color = "#045a8d") +
+        ggplot2::labs(title = paste("Partial dependence:", feat), x = feat, y = "Pr(correct classification)") +
+        ggplot2::theme_minimal(base_size = 12)
+      png_path <- file.path("outputs", "partial_dependence", paste0(feat, ".png"))
+      ggplot2::ggsave(png_path, plt, width = 6, height = 4, dpi = 130)
+      out_files <- c(out_files, csv_path, png_path)
+    }
+    out_files
+  }),
+  tar_target(save_heatmaps, {
+    dir.create(file.path("outputs", "heatmaps"), recursive = TRUE, showWarnings = FALSE)
+    joined <- sweep_predictions %>%
+      dplyr::left_join(sweep_results %>% dplyr::select(exp_id, dispersal_mean_km, pred_speed, presence_rate,
+        effort_strength, allee_A_over_K), by = "exp_id")
+    helper_macro <- function(df) {
+      if (nrow(df) < 5) return(NA_real_)
+      truth <- factor(df$truth, levels = levels(sweep_predictions$truth))
+      est <- factor(df$estimate, levels = levels(truth))
+      conf <- table(truth, est)
+      diag_vals <- diag(conf)
+      precision <- diag_vals / pmax(1, colSums(conf))
+      recall <- diag_vals / pmax(1, rowSums(conf))
+      f1 <- ifelse(precision + recall == 0, NA_real_, 2 * precision * recall / (precision + recall))
+      mean(f1, na.rm = TRUE)
+    }
+    make_heat <- function(xvar, yvar, file_stub) {
+      png_path <- file.path("outputs", "heatmaps", paste0(file_stub, ".png"))
+      placeholder <- function(msg) {
+        grDevices::png(png_path, width = 650, height = 500)
+        on.exit(grDevices::dev.off(), add = TRUE)
+        par(mar = c(0, 0, 0, 0))
+        plot.new()
+        text(0.5, 0.5, msg, cex = 1.2)
+        png_path
+      }
+      if (!(xvar %in% names(joined)) || !(yvar %in% names(joined))) {
+        return(placeholder("Controls unavailable"))
+      }
+      df <- joined[, c("truth", "estimate", xvar, yvar), drop = FALSE]
+      df <- df[stats::complete.cases(df), , drop = FALSE]
+      if (!nrow(df)) return(placeholder("No observations"))
+      x_breaks <- unique(stats::quantile(df[[xvar]], probs = seq(0, 1, length.out = 8), na.rm = TRUE))
+      y_breaks <- unique(stats::quantile(df[[yvar]], probs = seq(0, 1, length.out = 8), na.rm = TRUE))
+      if (length(x_breaks) < 2 || length(y_breaks) < 2) return(placeholder("Insufficient spread"))
+      df$x_bin <- cut(df[[xvar]], breaks = x_breaks, include_lowest = TRUE)
+      df$y_bin <- cut(df[[yvar]], breaks = y_breaks, include_lowest = TRUE)
+      df <- df[!is.na(df$x_bin) & !is.na(df$y_bin), , drop = FALSE]
+      if (!nrow(df)) return(placeholder("Empty bins"))
+      df$key <- interaction(df$x_bin, df$y_bin, drop = TRUE)
+      heat <- purrr::imap_dfr(split(df, df$key), function(subdf, key) {
+        bins <- strsplit(key, "\\.")[[1]]
+        tibble::tibble(
+          x_bin = bins[1],
+          y_bin = bins[2],
+          macro_f1 = helper_macro(subdf),
+          x_mid = mean(subdf[[xvar]], na.rm = TRUE),
+          y_mid = mean(subdf[[yvar]], na.rm = TRUE),
+          n = nrow(subdf)
+        )
+      })
+      if (!nrow(heat) || all(is.na(heat$macro_f1))) return(placeholder("No variation"))
+      plt <- ggplot2::ggplot(heat, ggplot2::aes(x = x_mid, y = y_mid, fill = macro_f1)) +
+        ggplot2::geom_tile(color = NA) +
+        ggplot2::scale_fill_viridis_c(option = "C", na.value = "grey85") +
+        ggplot2::labs(x = xvar, y = yvar, fill = "Macro F1", title = paste("F1 heatmap:", xvar, "vs", yvar)) +
+        ggplot2::theme_minimal(base_size = 12)
+      ggplot2::ggsave(png_path, plt, width = 6.5, height = 5, dpi = 130)
+      png_path
+    }
+    files <- c(
+      make_heat("alpha", "pred_speed", "alpha_vs_pred_speed"),
+      make_heat("dispersal_mean_km", "presence_rate", "mean_km_vs_presence"),
+      make_heat("allee_A_over_K", "pred_speed", "allee_vs_pred_speed")
+    )
+    files[!vapply(files, is.null, logical(1))]
+  }),
+  tar_target(design_table, {
+    joined <- sweep_predictions %>%
+      dplyr::left_join(sweep_results %>% dplyr::select(exp_id, dispersal_mean_km,
+        pred_speed, effort_strength, allee_A_over_K, nx, ny, years), by = "exp_id") %>%
+      dplyr::mutate(correct = as.integer(truth == estimate))
+    binary_f1 <- function(df, target_scenario) {
+      if (length(target_scenario) != 1) target_scenario <- target_scenario[1]
+      target_scenario <- as.character(target_scenario)
+      if (nrow(df) < 5) return(NA_real_)
+      truth <- factor(ifelse(df$truth == target_scenario, target_scenario, "other"), levels = c(target_scenario, "other"))
+      est <- factor(ifelse(df$estimate == target_scenario, target_scenario, "other"), levels = c(target_scenario, "other"))
+      conf <- table(truth, est)
+      tp <- conf[target_scenario, target_scenario]
+      precision <- tp / pmax(1, sum(conf[, target_scenario]))
+      recall <- tp / pmax(1, sum(conf[target_scenario, ]))
+      if (precision + recall == 0) return(NA_real_)
+      2 * precision * recall / (precision + recall)
+    }
+    range_fmt <- function(x) {
+      x <- x[is.finite(x)]
+      if (!length(x)) return(NA_character_)
+      sprintf("%.2f-%.2f", min(x), max(x))
+    }
+    safe_min <- function(x) {
+      x <- x[is.finite(x)]
+      if (!length(x)) return(NA_real_)
+      min(x)
+    }
+    safe_max <- function(x) {
+      x <- x[is.finite(x)]
+      if (!length(x)) return(NA_real_)
+      max(x)
+    }
+    summarised <- joined %>%
+      dplyr::group_by(scenario, species) %>%
+      dplyr::summarise(
+        nx = stats::median(nx, na.rm = TRUE),
+        ny = stats::median(ny, na.rm = TRUE),
+        years = stats::median(years, na.rm = TRUE),
+        alpha_range = range_fmt(alpha[correct == 1]),
+        mean_km_range = range_fmt(dispersal_mean_km[correct == 1]),
+        speed_cells_per_year_range = range_fmt(pred_speed[correct == 1]),
+        presence_only_rate_min = safe_min(presence_rate[correct == 1]),
+        effort_strength_max = safe_max(effort_strength[correct == 1]),
+        A_over_K_max = safe_max(allee_A_over_K[correct == 1]),
+        macro_F1_median = binary_f1(dplyr::pick(dplyr::everything()), dplyr::cur_group()$scenario),
+        macro_F1_p10 = stats::quantile(correct, probs = 0.1, na.rm = TRUE),
+        .groups = "drop"
+      )
+    data.table::fwrite(summarised, "outputs/design_table.csv")
+    "outputs/design_table.csv"
   }),
   tar_target(diagnostic_cases, {
     exp_grid %>% dplyr::group_by(scenario) %>% dplyr::slice_head(n = 1) %>% dplyr::ungroup()
