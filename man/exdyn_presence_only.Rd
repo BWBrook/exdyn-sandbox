@@ -4,7 +4,7 @@
 \alias{exdyn_presence_only}
 \title{Presence-only sampling with effort surface}
 \usage{
-exdyn_presence_only(N, rate = 0.002)
+exdyn_presence_only(N, rate = 0.002, effort_strength = 1)
 }
 \description{
 Presence-only sampling with effort surface

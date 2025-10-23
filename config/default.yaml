@@ -8,6 +8,7 @@ species: "B"        # A, B, or C archetype
 threat_scenario: "predation_front"  # predation_front | habitat_erosion | none
 obs:
   presence_only_rate: 0.002
+  effort_strength: 1.5
   fossil_sites: 40
   fossil_date_sd_y: 30
 dispersal:
@@ -17,7 +18,13 @@ predation:
   type: "II"        # II or III
   c: 0.6
   h: 30.0
+  speed_cells_per_year: 0.5
+  seeds:
+    - [1, 25]
+    - [50, 25]
 habitat:
   beta: 0.5
   ramp_start: 40
   ramp_end: 100
+climate:
+  drift_per_century: 0.05

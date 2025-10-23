@@ -4,7 +4,18 @@
 \alias{exdyn_make_fields}
 \title{Synthetic fields S (suitability), P (predation), H (habitat)}
 \usage{
-exdyn_make_fields(nx, ny, years, scenario, ramp_start, ramp_end)
+exdyn_make_fields(
+  nx,
+  ny,
+  years,
+  scenario,
+  habitat_beta,
+  ramp_start,
+  ramp_end,
+  predation_speed = 0.5,
+  predation_seeds = list(),
+  climate_drift = 0
+)
 }
 \description{
 Synthetic fields S (suitability), P (predation), H (habitat)

@@ -2,10 +2,10 @@
 % Please edit documentation in R/summaries.R
 \name{exdyn_summaries}
 \alias{exdyn_summaries}
-\title{Basic summaries for pattern-oriented diagnostics}
+\title{Discriminative summaries for a run}
 \usage{
-exdyn_summaries(N, fields)
+exdyn_summaries(N, fields, thresh = 1)
 }
 \description{
-Basic summaries for pattern-oriented diagnostics
+Discriminative summaries for a run
 }

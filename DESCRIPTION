@@ -15,8 +15,16 @@ Suggests:
 Config/testthat/edition: 3
 Imports: 
     data.table,
+    dplyr,
     ggplot2,
+    lhs,
     matrixStats,
+    purrr,
+    ranger,
+    stringr,
     tarchetypes,
     targets,
-    yaml
+    tibble,
+    tidyr,
+    yaml,
+    yardstick

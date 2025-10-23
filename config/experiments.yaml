@@ -1,0 +1,31 @@
+seed: 123
+grid:
+  species: ["A","B","C"]
+  scenario: ["predation_front","habitat_erosion","both"]
+  predation_type: ["II","III"]
+defaults:
+  nx: 40
+  ny: 40
+  years: 150
+  cellsize_km: 25
+  cell_k: 100
+  dispersal:
+    alpha: 0.20
+    mean_km: [5, 15]
+  predation:
+    c: [0.3, 0.9]
+    h: [10, 60]
+    speed_cells_per_year: [0.2, 1.0]
+    seeds: [[1,20], [40,20]]
+  habitat:
+    beta: [0.2, 0.7]
+    ramp_start: [30, 60]
+    ramp_end: [90, 120]
+  climate:
+    drift_per_century: [0.0, 0.2]
+  obs:
+    presence_only_rate: 0.002
+    effort_strength: [1.0, 2.5]
+    fossil_sites: 60
+    fossil_date_sd_y: 30
+replicates: 1

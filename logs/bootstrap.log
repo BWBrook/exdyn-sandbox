@@ -45,3 +45,37 @@
 2025-10-23T15:59:38+11:00 git add logs/bootstrap.log
 2025-10-23T16:00:03+11:00 restaging logs/bootstrap.log after update
 2025-10-23T16:01:10+11:00 git commit --amend --no-edit
+2025-10-23T16:05:59+11:00 start Work Order 1
+2025-10-23T16:08:59+11:00 install new deps and snapshot
+2025-10-23T16:09:20+11:00 write config/experiments.yaml
+2025-10-23T16:10:11+11:00 update R/fields.R parameterised fronts
+2025-10-23T16:10:29+11:00 adjust exdyn_presence_only effort_strength
+2025-10-23T16:11:30+11:00 rewrite R/summaries.R with new metrics
+2025-10-23T16:12:11+11:00 update config/default.yaml for new params
+2025-10-23T16:12:49+11:00 extend exdyn_config with new params
+2025-10-23T16:14:13+11:00 add R/experiments.R experiment helpers
+2025-10-23T16:15:04+11:00 add R/classify.R classifier utilities
+2025-10-23T16:15:57+11:00 overhaul _targets.R with experiment pipeline
+2025-10-23T16:16:55+11:00 update tests/testthat/test_sim.R for new APIs
+2025-10-23T16:17:23+11:00 add tests/testthat/test_experiments.R
+2025-10-23T16:17:55+11:00 update Makefile with new targets
+2025-10-23T16:18:27+11:00 update reports/sandbox.qmd for renamed targets
+2025-10-23T16:19:25+11:00 add reports/identifiability.qmd
+2025-10-23T16:19:47+11:00 add package imports via usethis
+2025-10-23T16:20:49+11:00 devtools::document updated
+2025-10-23T16:21:43+11:00 add config path fallback in exdyn_experiment_grid
+2025-10-23T16:22:06+11:00 guard exdyn_summaries xcorr outputs
+2025-10-23T16:22:39+11:00 replicate pred_seeds per row
+2025-10-23T16:23:26+11:00 suppress empty fossil warning
+2025-10-23T16:23:53+11:00 devtools::test pass
+2025-10-23T16:24:25+11:00 targets::tar_make completions
+2025-10-23T16:25:04+11:00 fix defaults table in identifiability report
+2025-10-23T16:25:33+11:00 render reports/identifiability.qmd
+2025-10-23T16:25:55+11:00 renv::snapshot after pipeline
+2025-10-23T16:26:25+11:00 verify outputs directory
+2025-10-23T16:26:44+11:00 verify reports outputs
+2025-10-23T16:27:04+11:00 git status before commit
+2025-10-23T16:27:22+11:00 git add -A
+2025-10-23T16:27:41+11:00 git commit feat parameterised fields
+2025-10-23T16:28:24+11:00 git add logs/bootstrap.log (finalize)
+2025-10-23T16:28:53+11:00 git commit --amend --no-edit

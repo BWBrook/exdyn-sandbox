@@ -1,4 +1,4 @@
-.PHONY: init test run report
+.PHONY: init test run report exp report-id
 
 init:
 	R --vanilla -e 'renv::restore(); devtools::document(); renv::snapshot(prompt=FALSE)'
@@ -10,4 +10,10 @@ run:
 	R --vanilla -e 'targets::tar_make()'
 
 report:
-	R --vanilla -e 'targets::tar_load(c(N,po,foss,summs,cfg)); quarto::quarto_render("reports/sandbox.qmd")'
+	R --vanilla -e 'targets::tar_load(c(default_N,default_po,default_foss,default_summs,cfg)); quarto::quarto_render("reports/sandbox.qmd")'
+
+exp:
+	R --vanilla -e 'targets::tar_make()'
+
+report-id:
+	R --vanilla -e 'targets::tar_load(c(results,confusion)); quarto::quarto_render("reports/identifiability.qmd")'

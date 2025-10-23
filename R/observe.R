@@ -1,12 +1,13 @@
 #' Presence-only sampling with effort surface
 #' @export
-exdyn_presence_only <- function(N, rate=0.002) {
+exdyn_presence_only <- function(N, rate=0.002, effort_strength = 1) {
   yrs <- dim(N)[3]
   pts <- data.table::data.table()
   # simple accessibility: more effort near edges
   nx <- dim(N)[1]; ny <- dim(N)[2]
   access <- outer(seq(0,1,length.out=nx), seq(0,1,length.out=ny),
                   function(i,j) 1 - pmin(i,1-i,j,1-j))
+  access <- access^effort_strength
   access <- access / mean(access)
   for (t in 1:yrs) {
     lam <- N[,,t]*access*rate
@@ -29,8 +30,12 @@ exdyn_fossils <- function(N, n_sites=40, date_sd=30) {
   thresh <- max(1, quantile(c(N), 0.1, na.rm=TRUE))
   t_last <- vapply(seq_along(x), function(i){
     v <- N[x[i], y[i], ]
-    last <- max(which(v > thresh))
-    if (is.finite(last)) last else NA_integer_
+    idx <- which(v > thresh)
+    if (!length(idx)) {
+      NA_integer_
+    } else {
+      max(idx)
+    }
   }, 1L)
   data.table::data.table(x=x,y=y,t_obs = pmax(1, round(t_last + rnorm(length(t_last),0,date_sd))))
 }
