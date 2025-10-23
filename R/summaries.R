@@ -144,12 +144,45 @@ exdyn_xcorr <- function(series, driver, max_lag = 10) {
 
 #' Extirpation time map
 #' @keywords internal
-exdyn_extirpation_time <- function(N, K0, frac = 0.02) {
-  threshold <- K0 * frac
-  apply(N, c(1, 2), function(ts) {
-    idx <- which(ts <= threshold)
-    if (length(idx)) idx[1] else NA_real_
-  })
+exdyn_extirpation_time <- function(N, K0, frac = 0.02, adaptive = TRUE, rel0 = 0.5, drop_fraction = NULL) {
+  stopifnot(length(K0) == 1)
+  dims <- dim(N)
+  if (length(dims) != 3) stop("N must be a 3D array [x, y, t].")
+  nx <- dims[1]; ny <- dims[2]; yrs <- dims[3]
+  if (yrs < 2) {
+    return(matrix(NA_real_, nrow = nx, ncol = ny))
+  }
+  threshold <- exdyn_extirpation_threshold(N, K0 = K0, frac = frac, adaptive = adaptive, rel0 = rel0)
+  use_relative <- !is.null(drop_fraction) && is.finite(drop_fraction) && drop_fraction > 0 && drop_fraction < 1
+  res <- matrix(NA_real_, nrow = nx, ncol = ny)
+  for (i in seq_len(nx)) {
+    for (j in seq_len(ny)) {
+      ts <- N[i, j, ]
+      th <- threshold[i, j]
+      if (!any(is.finite(ts))) next
+      crossed <- FALSE
+      max_above <- -Inf
+      for (t in 2:yrs) {
+        prev <- ts[t - 1]
+        curr <- ts[t]
+        if (!is.na(prev) && prev > th) {
+          if (prev > max_above) max_above <- prev
+          if (!is.na(curr) && curr <= th) {
+            res[i, j] <- t
+            crossed <- TRUE
+            break
+          }
+        }
+        if (use_relative && is.finite(max_above) && max_above > th && !is.na(curr) && curr <= drop_fraction * max_above) {
+          res[i, j] <- t
+          crossed <- TRUE
+          break
+        }
+      }
+      if (!crossed) res[i, j] <- NA_real_
+    }
+  }
+  res
 }
 
 #' Edge mask for occupancy slice
@@ -395,7 +428,15 @@ exdyn_front_plane <- function(T_X) {
 
 #' Discriminative summaries for a run
 #' @export
-exdyn_summaries <- function(N, fields, K0, arrival_threshold_frac = 0.02, occ_thresh = 1) {
+exdyn_summaries <- function(
+    N,
+    fields,
+    K0,
+    arrival_threshold_frac = 0.02,
+    arrival_rel0 = 0.5,
+    arrival_drop_fraction = 0.5,
+    adaptive_threshold = TRUE,
+    occ_thresh = 1) {
   yrs <- dim(N)[3]
   total <- apply(N, 3, sum)
   t <- seq_len(yrs)
@@ -418,7 +459,13 @@ exdyn_summaries <- function(N, fields, K0, arrival_threshold_frac = 0.02, occ_th
   xcorr_P_vals <- exdyn_xcorr(total, mean_P, max_lag = 10)
   xcorr_H_vals <- exdyn_xcorr(total, mean_H, max_lag = 10)
 
-  T_X <- exdyn_extirpation_time(N, K0, frac = arrival_threshold_frac)
+  T_X <- exdyn_extirpation_time(
+    N, K0,
+    frac = arrival_threshold_frac,
+    adaptive = adaptive_threshold,
+    rel0 = arrival_rel0,
+    drop_fraction = arrival_drop_fraction
+  )
   T_P <- fields$T_P
   coupling <- exdyn_arrival_coupling(T_X, T_P, fields$D)
   plane_metrics <- exdyn_front_plane(T_X)
@@ -455,7 +502,14 @@ exdyn_summaries <- function(N, fields, K0, arrival_threshold_frac = 0.02, occ_th
 
 #' Response-only summaries derived from abundance trajectories
 #' @export
-exdyn_summaries_response_only <- function(N, K0, arrival_threshold_frac = 0.02, occ_thresh = 1) {
+exdyn_summaries_response_only <- function(
+    N,
+    K0,
+    arrival_threshold_frac = 0.02,
+    arrival_rel0 = 0.5,
+    arrival_drop_fraction = 0.5,
+    adaptive_threshold = TRUE,
+    occ_thresh = 1) {
   yrs <- dim(N)[3]
   total <- apply(N, 3, sum)
   t <- seq_len(yrs)
@@ -488,7 +542,13 @@ exdyn_summaries_response_only <- function(N, K0, arrival_threshold_frac = 0.02, 
   total_slope_late <- if (is.null(late_fit)) NA_real_ else stats::coef(late_fit)[2]
   total_slope_ratio <- if (!is.na(total_slope_late) && total_slope_late != 0) total_slope_early / total_slope_late else NA_real_
 
-  T_X <- exdyn_extirpation_time(N, K0, frac = arrival_threshold_frac)
+  T_X <- exdyn_extirpation_time(
+    N, K0,
+    frac = arrival_threshold_frac,
+    adaptive = adaptive_threshold,
+    rel0 = arrival_rel0,
+    drop_fraction = arrival_drop_fraction
+  )
   finite_tx <- is.finite(T_X)
   tx_mean <- if (any(finite_tx)) mean(T_X[finite_tx]) else NA_real_
   tx_sd <- if (any(finite_tx)) stats::sd(T_X[finite_tx]) else NA_real_

@@ -4,7 +4,14 @@
 \alias{exdyn_extirpation_time}
 \title{Extirpation time map}
 \usage{
-exdyn_extirpation_time(N, K0, frac = 0.02)
+exdyn_extirpation_time(
+  N,
+  K0,
+  frac = 0.02,
+  adaptive = TRUE,
+  rel0 = 0.5,
+  drop_fraction = NULL
+)
 }
 \description{
 Extirpation time map

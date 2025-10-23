@@ -4,7 +4,16 @@
 \alias{exdyn_summaries}
 \title{Discriminative summaries for a run}
 \usage{
-exdyn_summaries(N, fields, K0, arrival_threshold_frac = 0.02, occ_thresh = 1)
+exdyn_summaries(
+  N,
+  fields,
+  K0,
+  arrival_threshold_frac = 0.02,
+  arrival_rel0 = 0.5,
+  arrival_drop_fraction = 0.5,
+  adaptive_threshold = TRUE,
+  occ_thresh = 1
+)
 }
 \description{
 Discriminative summaries for a run

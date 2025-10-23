@@ -1,4 +1,4 @@
-.PHONY: init test run report report-leak exp report-id report-sens
+.PHONY: init test run report report-leak report-qa exp report-id report-sens
 
 init:
 	R --vanilla -e 'renv::restore(); devtools::document(); renv::snapshot(prompt=FALSE)'
@@ -20,6 +20,9 @@ report-id:
 
 report-leak:
 	R --vanilla -e 'quarto::quarto_render("reports/leakage_and_ablation.qmd")'
+
+report-qa:
+	R --vanilla -e 'quarto::quarto_render("reports/qa_sanity.qmd")'
 
 report-sens:
 	R --vanilla -e 'quarto::quarto_render("reports/sensitivity.qmd")'

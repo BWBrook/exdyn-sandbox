@@ -8,6 +8,9 @@ exdyn_summaries_response_only(
   N,
   K0,
   arrival_threshold_frac = 0.02,
+  arrival_rel0 = 0.5,
+  arrival_drop_fraction = 0.5,
+  adaptive_threshold = TRUE,
   occ_thresh = 1
 )
 }

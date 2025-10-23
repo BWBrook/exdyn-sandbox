@@ -7,7 +7,8 @@ tar_option_set(
     "viridisLite","rlang",
     "rsample","glmnet"
   ),
-  error = "continue"
+  error = "continue",
+  envir = globalenv()
 )
 
 if (requireNamespace("pkgload", quietly = TRUE)) {
@@ -48,6 +49,184 @@ list(
   tar_target(results_response_only, {
     results %>%
       dplyr::select(exp_id, species, scenario, predation_type, replicate, dplyr::starts_with("resp_"))
+  }),
+  tar_target(qa_summary_table, {
+    results %>%
+      dplyr::transmute(
+        exp_id,
+        species,
+        scenario,
+        predation_type,
+        replicate,
+        po_n,
+        foss_n,
+        arrival_coverage,
+        lag_arrival_mean,
+        initial_below_tau_frac,
+        non_first_passage_frac,
+        monotone_P = qa_monotone_P,
+        monotone_H = qa_monotone_H,
+        po_abund_cor,
+        resp_orient_R,
+        resp_edge_dir_R,
+        resp_speed_r2
+      )
+  }),
+  tar_target(qa_outlier_table, {
+    summary <- qa_summary_table
+    if (!nrow(summary)) return(summary)
+    processed <- summary %>%
+      dplyr::rowwise() %>%
+      dplyr::mutate(
+        .reasons = list({
+          reasons <- character()
+          if (is.finite(arrival_coverage) && arrival_coverage < 0.1) reasons <- c(reasons, "low_coverage")
+          if (is.finite(lag_arrival_mean) && lag_arrival_mean <= 0) reasons <- c(reasons, "non_positive_lag")
+          if (is.finite(monotone_P) && monotone_P < 0.95) reasons <- c(reasons, "predation_non_monotone")
+          if (is.finite(monotone_H) && monotone_H < 0.95) reasons <- c(reasons, "habitat_non_monotone")
+          if (is.finite(initial_below_tau_frac) && initial_below_tau_frac > 0.05) reasons <- c(reasons, "initial_below_tau")
+          if (is.finite(non_first_passage_frac) && non_first_passage_frac > 0.05) reasons <- c(reasons, "non_first_passage")
+          if (is.finite(po_abund_cor) && po_abund_cor < 0.3) reasons <- c(reasons, "po_abundance_weak")
+          reasons
+        }),
+        score = length(.reasons)
+      ) %>%
+      dplyr::ungroup() %>%
+      dplyr::mutate(reason = vapply(.reasons, function(x) {
+        if (!length(x)) "" else paste(x, collapse = ";")
+      }, character(1))) %>%
+      dplyr::select(-.reasons)
+    n_all <- nrow(processed)
+    keep_n <- max(1, ceiling(0.1 * n_all))
+    processed %>%
+      dplyr::filter(score > 0) %>%
+      dplyr::arrange(dplyr::desc(score), arrival_coverage, lag_arrival_mean) %>%
+      dplyr::slice_head(n = keep_n)
+  }),
+  tar_target(qa_metrics_overview, {
+    if (!nrow(results)) return(results)
+    results %>%
+      dplyr::group_by(scenario) %>%
+      dplyr::summarise(
+        median_arrival_coverage = stats::median(arrival_coverage, na.rm = TRUE),
+        iqr_arrival_coverage = stats::IQR(arrival_coverage, na.rm = TRUE),
+        median_lag_arrival = stats::median(lag_arrival_mean, na.rm = TRUE),
+        iqr_lag_arrival = stats::IQR(lag_arrival_mean, na.rm = TRUE),
+        median_r2_arrival = stats::median(r2_arrival, na.rm = TRUE),
+        iqr_r2_arrival = stats::IQR(r2_arrival, na.rm = TRUE),
+        median_resp_orient_R = stats::median(resp_orient_R, na.rm = TRUE),
+        iqr_resp_orient_R = stats::IQR(resp_orient_R, na.rm = TRUE),
+        median_resp_edge_dir_R = stats::median(resp_edge_dir_R, na.rm = TRUE),
+        iqr_resp_edge_dir_R = stats::IQR(resp_edge_dir_R, na.rm = TRUE),
+        median_resp_speed_r2 = stats::median(resp_speed_r2, na.rm = TRUE),
+        iqr_resp_speed_r2 = stats::IQR(resp_speed_r2, na.rm = TRUE),
+        .groups = "drop"
+      )
+  }),
+  tar_target(qa_raster_cases, {
+    pred_runs <- qa_summary_table %>% dplyr::filter(scenario == "predation_front")
+    if (!nrow(pred_runs)) return(tibble::tibble())
+    worst_n <- min(3, nrow(pred_runs))
+    worst_ids <- pred_runs %>%
+      dplyr::arrange(arrival_coverage) %>%
+      dplyr::slice_head(n = worst_n) %>%
+      dplyr::pull(exp_id)
+    best_id <- pred_runs %>%
+      dplyr::arrange(dplyr::desc(arrival_coverage)) %>%
+      dplyr::slice_head(n = 1) %>%
+      dplyr::pull(exp_id)
+    ids <- unique(c(worst_ids, best_id))
+    exp_grid %>% dplyr::filter(exp_id %in% ids)
+  }),
+  tar_target(save_qa_diagnostics, {
+    dir.create(file.path("outputs", "qa"), recursive = TRUE, showWarnings = FALSE)
+    palette_fn <- grDevices::colorRampPalette(c("#f7fbff", "#c6dbef", "#6baed6", "#08306b"))
+    files <- character()
+    # Distribution plots
+    lag_path <- file.path("outputs", "qa", "lag_hist_by_scenario.png")
+    lag_data <- qa_summary_table %>% dplyr::filter(is.finite(lag_arrival_mean))
+    lag_plot <- ggplot2::ggplot(lag_data, ggplot2::aes(x = lag_arrival_mean, fill = scenario)) +
+      ggplot2::geom_histogram(position = "identity", alpha = 0.6, bins = 30, colour = NA) +
+      ggplot2::geom_vline(xintercept = 0, linetype = "dashed", colour = "grey40") +
+      ggplot2::scale_fill_brewer(palette = "Set1") +
+      ggplot2::labs(title = "Lag distribution by scenario", x = "Mean lag (years)", y = "Count") +
+      ggplot2::theme_minimal(base_size = 12)
+    ggplot2::ggsave(lag_path, lag_plot, width = 6.5, height = 4.5, dpi = 130)
+    files <- c(files, lag_path)
+
+    coverage_path <- file.path("outputs", "qa", "coverage_hist_by_scenario.png")
+    coverage_data <- qa_summary_table %>% dplyr::filter(is.finite(arrival_coverage))
+    coverage_plot <- ggplot2::ggplot(coverage_data, ggplot2::aes(x = arrival_coverage, fill = scenario)) +
+      ggplot2::geom_histogram(position = "identity", alpha = 0.6, bins = 30, colour = NA) +
+      ggplot2::scale_fill_brewer(palette = "Dark2") +
+      ggplot2::labs(title = "Arrival coverage distribution", x = "Coverage", y = "Count") +
+      ggplot2::theme_minimal(base_size = 12)
+    ggplot2::ggsave(coverage_path, coverage_plot, width = 6.5, height = 4.5, dpi = 130)
+    files <- c(files, coverage_path)
+
+    po_path <- file.path("outputs", "qa", "po_vs_total_scatter.png")
+    po_plot <- ggplot2::ggplot(results, ggplot2::aes(x = resp_total_final, y = po_n, colour = scenario)) +
+      ggplot2::geom_point(alpha = 0.7) +
+      ggplot2::scale_colour_brewer(palette = "Set2") +
+      ggplot2::labs(
+        title = "Presence-only counts vs final total abundance",
+        x = "Total abundance (final year)",
+        y = "Presence-only count"
+      ) +
+      ggplot2::theme_minimal(base_size = 12)
+    ggplot2::ggsave(po_path, po_plot, width = 6.5, height = 4.5, dpi = 130)
+    files <- c(files, po_path)
+
+    save_surface <- function(mat, file, main) {
+      if (is.null(mat) || all(!is.finite(mat))) return(NULL)
+      grDevices::png(file, width = 600, height = 600)
+      on.exit(grDevices::dev.off(), add = TRUE)
+      pal <- palette_fn(80)
+      image(
+        x = seq_len(nrow(mat)), y = seq_len(ncol(mat)),
+        z = t(mat)[, nrow(mat):1],
+        col = pal, axes = FALSE, xlab = "", ylab = ""
+      )
+      box()
+      title(main)
+      invisible(file)
+    }
+    save_abundance <- function(arr, t_index, file, main) {
+      if (length(t_index) != 1 || t_index < 1 || t_index > dim(arr)[3]) return(NULL)
+      mat <- arr[, , t_index]
+      grDevices::png(file, width = 600, height = 600)
+      on.exit(grDevices::dev.off(), add = TRUE)
+      pal <- palette_fn(80)
+      image(
+        x = seq_len(nrow(mat)), y = seq_len(ncol(mat)),
+        z = t(log1p(mat))[, nrow(mat):1],
+        col = pal, axes = FALSE, xlab = "", ylab = ""
+      )
+      box()
+      title(main)
+      invisible(file)
+    }
+    if (nrow(qa_raster_cases)) {
+      for (idx in seq_len(nrow(qa_raster_cases))) {
+        row <- qa_raster_cases[idx, , drop = FALSE]
+        core <- exdyn_run_core(row)
+        exp_id <- row$exp_id[[1]]
+        prefix <- file.path("outputs", "qa", paste0("rasters_", exp_id))
+        tp_file <- paste0(prefix, "_TP.png")
+        tx_file <- paste0(prefix, "_TX.png")
+        created_tp <- save_surface(core$fields$T_P, tp_file, sprintf("Predator arrival (T_P) – %s", exp_id))
+        created_tx <- save_surface(core$T_X, tx_file, sprintf("Extirpation time (T_X) – %s", exp_id))
+        files <- c(files, created_tp, created_tx)
+        yrs <- dim(core$N)[3]
+        time_points <- unique(round(seq(1, yrs, length.out = 3)))
+        for (tpt in time_points) {
+          n_file <- paste0(prefix, "_N_t", sprintf("%03d", tpt), ".png")
+          created_n <- save_abundance(core$N, tpt, n_file, sprintf("log(N+1) at t=%d – %s", tpt, exp_id))
+          files <- c(files, created_n)
+        }
+      }
+    }
+    files[!is.na(files)]
   }),
   tar_target(feature_sets, exdyn_feature_sets(results)),
   tar_target(clf_driver_aware, exdyn_fit_and_eval(results, feature_sets$driver_aware)),
@@ -231,23 +410,27 @@ list(
     files[!vapply(files, is.null, logical(1))]
   }),
   tar_target(design_table, {
-    joined <- sweep_predictions %>%
-      dplyr::left_join(sweep_results %>% dplyr::select(exp_id, dispersal_mean_km,
-        pred_speed, effort_strength, allee_A_over_K, nx, ny, years), by = "exp_id") %>%
-      dplyr::mutate(correct = as.integer(truth == estimate))
-    binary_f1 <- function(df, target_scenario) {
-      if (length(target_scenario) != 1) target_scenario <- target_scenario[1]
-      target_scenario <- as.character(target_scenario)
-      if (nrow(df) < 5) return(NA_real_)
-      truth <- factor(ifelse(df$truth == target_scenario, target_scenario, "other"), levels = c(target_scenario, "other"))
-      est <- factor(ifelse(df$estimate == target_scenario, target_scenario, "other"), levels = c(target_scenario, "other"))
-      conf <- table(truth, est)
-      tp <- conf[target_scenario, target_scenario]
-      precision <- tp / pmax(1, sum(conf[, target_scenario]))
-      recall <- tp / pmax(1, sum(conf[target_scenario, ]))
-      if (precision + recall == 0) return(NA_real_)
-      2 * precision * recall / (precision + recall)
-    }
+    all_levels <- levels(factor(sweep_predictions$truth))
+    per_run <- sweep_predictions %>%
+      dplyr::group_by(exp_id) %>%
+      dplyr::summarise(
+        species = dplyr::first(species),
+        scenario = dplyr::first(scenario),
+        presence_rate = dplyr::first(presence_rate),
+        alpha = dplyr::first(alpha),
+        macro_f1 = yardstick::f_meas_vec(
+          factor(truth, levels = all_levels),
+          factor(estimate, levels = all_levels),
+          estimator = "macro"
+        ),
+        .groups = "drop"
+      ) %>%
+      dplyr::left_join(
+        sweep_results %>%
+          dplyr::select(exp_id, nx, ny, years, dispersal_mean_km, pred_speed,
+            effort_strength, allee_A_over_K),
+        by = "exp_id"
+      )
     range_fmt <- function(x) {
       x <- x[is.finite(x)]
       if (!length(x)) return(NA_character_)
@@ -263,20 +446,21 @@ list(
       if (!length(x)) return(NA_real_)
       max(x)
     }
-    summarised <- joined %>%
+    summarised <- per_run %>%
       dplyr::group_by(scenario, species) %>%
       dplyr::summarise(
         nx = stats::median(nx, na.rm = TRUE),
         ny = stats::median(ny, na.rm = TRUE),
         years = stats::median(years, na.rm = TRUE),
-        alpha_range = range_fmt(alpha[correct == 1]),
-        mean_km_range = range_fmt(dispersal_mean_km[correct == 1]),
-        speed_cells_per_year_range = range_fmt(pred_speed[correct == 1]),
-        presence_only_rate_min = safe_min(presence_rate[correct == 1]),
-        effort_strength_max = safe_max(effort_strength[correct == 1]),
-        A_over_K_max = safe_max(allee_A_over_K[correct == 1]),
-        macro_F1_median = binary_f1(dplyr::pick(dplyr::everything()), dplyr::cur_group()$scenario),
-        macro_F1_p10 = stats::quantile(correct, probs = 0.1, na.rm = TRUE),
+        alpha_range = range_fmt(alpha[macro_f1 >= 0.8]),
+        mean_km_range = range_fmt(dispersal_mean_km[macro_f1 >= 0.8]),
+        speed_cells_per_year_range = range_fmt(pred_speed[macro_f1 >= 0.8]),
+        presence_only_rate_min = safe_min(presence_rate[macro_f1 >= 0.8]),
+        effort_strength_max = safe_max(effort_strength[macro_f1 >= 0.8]),
+        A_over_K_max = safe_max(allee_A_over_K[macro_f1 >= 0.8]),
+        macro_F1_median = stats::median(macro_f1, na.rm = TRUE),
+        macro_F1_p10 = stats::quantile(macro_f1, probs = 0.1, na.rm = TRUE, names = FALSE),
+        prop_macro_F1_ge_0_8 = mean(macro_f1 >= 0.8, na.rm = TRUE),
         .groups = "drop"
       )
     data.table::fwrite(summarised, "outputs/design_table.csv")
@@ -417,6 +601,9 @@ list(
     unlink(file.path("outputs", stale), recursive = FALSE, force = TRUE)
     data.table::fwrite(results, "outputs/experiment_results.csv")
     data.table::fwrite(results_response_only, "outputs/experiment_results_response_only.csv")
+    data.table::fwrite(qa_summary_table, "outputs/qa_run_summary.csv")
+    data.table::fwrite(qa_outlier_table, "outputs/qa_outliers.csv")
+    data.table::fwrite(qa_metrics_overview, "outputs/metrics_overview.csv")
     data.table::fwrite(conf_driver_aware$confusion, "outputs/confusion_driver_aware.csv")
     data.table::fwrite(conf_driver_aware$per_class, "outputs/confusion_driver_aware_per_class.csv")
     data.table::fwrite(conf_driver_aware$overall, "outputs/confusion_driver_aware_overall.csv")

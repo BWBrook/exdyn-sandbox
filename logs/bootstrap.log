@@ -98,3 +98,17 @@
 2025-10-23T17:20:24+11:00 make report-id success
 2025-10-23T17:25:48+11:00 tar_invalidate exp_grid + tar_make + report-id
 2025-10-23T17:27:17+11:00 devtools::test() re-run post-exp_grid
+2025-10-23T20:52:57+11:00 devtools::test(filter="tx_first_passage")
+2025-10-23T20:57:19+11:00 devtools::test(filter="qc")
+2025-10-23T21:05:15+11:00 devtools::test() full suite
+2025-10-23T21:05:21+11:00 devtools::document()
+2025-10-23T21:05:26+11:00 tar_invalidate QA targets
+2025-10-23T21:13:17+11:00 tar_make (full refresh)
+2025-10-23T21:13:59+11:00 make report-qa
+2025-10-23T21:15:23+11:00 make report-qa (rerun)
+2025-10-23T21:37:31+11:00 tar_make post-drop-fraction
+2025-10-23T21:37:57+11:00 make report-qa (post update)
+2025-10-23T21:39:12+11:00 devtools::document()
+2025-10-23T21:39:23+11:00 devtools::test() full suite
+2025-10-23T21:39:36+11:00 tar_invalidate + tar_make refresh metrics
+2025-10-23T21:54:53+11:00 git add + commit prep

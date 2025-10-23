@@ -110,7 +110,12 @@ exdyn_make_fields_param <- function(nx, ny, years, pars, scenario, seeds) {
 
 #' Run a single experiment row
 #' @export
-exdyn_run_core <- function(row, arrival_threshold_frac = 0.02) {
+exdyn_run_core <- function(
+    row,
+    arrival_threshold_frac = 0.02,
+    arrival_rel0 = 0.5,
+    arrival_drop_fraction = 0.5,
+    adaptive_threshold = TRUE) {
   stopifnot(is.list(row))
   params <- row$params[[1]]
   set.seed(row$seed[[1]])
@@ -154,8 +159,37 @@ exdyn_run_core <- function(row, arrival_threshold_frac = 0.02) {
     n_sites = row$fossil_sites[[1]],
     date_sd = row$fossil_sd[[1]]
   )
-  summs_driver <- exdyn_summaries(N, fields, K0 = row$cell_k[[1]])
-  summs_resp <- exdyn_summaries_response_only(N, row$cell_k[[1]], arrival_threshold_frac)
+  T_X <- exdyn_extirpation_time(
+    N, row$cell_k[[1]],
+    frac = arrival_threshold_frac,
+    adaptive = adaptive_threshold,
+    rel0 = arrival_rel0,
+    drop_fraction = arrival_drop_fraction
+  )
+  qc_monotone_P <- exdyn_qc_monotone_P(fields)
+  qc_monotone_H <- exdyn_qc_monotone_H(fields)
+  qc_extirp <- exdyn_qc_early_extirpation(
+    N, row$cell_k[[1]],
+    frac = arrival_threshold_frac,
+    adaptive = adaptive_threshold,
+    rel0 = arrival_rel0,
+    drop_fraction = arrival_drop_fraction
+  )
+  qc_po <- exdyn_qc_po_sanity(N, po)
+  summs_driver <- exdyn_summaries(
+    N, fields, K0 = row$cell_k[[1]],
+    arrival_threshold_frac = arrival_threshold_frac,
+    arrival_rel0 = arrival_rel0,
+    arrival_drop_fraction = arrival_drop_fraction,
+    adaptive_threshold = adaptive_threshold
+  )
+  summs_resp <- exdyn_summaries_response_only(
+    N, row$cell_k[[1]],
+    arrival_threshold_frac = arrival_threshold_frac,
+    arrival_rel0 = arrival_rel0,
+    arrival_drop_fraction = arrival_drop_fraction,
+    adaptive_threshold = adaptive_threshold
+  )
   summs <- dplyr::bind_cols(summs_driver, summs_resp)
   summs <- tibble::add_column(
     summs,
@@ -185,12 +219,20 @@ exdyn_run_core <- function(row, arrival_threshold_frac = 0.02) {
     foss_n = nrow(foss),
     .before = 1
   )
+  summs <- dplyr::mutate(
+    summs,
+    qa_monotone_P = qc_monotone_P,
+    qa_monotone_H = qc_monotone_H,
+    initial_below_tau_frac = qc_extirp$initial_below_frac,
+    non_first_passage_frac = qc_extirp$non_first_passage_frac,
+    po_abund_cor = qc_po$correlation
+  )
   list(
     summary = summs,
     summary_response = summs_resp,
     fields = fields,
     N = N,
-    T_X = exdyn_extirpation_time(N, row$cell_k[[1]], frac = arrival_threshold_frac),
+    T_X = T_X,
     po = po,
     foss = foss
   )

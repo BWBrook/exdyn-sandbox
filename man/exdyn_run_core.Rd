@@ -4,7 +4,13 @@
 \alias{exdyn_run_core}
 \title{Run a single experiment row}
 \usage{
-exdyn_run_core(row, arrival_threshold_frac = 0.02)
+exdyn_run_core(
+  row,
+  arrival_threshold_frac = 0.02,
+  arrival_rel0 = 0.5,
+  arrival_drop_fraction = 0.5,
+  adaptive_threshold = TRUE
+)
 }
 \description{
 Run a single experiment row

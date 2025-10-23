@@ -1,0 +1,103 @@
+---
+title: "QA Sanity Checks"
+format:
+  html:
+    toc: true
+    number-sections: false
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(targets)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+tar_load(
+  c(qa_summary_table, qa_outlier_table, qa_metrics_overview, results),
+  store = file.path("..", "_targets")
+)
+```
+
+## Invariants Snapshot
+
+```{r}
+qc_overview <- qa_metrics_overview %>%
+  tidyr::pivot_longer(-scenario, names_to = "metric", values_to = "value") %>%
+  tidyr::separate(metric, into = c("stat", "metric"), sep = "_", extra = "merge") %>%
+  tidyr::pivot_wider(names_from = stat, values_from = value)
+qc_overview
+```
+
+## Lag vs Coverage
+
+```{r}
+ggplot(qa_summary_table, aes(x = arrival_coverage, y = lag_arrival_mean, color = scenario)) +
+  geom_point(alpha = 0.7) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    x = "Arrival coverage",
+    y = "Mean lag (T_X - T_P)",
+    title = "Lag vs coverage by scenario"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+## Presence-only Sanity
+
+```{r}
+ggplot(qa_summary_table, aes(x = arrival_coverage, y = po_abund_cor, color = scenario)) +
+  geom_point(alpha = 0.7) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(
+    x = "Arrival coverage",
+    y = "PO vs abundance correlation",
+    title = "Presence-only vs abundance correlation"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+## Response-only Edge Metrics
+
+```{r}
+qa_summary_table %>%
+  tidyr::pivot_longer(
+    cols = c(resp_orient_R, resp_edge_dir_R, resp_speed_r2),
+    names_to = "metric", values_to = "value"
+  ) %>%
+  ggplot(aes(x = scenario, y = value, fill = scenario)) +
+  geom_boxplot(alpha = 0.6) +
+  facet_wrap(~ metric, scales = "free_y") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Response-only edge/orientation metrics by scenario", x = NULL, y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+## Outlier Runs
+
+```{r}
+qa_outlier_table %>%
+  dplyr::mutate(reason = ifelse(reason == "", "(none recorded)", reason))
+```
+
+## Diagnostic Rasters
+
+```{r}
+diag_dir <- file.path("outputs", "qa")
+diag_imgs <- if (dir.exists(diag_dir)) {
+  list.files(diag_dir, pattern = "rasters_.*\\.png$", full.names = TRUE)
+} else {
+  character(0)
+}
+if (length(diag_imgs)) {
+  for (img in diag_imgs) {
+    cat("![](", img, ")\n\n", sep = "")
+  }
+} else {
+  cat("Diagnostics not yet generated. Run the QA targets to populate `outputs/qa/`.\n")
+}
+```

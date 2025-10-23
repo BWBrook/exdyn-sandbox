@@ -46,6 +46,9 @@ test_that("response-only feature set avoids leakage", {
   results <- dplyr::bind_rows(runs)
   feature_sets <- exdyn_feature_sets(results)
   expect_gt(length(feature_sets$response_only), 0)
+  expect_true(all(c(
+    "resp_edge_speed_mean", "resp_edge_dir_R", "resp_orient_R", "resp_speed_r2"
+  ) %in% feature_sets$response_only))
   expect_false(any(grepl("(P|H|arrival|xcorr_)", feature_sets$response_only)))
   expect_true(any(grepl("(P|H|arrival|xcorr_)", feature_sets$driver_aware)))
 })
