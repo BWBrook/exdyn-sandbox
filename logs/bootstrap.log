@@ -112,3 +112,5 @@
 2025-10-23T21:39:23+11:00 devtools::test() full suite
 2025-10-23T21:39:36+11:00 tar_invalidate + tar_make refresh metrics
 2025-10-23T21:54:53+11:00 git add + commit prep
+2025-10-23T21:55:50+11:00 git commit fix first-passage QA
+2025-10-23T21:56:05+11:00 git push origin main
