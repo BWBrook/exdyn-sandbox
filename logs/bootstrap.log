@@ -1,0 +1,47 @@
+2025-10-23T15:37:36+11:00 mkdir -p logs
+2025-10-23T15:37:47+11:00 git init
+2025-10-23T15:37:52+11:00 write README.md
+2025-10-23T15:46:08+11:00 R setup renv and packages
+2025-10-23T15:46:15+11:00 write .gitignore
+2025-10-23T15:46:29+11:00 ERROR usethis::create_package invalid name
+2025-10-23T15:47:01+11:00 ERROR usethis::use_package matrixStats missing
+2025-10-23T15:47:57+11:00 renv::install project deps
+2025-10-23T15:48:14+11:00 usethis scaffolding updated
+2025-10-23T15:48:22+11:00 mkdir scaffolding dirs
+2025-10-23T15:48:32+11:00 write config/default.yaml
+2025-10-23T15:48:42+11:00 update DESCRIPTION package name
+2025-10-23T15:48:52+11:00 write R/params.R
+2025-10-23T15:49:04+11:00 write R/fields.R
+2025-10-23T15:49:15+11:00 write R/conv2.R
+2025-10-23T15:49:26+11:00 write R/simulate.R
+2025-10-23T15:49:36+11:00 write R/observe.R
+2025-10-23T15:49:47+11:00 write R/summaries.R
+2025-10-23T15:49:56+11:00 write R/utils.R
+2025-10-23T15:50:14+11:00 write _targets.R
+2025-10-23T15:50:30+11:00 write tests/testthat/test_sim.R
+2025-10-23T15:50:40+11:00 write reports/sandbox.qmd
+2025-10-23T15:51:11+11:00 devtools::document and renv::snapshot
+2025-10-23T15:51:23+11:00 write Makefile
+2025-10-23T15:52:08+11:00 adjust R/utils.R config path fallback
+2025-10-23T15:52:32+11:00 extend config path search
+2025-10-23T15:53:03+11:00 fix pars beta_H assignment
+2025-10-23T15:53:14+11:00 devtools::test pass
+2025-10-23T15:53:56+11:00 update _targets.R to pkgload::load_all
+2025-10-23T15:54:17+11:00 fix exdyn_summaries total calc
+2025-10-23T15:54:39+11:00 targets::tar_make success
+2025-10-23T15:55:15+11:00 adjust reports/sandbox.qmd loading
+2025-10-23T15:55:45+11:00 replace tar_load_many with tar_load
+2025-10-23T15:56:24+11:00 set tar store path in report
+2025-10-23T15:56:43+11:00 quarto::quarto_render reports/sandbox.qmd
+2025-10-23T15:56:59+11:00 renv::snapshot refresh
+2025-10-23T15:57:20+11:00 inspect outputs directory
+2025-10-23T15:57:30+11:00 inspect reports output
+2025-10-23T15:57:46+11:00 git status
+2025-10-23T15:58:16+11:00 check git ignore for .Rprofile
+2025-10-23T15:58:28+11:00 collect artifact sizes
+2025-10-23T15:58:42+11:00 git add -A
+2025-10-23T15:58:54+11:00 git add -f .Rprofile
+2025-10-23T15:59:05+11:00 git commit initial bootstrap
+2025-10-23T15:59:38+11:00 git add logs/bootstrap.log
+2025-10-23T16:00:03+11:00 restaging logs/bootstrap.log after update
+2025-10-23T16:01:10+11:00 git commit --amend --no-edit

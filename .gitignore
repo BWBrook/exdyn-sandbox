@@ -1,0 +1,13 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.DS_Store
+.Rbuildignore
+renv/staging/
+.packrat/
+.Rproj
+.quarto/
+reports/_freeze/
+outputs/
+reports/

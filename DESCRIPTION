@@ -1,0 +1,22 @@
+Package: exdyn.sandbox
+Title: Synthetic Sandbox for Extinction Dynamics
+Version: 0.0.0.9000
+Authors@R: 
+    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
+Description: Process-explicit simulator, observation models, and
+    summaries.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Language: en
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Imports: 
+    data.table,
+    ggplot2,
+    matrixStats,
+    tarchetypes,
+    targets,
+    yaml

@@ -1,0 +1,23 @@
+seed: 42
+nx: 50
+ny: 50
+years: 150
+cell_k: 100.0
+cellsize_km: 25
+species: "B"        # A, B, or C archetype
+threat_scenario: "predation_front"  # predation_front | habitat_erosion | none
+obs:
+  presence_only_rate: 0.002
+  fossil_sites: 40
+  fossil_date_sd_y: 30
+dispersal:
+  alpha: 0.20
+  mean_km: 10
+predation:
+  type: "II"        # II or III
+  c: 0.6
+  h: 30.0
+habitat:
+  beta: 0.5
+  ramp_start: 40
+  ramp_end: 100
