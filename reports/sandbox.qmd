@@ -1,0 +1,35 @@
+---
+title: "ExDyn Sandbox: First Run"
+format: html
+execute:
+  echo: false
+---
+
+```{r}
+if (!requireNamespace("exdyn.sandbox", quietly = TRUE)) {
+  if (requireNamespace("pkgload", quietly = TRUE)) {
+    pkgload::load_all(export_all = FALSE, helpers = FALSE, attach_testthat = FALSE)
+  } else {
+    stop("exdyn.sandbox package is not available and pkgload is missing.")
+  }
+} else {
+  library(exdyn.sandbox)
+}
+library(targets)
+store_path <- if (dir.exists("../_targets")) "../_targets" else "_targets"
+tar_load(c(default_N, default_po, default_foss, default_summs, cfg), store = store_path)
+total <- apply(default_N, 3, sum)
+```
+
+## Total abundance through time
+
+```{r}
+plot(total, type="l", xlab="Year", ylab="Total abundance")
+```
+
+## Presence-only vs fossil samples (counts)
+
+```{r}
+table(default_po$t)[1:10]
+nrow(default_foss)
+```

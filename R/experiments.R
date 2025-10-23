@@ -98,7 +98,7 @@ exdyn_make_fields_param <- function(nx, ny, years, pars, scenario, seeds) {
 
 #' Run a single experiment row
 #' @export
-exdyn_run_once <- function(row) {
+exdyn_run_core <- function(row, arrival_threshold_frac = 0.02) {
   stopifnot(is.list(row))
   params <- row$params[[1]]
   set.seed(row$seed[[1]])
@@ -139,7 +139,7 @@ exdyn_run_once <- function(row) {
     n_sites = row$fossil_sites[[1]],
     date_sd = row$fossil_sd[[1]]
   )
-  summs <- exdyn_summaries(N, fields)
+  summs <- exdyn_summaries(N, fields, K0 = row$cell_k[[1]])
   summs <- tibble::add_column(
     summs,
     exp_id = row$exp_id[[1]],
@@ -151,5 +151,18 @@ exdyn_run_once <- function(row) {
     foss_n = nrow(foss),
     .before = 1
   )
-  summs
+  list(
+    summary = summs,
+    fields = fields,
+    N = N,
+    T_X = exdyn_extirpation_times(N, row$cell_k[[1]] * arrival_threshold_frac),
+    po = po,
+    foss = foss
+  )
+}
+
+#' Run a single experiment row (summary only)
+#' @export
+exdyn_run_once <- function(row) {
+  exdyn_run_core(row)$summary
 }

@@ -8,7 +8,6 @@ exdyn_occupancy <- function(N, thresh = 1) {
 #' @keywords internal
 exdyn_centroid <- function(occ) {
   nx <- dim(occ)[1]; ny <- dim(occ)[2]; years <- dim(occ)[3]
-  coords <- expand.grid(x = seq_len(nx), y = seq_len(ny))
   res <- matrix(NA_real_, nrow = years, ncol = 2, dimnames = list(NULL, c("cx","cy")))
   for (t in seq_len(years)) {
     mask <- occ[,,t]
@@ -22,7 +21,7 @@ exdyn_centroid <- function(occ) {
 #' Convex hull area trajectory
 #' @keywords internal
 exdyn_hull_area <- function(occ) {
-  nx <- dim(occ)[1]; ny <- dim(occ)[2]; years <- dim(occ)[3]
+  years <- dim(occ)[3]
   areas <- rep(NA_real_, years)
   for (t in seq_len(years)) {
     mask <- occ[,,t]
@@ -31,8 +30,7 @@ exdyn_hull_area <- function(occ) {
     hull_idx <- grDevices::chull(coords[,1], coords[,2])
     hull <- coords[hull_idx, , drop = FALSE]
     x <- hull[,1]; y <- hull[,2]
-    area <- 0.5 * abs(sum(x * c(y[-1], y[1])) - sum(y * c(x[-1], x[1])))
-    areas[t] <- area
+    areas[t] <- 0.5 * abs(sum(x * c(y[-1], y[1])) - sum(y * c(x[-1], x[1])))
   }
   areas
 }
@@ -73,7 +71,6 @@ exdyn_perimeter_ratio <- function(occ) {
 exdyn_moran_range <- function(occ) {
   nx <- dim(occ)[1]; ny <- dim(occ)[2]; years <- dim(occ)[3]
   n <- nx * ny
-  # Build rook adjacency weights
   idx_matrix <- matrix(seq_len(n), nrow = nx, ncol = ny)
   neighbors <- vector("list", n)
   weights <- vector("list", n)
@@ -137,41 +134,123 @@ exdyn_xcorr <- function(series, driver, max_lag = 10) {
   list(corr = best_corr, lag = best_lag)
 }
 
+#' Extirpation time map
+#' @keywords internal
+exdyn_extirpation_times <- function(N, threshold) {
+  apply(N, c(1, 2), function(ts) {
+    idx <- which(ts <= threshold)
+    if (length(idx)) idx[1] else NA_real_
+  })
+}
+
+#' Plane fit diagnostics
+#' @keywords internal
+exdyn_plane_metrics <- function(T_X) {
+  idx <- which(!is.na(T_X), arr.ind = TRUE)
+  if (nrow(idx) < 3) {
+    return(list(grad_mag = NA_real_, r2_plane = NA_real_, pc_ratio = NA_real_))
+  }
+  vals <- T_X[idx]
+  df <- data.frame(t = vals, x = idx[,1], y = idx[,2])
+  fit <- stats::lm(t ~ x + y, data = df)
+  coefs <- stats::coef(fit)
+  grad_mag <- sqrt(coefs["x"]^2 + coefs["y"]^2)
+  r2_plane <- summary(fit)$r.squared
+  weights <- vals - min(vals) + 1
+  covmat <- tryCatch(stats::cov.wt(df[,c("x","y")], wt = weights, method = "ML")$cov,
+                     error = function(...) NA)
+  pc_ratio <- NA_real_
+  if (all(is.finite(covmat))) {
+    eig <- eigen(covmat, symmetric = TRUE, only.values = TRUE)$values
+    eig <- sort(eig, decreasing = TRUE)
+    if (length(eig) >= 2 && eig[2] > 0) {
+      pc_ratio <- eig[1] / eig[2]
+    }
+  }
+  list(grad_mag = grad_mag, r2_plane = r2_plane, pc_ratio = pc_ratio)
+}
+
+#' Centroid path diagnostics
+#' @keywords internal
+exdyn_centroid_metrics <- function(centroid) {
+  valid <- which(rowSums(is.na(centroid)) == 0)
+  if (length(valid) < 2) {
+    return(list(disp_per_year = NA_real_, r2_centroid_line = NA_real_))
+  }
+  cx <- centroid[valid,1]
+  cy <- centroid[valid,2]
+  t_valid <- valid
+  diffs <- sqrt(diff(cx)^2 + diff(cy)^2)
+  disp_per_year <- mean(diffs, na.rm = TRUE)
+  lm_x <- stats::lm(cx ~ t_valid)
+  lm_y <- stats::lm(cy ~ t_valid)
+  r2_x <- summary(lm_x)$r.squared
+  r2_y <- summary(lm_y)$r.squared
+  r2_centroid_line <- mean(c(r2_x, r2_y), na.rm = TRUE)
+  list(disp_per_year = disp_per_year, r2_centroid_line = r2_centroid_line)
+}
+
 #' Discriminative summaries for a run
 #' @export
-exdyn_summaries <- function(N, fields, thresh = 1) {
+exdyn_summaries <- function(N, fields, K0, arrival_threshold_frac = 0.02, occ_thresh = 1) {
   yrs <- dim(N)[3]
   total <- apply(N, 3, sum)
   t <- seq_len(yrs)
   fit <- stats::lm(total ~ stats::poly(t, 2, raw = TRUE))
   convexity <- stats::coef(fit)[3]
-  occ <- exdyn_occupancy(N, thresh = thresh)
+
+  occ <- exdyn_occupancy(N, thresh = occ_thresh)
   centroid <- exdyn_centroid(occ)
-  centroid_shift <- NA_real_
-  if (!any(is.na(centroid[c(1, yrs), ]))) {
-    centroid_shift <- sqrt(sum((centroid[yrs,] - centroid[1,])^2))
-  }
+  centroid_shift <- if (any(is.na(centroid[c(1, yrs), ]))) NA_real_ else 
+    sqrt(sum((centroid[yrs,] - centroid[1,])^2))
+  centroid_diag <- exdyn_centroid_metrics(centroid)
+
   hull <- exdyn_hull_area(occ)
   range_area <- exdyn_range_area(occ)
   perim_ratio <- exdyn_perimeter_ratio(occ)
   moran <- exdyn_moran_range(occ)
+
   mean_P <- apply(fields$P, 3, mean)
   mean_H <- apply(fields$H, 3, mean)
   xcorr_P_vals <- exdyn_xcorr(total, mean_P, max_lag = 10)
   xcorr_H_vals <- exdyn_xcorr(total, mean_H, max_lag = 10)
-  xcorr_P_corr <- xcorr_P_vals$corr
-  xcorr_P_lag <- xcorr_P_vals$lag
-  xcorr_H_corr <- xcorr_H_vals$corr
-  xcorr_H_lag <- xcorr_H_vals$lag
-  if (is.null(xcorr_P_corr)) xcorr_P_corr <- NA_real_
-  if (is.null(xcorr_P_lag)) xcorr_P_lag <- NA_integer_
-  if (is.null(xcorr_H_corr)) xcorr_H_corr <- NA_real_
-  if (is.null(xcorr_H_lag)) xcorr_H_lag <- NA_integer_
+
+  threshold <- K0 * arrival_threshold_frac
+  T_X <- exdyn_extirpation_times(N, threshold)
+  T_P <- fields$T_P
+  arrival_mask <- !is.null(T_P)
+
+  r_arrival_pearson <- r_arrival_spearman <- r2_arrival <- lag_arrival_mean <- NA_real_
+  r2_dist <- NA_real_
+  dist_map <- fields$D
+
+  if (arrival_mask) {
+    valid <- !is.na(T_X) & !is.na(T_P)
+    if (any(valid)) {
+      tx <- T_X[valid]
+      tp <- T_P[valid]
+      r_arrival_pearson <- suppressWarnings(stats::cor(tx, tp, method = "pearson"))
+      r_arrival_spearman <- suppressWarnings(stats::cor(tx, tp, method = "spearman"))
+      model <- stats::lm(tx ~ tp)
+      r2_arrival <- summary(model)$r.squared
+      lag_arrival_mean <- mean(tx - tp, na.rm = TRUE)
+      if (!is.null(dist_map)) {
+        dist_vals <- dist_map[valid]
+        dist_model <- stats::lm(tx ~ dist_vals)
+        r2_dist <- summary(dist_model)$r.squared
+      }
+    }
+  }
+
+  plane_metrics <- exdyn_plane_metrics(T_X)
+
   tibble::tibble(
     convexity = convexity,
     centroid_shift = centroid_shift,
     centroid_cx_final = centroid[yrs,1],
     centroid_cy_final = centroid[yrs,2],
+    centroid_disp_per_year = centroid_diag$disp_per_year,
+    r2_centroid_line = centroid_diag$r2_centroid_line,
     hull_area_mean = mean(hull, na.rm = TRUE),
     hull_area_final = hull[yrs],
     range_area_mean = mean(range_area, na.rm = TRUE),
@@ -179,9 +258,17 @@ exdyn_summaries <- function(N, fields, thresh = 1) {
     perimeter_ratio_mean = mean(perim_ratio, na.rm = TRUE),
     moran_median = moran$median,
     moran_first_gt_0_3 = moran$first_gt_0_3,
-    xcorr_P = xcorr_P_corr,
-    xcorr_P_lag = xcorr_P_lag,
-    xcorr_H = xcorr_H_corr,
-    xcorr_H_lag = xcorr_H_lag
+    xcorr_P = xcorr_P_vals$corr,
+    xcorr_P_lag = xcorr_P_vals$lag,
+    xcorr_H = xcorr_H_vals$corr,
+    xcorr_H_lag = xcorr_H_vals$lag,
+    r_arrival_pearson = r_arrival_pearson,
+    r_arrival_spearman = r_arrival_spearman,
+    r2_arrival = r2_arrival,
+    lag_arrival_mean = lag_arrival_mean,
+    r2_dist = r2_dist,
+    grad_mag = plane_metrics$grad_mag,
+    r2_plane = plane_metrics$r2_plane,
+    pc_ratio = plane_metrics$pc_ratio
   )
 }

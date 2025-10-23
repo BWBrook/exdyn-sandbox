@@ -16,4 +16,4 @@ exp:
 	R --vanilla -e 'targets::tar_make()'
 
 report-id:
-	R --vanilla -e 'targets::tar_load(c(results,confusion)); quarto::quarto_render("reports/identifiability.qmd")'
+	R --vanilla -e 'targets::tar_load(c(results,confusion_primary,confusion_secondary,feature_importance_primary,primary_model,classifiers,diagnostic_maps,save_diagnostics)); quarto::quarto_render("reports/identifiability.qmd")'

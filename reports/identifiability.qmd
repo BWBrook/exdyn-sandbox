@@ -1,0 +1,174 @@
+---
+title: "ExDyn Sandbox: Identifiability Pilot"
+format: html
+execute:
+  echo: false
+---
+
+## Overview
+
+This pilot evaluates whether the expanded summary metrics isolate extinction drivers across a replicated grid of archetypes, threat scenarios, and observation settings.
+
+```{r}
+if (!requireNamespace("exdyn.sandbox", quietly = TRUE)) {
+  if (requireNamespace("pkgload", quietly = TRUE)) {
+    pkgload::load_all(export_all = FALSE, helpers = FALSE, attach_testthat = FALSE)
+  } else {
+    stop("exdyn.sandbox package is not available and pkgload is missing.")
+  }
+} else {
+  library(exdyn.sandbox)
+}
+library(targets)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+store_path <- if (dir.exists("../_targets")) "../_targets" else "_targets"
+tar_load(c(
+  exp_grid, results,
+  confusion_primary, confusion_secondary,
+  feature_importance_primary, primary_model,
+  classifiers, diagnostic_maps, save_diagnostics,
+  design_guidance
+), store = store_path)
+secondary_model <- if (primary_model == "ranger") "glmnet" else "ranger"
+primary_macro <- if (primary_model == "ranger") classifiers$ranger$macro_f1 else classifiers$glmnet$macro_f1
+secondary_macro <- if (secondary_model == "ranger") classifiers$ranger$macro_f1 else classifiers$glmnet$macro_f1
+```
+
+```{r}
+defaults <- list(
+  nx = exp_grid$nx[[1]],
+  ny = exp_grid$ny[[1]],
+  years = exp_grid$years[[1]],
+  presence = exp_grid$presence_rate[[1]],
+  fossil_sites = exp_grid$fossil_sites[[1]],
+  replicates = exp_grid$replicate[[nrow(exp_grid)]]
+)
+knitr::kable(tibble::tibble(Parameter = names(defaults), Value = unlist(defaults, use.names = FALSE)))
+```
+
+Primary model: **`r primary_model`** (macro F1 = **`r sprintf("%.3f", primary_macro)`**). Secondary model: **`r secondary_model`** (macro F1 = **`r sprintf("%.3f", secondary_macro)`**).
+
+## Front Diagnostics
+
+```{r}
+tp_file <- grep("TP_predation_front", save_diagnostics, value = TRUE)
+tx_file <- grep("TX_predation_front", save_diagnostics, value = TRUE)
+d_file  <- grep("D_predation_front", save_diagnostics, value = TRUE)
+files <- tibble::tibble(
+  label = c("Predation arrival (T_P)", "Extirpation time (T_X)", "Distance to nearest seed (D)"),
+  path = c(tp_file[1], tx_file[1], d_file[1])
+)
+purrr::walk2(files$path, files$label, ~{
+  if (!is.na(.x) && file.exists(.x)) {
+    cat("### ", .y, "\n\n", sep = "")
+    knitr::include_graphics(.x)
+    cat("\n\n")
+  }
+})
+```
+
+## Total Abundance Exemplars
+
+```{r}
+get_series <- function(row) {
+  pars <- row$params[[1]]
+  arche <- exdyn_archetype(row$species[[1]])
+  arche$beta_H <- pars$habitat_beta
+  fields <- exdyn_make_fields_param(
+    nx = row$nx[[1]], ny = row$ny[[1]], years = row$years[[1]],
+    pars = pars, scenario = row$scenario[[1]], seeds = row$pred_seeds[[1]]
+  )
+  N <- exdyn_simulate(
+    nx = row$nx[[1]], ny = row$ny[[1]], years = row$years[[1]], fields = fields,
+    pars = arche, K0 = row$cell_k[[1]], alpha = row$alpha[[1]],
+    disp_mean_cells = pars$dispersal_mean_km / row$cellsize_km[[1]],
+    pred = list(type = row$predation_type[[1]], c = pars$pred_c, h = pars$pred_h)
+  )
+  tibble::tibble(
+    year = seq_len(dim(N)[3]),
+    total = apply(N, 3, sum),
+    scenario = row$scenario[[1]]
+  )
+}
+examples <- exp_grid %>% group_by(scenario) %>% slice_head(n = 1) %>% ungroup()
+series_tbl <- map_dfr(seq_len(nrow(examples)), function(i) get_series(examples[i, ]))
+
+ggplot(series_tbl, aes(x = year, y = total, colour = scenario)) +
+  geom_line(linewidth = 0.8) +
+  labs(x = "Year", y = "Total abundance", colour = "Scenario") +
+  theme_minimal()
+```
+
+## Front-Signature Metrics
+
+```{r}
+front_metrics <- c("r2_arrival", "r2_dist", "grad_mag", "pc_ratio", "lag_arrival_mean")
+metrics_long <- results %>%
+  select(scenario, all_of(front_metrics)) %>%
+  pivot_longer(-scenario, names_to = "metric", values_to = "value")
+
+ggplot(metrics_long, aes(x = scenario, y = value, fill = scenario)) +
+  geom_boxplot(alpha = 0.75, colour = "grey30") +
+  facet_wrap(~ metric, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+```{r}
+centroid_metrics <- results %>%
+  select(scenario, centroid_disp_per_year, r2_centroid_line) %>%
+  pivot_longer(-scenario, names_to = "metric", values_to = "value")
+
+ggplot(centroid_metrics, aes(x = scenario, y = value, fill = scenario)) +
+  geom_boxplot(alpha = 0.75, colour = "grey30") +
+  facet_wrap(~ metric, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+## Scenario Recoverability
+
+```{r}
+plot_confusion <- function(conf, title) {
+  ggplot(conf$confusion, aes(x = estimate, y = truth, fill = n)) +
+    geom_tile(colour = "white") +
+    geom_text(aes(label = n), colour = "black", fontface = "bold") +
+    scale_fill_gradient(low = "#f0f9e8", high = "#0868ac") +
+    labs(x = "Predicted", y = "True", fill = "Count", title = title) +
+    theme_minimal()
+}
+plot_confusion(confusion_primary, paste0("Primary (", primary_model, ")"))
+plot_confusion(confusion_secondary, paste0("Secondary (", secondary_model, ")"))
+```
+
+```{r}
+knitr::kable(confusion_primary$per_class, caption = "Primary model: per-class precision/recall")
+```
+
+```{r}
+knitr::kable(confusion_secondary$per_class, caption = "Secondary model: per-class precision/recall")
+```
+
+```{r}
+knitr::kable(confusion_primary$overall, caption = "Primary model accuracy")
+```
+
+## Variable Importance & Design Guidance
+
+```{r}
+top_feats <- feature_importance_primary %>% slice_head(n = 8)
+knitr::kable(top_feats, caption = "Top metrics by primary-model importance")
+```
+
+```{r}
+if (file.exists("outputs/design_guidance.txt")) {
+  cat(paste(readLines("outputs/design_guidance.txt"), collapse = "<br>"))
+} else {
+  cat("Design guidance file not available. Run the pipeline to regenerate recommendations.")
+}
+```
+
+> For larger grids, parallelise by replacing `tar_make()` with `targets::tar_make_future()` and enabling a multisession or cluster backend.

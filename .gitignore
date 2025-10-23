@@ -10,4 +10,3 @@ renv/staging/
 .quarto/
 reports/_freeze/
 outputs/
-reports/

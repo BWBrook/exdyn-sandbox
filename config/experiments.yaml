@@ -13,19 +13,19 @@ defaults:
     alpha: 0.20
     mean_km: [5, 15]
   predation:
-    c: [0.3, 0.9]
-    h: [10, 60]
-    speed_cells_per_year: [0.2, 1.0]
+    c: [0.4, 0.8]
+    h: [15, 50]
+    speed_cells_per_year: [0.3, 0.8]
     seeds: [[1,20], [40,20]]
   habitat:
-    beta: [0.2, 0.7]
-    ramp_start: [30, 60]
+    beta: [0.3, 0.6]
+    ramp_start: [40, 60]
     ramp_end: [90, 120]
   climate:
     drift_per_century: [0.0, 0.2]
   obs:
-    presence_only_rate: 0.002
-    effort_strength: [1.0, 2.5]
+    presence_only_rate: 0.0015
+    effort_strength: [1.2, 2.0]
     fossil_sites: 60
     fossil_date_sd_y: 30
-replicates: 1
+replicates: 3

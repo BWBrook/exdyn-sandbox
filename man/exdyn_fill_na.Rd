@@ -2,11 +2,11 @@
 % Please edit documentation in R/classify.R
 \name{exdyn_fill_na}
 \alias{exdyn_fill_na}
-\title{Fill NA with column means}
+\title{Fill missing numeric values with column means}
 \usage{
 exdyn_fill_na(df)
 }
 \description{
-Fill NA with column means
+Fill missing numeric values with column means
 }
 \keyword{internal}

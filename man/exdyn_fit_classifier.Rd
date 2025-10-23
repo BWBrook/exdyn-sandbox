@@ -2,10 +2,10 @@
 % Please edit documentation in R/classify.R
 \name{exdyn_fit_classifier}
 \alias{exdyn_fit_classifier}
-\title{Fit ranger classifier on summaries}
+\title{Fit balanced ranger and cross-validated glmnet classifiers}
 \usage{
 exdyn_fit_classifier(df, seed = 321)
 }
 \description{
-Fit ranger classifier on summaries
+Fit balanced ranger and cross-validated glmnet classifiers
 }

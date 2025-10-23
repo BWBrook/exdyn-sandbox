@@ -2,10 +2,10 @@
 % Please edit documentation in R/experiments.R
 \name{exdyn_run_once}
 \alias{exdyn_run_once}
-\title{Run a single experiment row}
+\title{Run a single experiment row (summary only)}
 \usage{
 exdyn_run_once(row)
 }
 \description{
-Run a single experiment row
+Run a single experiment row (summary only)
 }

@@ -2,10 +2,10 @@
 % Please edit documentation in R/classify.R
 \name{exdyn_confusion}
 \alias{exdyn_confusion}
-\title{Confusion matrix from held-out predictions}
+\title{Compute confusion metrics from prediction tibble}
 \usage{
-exdyn_confusion(df, clf)
+exdyn_confusion(pred_tbl)
 }
 \description{
-Confusion matrix from held-out predictions
+Compute confusion metrics from prediction tibble
 }

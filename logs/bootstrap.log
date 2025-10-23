@@ -87,3 +87,14 @@
 2025-10-23T16:35:46+11:00 git remote add origin
 2025-10-23T16:35:55+11:00 git push -u origin main
 2025-10-23T16:36:16+11:00 git push failed: repository not found
+2025-10-23T16:52:03+11:00 start Work Order 2
+2025-10-23T16:53:50+11:00 install rsample yardstick glmnet
+2025-10-23T17:00:55+11:00 add rsample glmnet imports
+2025-10-23T17:01:43+11:00 update config/experiments.yaml parameters
+2025-10-23T17:07:51+11:00 devtools::document (WO2)
+2025-10-23T17:13:14+11:00 devtools::test() pass with warnings
+2025-10-23T17:13:52+11:00 targets::tar_make complete (WO2)
+2025-10-23T17:18:55+11:00 rendered reports/identifiability.qmd
+2025-10-23T17:20:24+11:00 make report-id success
+2025-10-23T17:25:48+11:00 tar_invalidate exp_grid + tar_make + report-id
+2025-10-23T17:27:17+11:00 devtools::test() re-run post-exp_grid
