@@ -122,7 +122,7 @@ The following objects are masked from 'package:base':
 </table>
 </div>
 </div>
-<p>Primary model: <strong>ranger</strong> (macro F1 = <strong>1.000</strong>). Secondary model: <strong>glmnet</strong> (macro F1 = <strong>0.771</strong>).</p>
+<p>Driver-aware macro F1: <strong>1.000</strong>. Response-only macro F1: <strong>0.667</strong>.</p>
 </section>
 <section id="front-diagnostics" class="level2">
 <h2 class="anchored" data-anchor-id="front-diagnostics">Front Diagnostics</h2>
@@ -133,7 +133,7 @@ The following objects are masked from 'package:base':
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="identifiability_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="identifiability_files/figure-html/totals-1.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
@@ -149,16 +149,7 @@ The following objects are masked from 'package:base':
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="identifiability_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid figure-img" width="672"></p>
-</figure>
-</div>
-</div>
-</div>
-<div class="cell">
-<div class="cell-output-display">
-<div>
-<figure class="figure">
-<p><img src="identifiability_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="identifiability_files/figure-html/front-metrics-1.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
@@ -170,14 +161,14 @@ The following objects are masked from 'package:base':
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="identifiability_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="identifiability_files/figure-html/confusion-1.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="identifiability_files/figure-html/unnamed-chunk-7-2.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="identifiability_files/figure-html/confusion-2.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
@@ -185,7 +176,7 @@ The following objects are masked from 'package:base':
 <div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
-<caption>Primary model: per-class precision/recall</caption>
+<caption>Driver-aware per-class metrics</caption>
 <thead>
 <tr class="header">
 <th style="text-align: left;">scenario</th>
@@ -212,11 +203,9 @@ The following objects are masked from 'package:base':
 </tbody>
 </table>
 </div>
-</div>
-<div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
-<caption>Secondary model: per-class precision/recall</caption>
+<caption>Response-only per-class metrics</caption>
 <thead>
 <tr class="header">
 <th style="text-align: left;">scenario</th>
@@ -227,49 +216,30 @@ The following objects are masked from 'package:base':
 <tbody>
 <tr class="odd">
 <td style="text-align: left;">both</td>
-<td style="text-align: right;">0.750</td>
-<td style="text-align: right;">0.5000000</td>
+<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">0.5</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">habitat_erosion</td>
-<td style="text-align: right;">1.000</td>
-<td style="text-align: right;">1.0000000</td>
+<td style="text-align: right;">1.0</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">predation_front</td>
-<td style="text-align: right;">0.625</td>
-<td style="text-align: right;">0.8333333</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<div class="cell">
-<div class="cell-output-display">
-<table class="caption-top table table-sm table-striped small">
-<caption>Primary model accuracy</caption>
-<thead>
-<tr class="header">
-<th style="text-align: left;">metric</th>
-<th style="text-align: right;">estimate</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;">accuracy</td>
-<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">0.5</td>
 </tr>
 </tbody>
 </table>
 </div>
 </div>
 </section>
-<section id="variable-importance-design-guidance" class="level2">
-<h2 class="anchored" data-anchor-id="variable-importance-design-guidance">Variable Importance &amp; Design Guidance</h2>
+<section id="variable-importance" class="level2">
+<h2 class="anchored" data-anchor-id="variable-importance">Variable Importance</h2>
 <div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
-<caption>Top metrics by primary-model importance</caption>
+<caption>Top driver-aware features</caption>
 <thead>
 <tr class="header">
 <th style="text-align: left;">feature</th>
@@ -279,40 +249,104 @@ The following objects are masked from 'package:base':
 <tbody>
 <tr class="odd">
 <td style="text-align: left;">convexity</td>
-<td style="text-align: right;">4.415224</td>
+<td style="text-align: right;">3.5579768</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">xcorr_H</td>
-<td style="text-align: right;">3.229866</td>
+<td style="text-align: right;">3.2119004</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;">xcorr_P</td>
-<td style="text-align: right;">2.394972</td>
+<td style="text-align: left;">arrival_coverage</td>
+<td style="text-align: right;">3.0228937</td>
 </tr>
 <tr class="even">
+<td style="text-align: left;">xcorr_P</td>
+<td style="text-align: right;">1.9251479</td>
+</tr>
+<tr class="odd">
 <td style="text-align: left;">xcorr_H_lag</td>
-<td style="text-align: right;">1.927276</td>
+<td style="text-align: right;">1.5791079</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">xcorr_P_lag</td>
+<td style="text-align: right;">1.0870129</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">lag_arrival_mean</td>
-<td style="text-align: right;">1.263351</td>
+<td style="text-align: right;">1.0391642</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">r2_arrival</td>
-<td style="text-align: right;">1.247492</td>
+<td style="text-align: right;">0.9101980</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;">xcorr_P_lag</td>
-<td style="text-align: right;">1.220242</td>
+<td style="text-align: left;">r2_dist</td>
+<td style="text-align: right;">0.8793594</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">r2_dist</td>
-<td style="text-align: right;">1.158676</td>
+<td style="text-align: left;">r2_plane</td>
+<td style="text-align: right;">0.3879840</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>Top response-only features</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;">feature</th>
+<th style="text-align: right;">importance</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">resp_r2_plane</td>
+<td style="text-align: right;">11.6764454</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">resp_tx_coverage</td>
+<td style="text-align: right;">2.4205792</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">resp_convexity</td>
+<td style="text-align: right;">0.7540928</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">resp_pc_ratio</td>
+<td style="text-align: right;">0.3467109</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">resp_tx_mean</td>
+<td style="text-align: right;">0.2117849</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">resp_tx_sd</td>
+<td style="text-align: right;">0.0747599</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">resp_total_ratio_final</td>
+<td style="text-align: right;">0.0267228</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">resp_total_slope</td>
+<td style="text-align: right;">0.0265412</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">resp_total_sd</td>
+<td style="text-align: right;">0.0007123</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">resp_total_final</td>
+<td style="text-align: right;">0.0000032</td>
 </tr>
 </tbody>
 </table>
 </div>
 </div>
+</section>
+<section id="design-guidance" class="level2">
+<h2 class="anchored" data-anchor-id="design-guidance">Design Guidance</h2>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
 <pre><code>Design guidance file not available. Run the pipeline to regenerate recommendations.</code></pre>

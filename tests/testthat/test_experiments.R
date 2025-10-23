@@ -28,8 +28,9 @@ test_that("classifier pipeline yields confusion outputs", {
   set.seed(42)
   runs <- lapply(seq_len(nrow(subset_rows)), function(i) exdyn_run_once(subset_rows[i, ]))
   results <- dplyr::bind_rows(runs)
-  clf <- exdyn_fit_classifier(results)
-  conf <- exdyn_confusion(clf$ranger$predictions)
+  feature_sets <- exdyn_feature_sets(results)
+  clf <- exdyn_fit_and_eval(results, feature_sets$driver_aware, seed = 99)
+  conf <- clf$primary$confusion
   expect_s3_class(conf$confusion, "tbl_df")
   expect_equal(names(conf$confusion), c("truth","estimate","n"))
   expect_false(any(is.na(conf$confusion$n)))

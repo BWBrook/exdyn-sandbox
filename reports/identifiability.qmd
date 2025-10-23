@@ -9,7 +9,7 @@ execute:
 
 This pilot evaluates whether the expanded summary metrics isolate extinction drivers across a replicated grid of archetypes, threat scenarios, and observation settings.
 
-```{r}
+```{r setup}
 if (!requireNamespace("exdyn.sandbox", quietly = TRUE)) {
   if (requireNamespace("pkgload", quietly = TRUE)) {
     pkgload::load_all(export_all = FALSE, helpers = FALSE, attach_testthat = FALSE)
@@ -25,38 +25,39 @@ library(tidyr)
 library(purrr)
 library(ggplot2)
 store_path <- if (dir.exists("../_targets")) "../_targets" else "_targets"
-tar_load(c(
-  exp_grid, results,
-  confusion_primary, confusion_secondary,
-  feature_importance_primary, primary_model,
-  classifiers, diagnostic_maps, save_diagnostics,
-  design_guidance
-), store = store_path)
-secondary_model <- if (primary_model == "ranger") "glmnet" else "ranger"
-primary_macro <- if (primary_model == "ranger") classifiers$ranger$macro_f1 else classifiers$glmnet$macro_f1
-secondary_macro <- if (secondary_model == "ranger") classifiers$ranger$macro_f1 else classifiers$glmnet$macro_f1
+exp_grid <- tar_read(exp_grid, store = store_path)
+results <- tar_read(results, store = store_path)
+conf_driver_aware <- tar_read(conf_driver_aware, store = store_path)
+conf_response_only <- tar_read(conf_response_only, store = store_path)
+clf_driver_aware <- tar_read(clf_driver_aware, store = store_path)
+clf_response_only <- tar_read(clf_response_only, store = store_path)
+feature_importance_driver_aware <- tar_read(feature_importance_driver_aware, store = store_path)
+feature_importance_response_only <- tar_read(feature_importance_response_only, store = store_path)
+diagnostic_maps <- tar_read(diagnostic_maps, store = store_path)
+save_diagnostics <- tar_read(save_diagnostics, store = store_path)
+design_guidance <- tar_read(design_guidance, store = store_path)
 ```
 
-```{r}
+```{r defaults}
 defaults <- list(
   nx = exp_grid$nx[[1]],
   ny = exp_grid$ny[[1]],
   years = exp_grid$years[[1]],
   presence = exp_grid$presence_rate[[1]],
   fossil_sites = exp_grid$fossil_sites[[1]],
-  replicates = exp_grid$replicate[[nrow(exp_grid)]]
+  replicates = max(exp_grid$replicate)
 )
 knitr::kable(tibble::tibble(Parameter = names(defaults), Value = unlist(defaults, use.names = FALSE)))
 ```
 
-Primary model: **`r primary_model`** (macro F1 = **`r sprintf("%.3f", primary_macro)`**). Secondary model: **`r secondary_model`** (macro F1 = **`r sprintf("%.3f", secondary_macro)`**).
+Driver-aware macro F1: **`r sprintf("%.3f", clf_driver_aware$primary$macro_f1)`**. Response-only macro F1: **`r sprintf("%.3f", clf_response_only$primary$macro_f1)`**.
 
 ## Front Diagnostics
 
-```{r}
-tp_file <- grep("TP_predation_front", save_diagnostics, value = TRUE)
-tx_file <- grep("TX_predation_front", save_diagnostics, value = TRUE)
-d_file  <- grep("D_predation_front", save_diagnostics, value = TRUE)
+```{r diagnostic-images}
+tp_file <- grep("T_P\\.png$", save_diagnostics, value = TRUE)
+tx_file <- grep("T_X\\.png$", save_diagnostics, value = TRUE)
+d_file  <- grep("D\\.png$", save_diagnostics, value = TRUE)
 files <- tibble::tibble(
   label = c("Predation arrival (T_P)", "Extirpation time (T_X)", "Distance to nearest seed (D)"),
   path = c(tp_file[1], tx_file[1], d_file[1])
@@ -72,7 +73,7 @@ purrr::walk2(files$path, files$label, ~{
 
 ## Total Abundance Exemplars
 
-```{r}
+```{r totals}
 get_series <- function(row) {
   pars <- row$params[[1]]
   arche <- exdyn_archetype(row$species[[1]])
@@ -104,8 +105,8 @@ ggplot(series_tbl, aes(x = year, y = total, colour = scenario)) +
 
 ## Front-Signature Metrics
 
-```{r}
-front_metrics <- c("r2_arrival", "r2_dist", "grad_mag", "pc_ratio", "lag_arrival_mean")
+```{r front-metrics}
+front_metrics <- c("r2_arrival", "r2_dist", "grad_mag", "pc_ratio", "lag_arrival_mean", "arrival_coverage")
 metrics_long <- results %>%
   select(scenario, all_of(front_metrics)) %>%
   pivot_longer(-scenario, names_to = "metric", values_to = "value")
@@ -117,21 +118,9 @@ ggplot(metrics_long, aes(x = scenario, y = value, fill = scenario)) +
   theme(legend.position = "none")
 ```
 
-```{r}
-centroid_metrics <- results %>%
-  select(scenario, centroid_disp_per_year, r2_centroid_line) %>%
-  pivot_longer(-scenario, names_to = "metric", values_to = "value")
-
-ggplot(centroid_metrics, aes(x = scenario, y = value, fill = scenario)) +
-  geom_boxplot(alpha = 0.75, colour = "grey30") +
-  facet_wrap(~ metric, scales = "free_y") +
-  theme_minimal() +
-  theme(legend.position = "none")
-```
-
 ## Scenario Recoverability
 
-```{r}
+```{r confusion}
 plot_confusion <- function(conf, title) {
   ggplot(conf$confusion, aes(x = estimate, y = truth, fill = n)) +
     geom_tile(colour = "white") +
@@ -140,30 +129,27 @@ plot_confusion <- function(conf, title) {
     labs(x = "Predicted", y = "True", fill = "Count", title = title) +
     theme_minimal()
 }
-plot_confusion(confusion_primary, paste0("Primary (", primary_model, ")"))
-plot_confusion(confusion_secondary, paste0("Secondary (", secondary_model, ")"))
+plot_confusion(conf_driver_aware, "Driver-aware confusion matrix")
+plot_confusion(conf_response_only, "Response-only confusion matrix")
 ```
 
-```{r}
-knitr::kable(confusion_primary$per_class, caption = "Primary model: per-class precision/recall")
+```{r per-class}
+knitr::kable(conf_driver_aware$per_class, caption = "Driver-aware per-class metrics")
+knitr::kable(conf_response_only$per_class, caption = "Response-only per-class metrics")
 ```
 
-```{r}
-knitr::kable(confusion_secondary$per_class, caption = "Secondary model: per-class precision/recall")
+## Variable Importance
+
+```{r importance}
+driver_top <- feature_importance_driver_aware %>% slice_head(n = 10)
+resp_top <- feature_importance_response_only %>% slice_head(n = 10)
+knitr::kable(driver_top, caption = "Top driver-aware features")
+knitr::kable(resp_top, caption = "Top response-only features")
 ```
 
-```{r}
-knitr::kable(confusion_primary$overall, caption = "Primary model accuracy")
-```
+## Design Guidance
 
-## Variable Importance & Design Guidance
-
-```{r}
-top_feats <- feature_importance_primary %>% slice_head(n = 8)
-knitr::kable(top_feats, caption = "Top metrics by primary-model importance")
-```
-
-```{r}
+```{r guidance}
 if (file.exists("outputs/design_guidance.txt")) {
   cat(paste(readLines("outputs/design_guidance.txt"), collapse = "<br>"))
 } else {

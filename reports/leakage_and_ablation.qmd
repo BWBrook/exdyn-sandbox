@@ -1,0 +1,155 @@
+---
+title: "Leakage Audit and Response-Only Ablation"
+format: html
+execute:
+  echo: false
+---
+
+```{r setup}
+library(targets)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(purrr)
+store_path <- if (dir.exists("../_targets")) "../_targets" else "_targets"
+results <- tar_read(results, store = store_path)
+results_resp <- tar_read(results_response_only, store = store_path)
+clf_driver_aware <- tar_read(clf_driver_aware, store = store_path)
+clf_response_only <- tar_read(clf_response_only, store = store_path)
+conf_driver_aware <- tar_read(conf_driver_aware, store = store_path)
+conf_response_only <- tar_read(conf_response_only, store = store_path)
+feature_importance_driver_aware <- tar_read(feature_importance_driver_aware, store = store_path)
+feature_importance_response_only <- tar_read(feature_importance_response_only, store = store_path)
+diagnostic_maps <- tar_read(diagnostic_maps, store = store_path)
+power_cv <- tar_read(power_cv, store = store_path)
+power_predictions <- tar_read(power_predictions, store = store_path)
+```
+
+## Why Leakage Matters
+
+Driver-aware metrics legitimately encode the latent fields (predation, habitat), but any scenario audit must also pass a response-only test. The goal here is to verify that the classifier cannot simply read the input drivers, diagnose whether the front summaries behave as intended, and quantify the loss of identifiability under harsher observation bias (lower presence rate) and stronger dispersal.
+
+## Confusion Matrices
+
+```{r confusion-heatmaps}
+conf_long <- bind_rows(
+  mutate(conf_driver_aware$confusion, model = "Driver-aware"),
+  mutate(conf_response_only$confusion, model = "Response-only")
+)
+conf_plot <- conf_long %>%
+  mutate(estimate = factor(estimate, levels = levels(conf_driver_aware$confusion$estimate))) %>%
+  ggplot(aes(x = estimate, y = truth, fill = n)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = n), color = "white", fontface = "bold") +
+  facet_wrap(~model) +
+  scale_fill_gradient(low = "#c7dcef", high = "#08306b") +
+  labs(x = "Predicted", y = "Truth", fill = "Count") +
+  theme_minimal(base_size = 12)
+conf_plot
+```
+
+Macro F1 (driver-aware): `r scales::number(clf_driver_aware$primary$macro_f1, accuracy = 0.01)`
+
+Macro F1 (response-only): `r scales::number(clf_response_only$primary$macro_f1, accuracy = 0.01)`
+
+## Front Metric Diagnostics
+
+```{r front-scatter}
+pred_diag <- purrr::keep(diagnostic_maps, ~ .x$scenario == "predation_front")[[1]]
+scatter_df <- NULL
+if (!is.null(pred_diag$T_P) && !is.null(pred_diag$T_X)) {
+  idx <- which(!is.na(pred_diag$T_P) & !is.na(pred_diag$T_X), arr.ind = TRUE)
+  scatter_df <- tibble(
+    arrival = pred_diag$T_P[idx],
+    extirpation = pred_diag$T_X[idx]
+  )
+}
+if (!is.null(scatter_df) && nrow(scatter_df) > 2) {
+  r2_val <- summary(lm(extirpation ~ arrival, data = scatter_df))$r.squared
+  lag_val <- mean(scatter_df$extirpation - scatter_df$arrival)
+  ggplot(scatter_df, aes(arrival, extirpation)) +
+    geom_point(alpha = 0.5, color = "#084594") +
+    geom_smooth(method = "lm", se = FALSE, color = "#cb181d") +
+    labs(title = sprintf("T_X vs T_P (R^2 = %.2f, lag = %.1f)", r2_val, lag_val),
+         x = "Arrival time (T_P)", y = "Extirpation time (T_X)") +
+    theme_minimal(base_size = 12)
+} else {
+  ggplot() +
+    annotate("text", x = 0.5, y = 0.5, label = "No valid arrival/extirpation pairs", size = 5) +
+    theme_void()
+}
+```
+
+```{r front-boxplots}
+metrics_long <- results %>%
+  select(scenario, r2_arrival, r2_dist, grad_mag, pc_ratio) %>%
+  pivot_longer(-scenario, names_to = "metric", values_to = "value")
+metrics_long %>%
+  ggplot(aes(x = scenario, y = value, fill = scenario)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.4) +
+  facet_wrap(~metric, scales = "free_y") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none") +
+  labs(x = NULL, y = NULL, title = "Front metrics by generating scenario")
+```
+
+## Response-Only Feature Set
+
+```{r response-features}
+resp_top <- feature_importance_response_only %>% arrange(desc(importance)) %>% head(8)
+knitr::kable(resp_top, caption = "Top response-only features (importance scale)")
+```
+
+## Power Experiment: Observation Bias × Dispersal
+
+```{r power-curve}
+if (nrow(power_cv$summary) > 0) {
+  ggplot(power_cv$summary, aes(x = alpha, y = macro_f1, color = factor(presence_rate), group = factor(presence_rate))) +
+    geom_line() +
+    geom_point(size = 2) +
+    scale_color_brewer(palette = "Set1", name = "presence_rate") +
+    scale_y_continuous(limits = c(0, 1)) +
+    theme_minimal(base_size = 12) +
+    labs(x = expression(alpha), y = "Macro F1", title = "Response-only macro F1 across observation bias and dispersal")
+} else {
+  ggplot() + annotate("text", x = 0.5, y = 0.5, label = "Power summary unavailable", size = 5) + theme_void()
+}
+```
+
+```{r power-table}
+power_cv$summary %>% arrange(desc(macro_f1)) %>% knitr::kable(caption = "Macro-F1 by presence rate and dispersal alpha")
+```
+
+## Leakage Audit Summary
+
+```{r leakage-summary}
+leaky_cols <- names(results)[grepl("(P|H|arrival|xcorr_)", names(results))]
+resp_cols <- names(results_resp)[names(results_resp) != "scenario" & grepl("^resp_", names(results_resp))]
+leakage_tbl <- tibble(
+  class = c("Driver-aware", "Response-only"),
+  columns = c(length(leaky_cols), length(resp_cols)),
+  example = c(leaky_cols[1], resp_cols[1])
+)
+knitr::kable(leakage_tbl, col.names = c("Feature set", "# numeric columns", "Example"))
+```
+
+## So What?
+
+```{r so-what}
+resp_macro <- clf_response_only$primary$macro_f1
+worst_power <- if (nrow(power_cv$summary)) power_cv$summary %>% arrange(macro_f1) %>% slice_head(n = 1) else NULL
+message_lines <- c(
+  sprintf("Driver-aware macro F1 = %.2f; response-only macro F1 = %.2f.",
+          clf_driver_aware$primary$macro_f1, resp_macro)
+)
+if (!is.na(resp_macro) && resp_macro < 0.6 && !is.null(worst_power)) {
+  message_lines <- c(message_lines,
+    sprintf("Response-only performance is weakest at presence_rate = %.4f, alpha = %.1f (macro F1 = %.2f).",
+            worst_power$presence_rate, worst_power$alpha, worst_power$macro_f1),
+    "Consider increasing front contrast (speed or c), or reducing dispersal smoothing before scaling up.")
+} else {
+  message_lines <- c(message_lines, "Response-only classifier clears the 0.6 F1 bar on the current grid.")
+}
+cat(paste0("- ", message_lines, collapse = "\n"))
+```

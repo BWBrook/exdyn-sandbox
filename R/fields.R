@@ -19,13 +19,14 @@ exdyn_pred_front <- function(nx, ny, years, seeds, speed_cells_per_year, slope =
     d <- sqrt((coords[,1] - pt[1])^2 + (coords[,2] - pt[2])^2)
     dist_vec <- pmin(dist_vec, d)
   }
-  D <- array(dist_vec, dim = c(nx, ny))
+  D <- matrix(dist_vec, nrow = nx, ncol = ny)
   P <- array(0, dim = c(nx, ny, years))
   T_P <- matrix(NA_real_, nrow = nx, ncol = ny)
   for (t in seq_len(years)) {
     radius <- speed_cells_per_year * (t - 1)
     front <- 1 / (1 + exp((D - radius) / slope))
-    P[,,t] <- pmin(1, front)
+    front <- pmin(1, pmax(0, front))
+    P[,,t] <- front
     newly_arrived <- is.na(T_P) & front >= 0.5
     if (any(newly_arrived)) {
       T_P[newly_arrived] <- t

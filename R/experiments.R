@@ -139,7 +139,9 @@ exdyn_run_core <- function(row, arrival_threshold_frac = 0.02) {
     n_sites = row$fossil_sites[[1]],
     date_sd = row$fossil_sd[[1]]
   )
-  summs <- exdyn_summaries(N, fields, K0 = row$cell_k[[1]])
+  summs_driver <- exdyn_summaries(N, fields, K0 = row$cell_k[[1]])
+  summs_resp <- exdyn_summaries_response_only(N, row$cell_k[[1]], arrival_threshold_frac)
+  summs <- dplyr::bind_cols(summs_driver, summs_resp)
   summs <- tibble::add_column(
     summs,
     exp_id = row$exp_id[[1]],
@@ -147,15 +149,18 @@ exdyn_run_core <- function(row, arrival_threshold_frac = 0.02) {
     scenario = row$scenario[[1]],
     predation_type = row$predation_type[[1]],
     replicate = row$replicate[[1]],
+    alpha = row$alpha[[1]],
+    presence_rate = row$presence_rate[[1]],
     po_n = nrow(po),
     foss_n = nrow(foss),
     .before = 1
   )
   list(
     summary = summs,
+    summary_response = summs_resp,
     fields = fields,
     N = N,
-    T_X = exdyn_extirpation_times(N, row$cell_k[[1]] * arrival_threshold_frac),
+    T_X = exdyn_extirpation_time(N, row$cell_k[[1]], frac = arrival_threshold_frac),
     po = po,
     foss = foss
   )
@@ -165,4 +170,58 @@ exdyn_run_core <- function(row, arrival_threshold_frac = 0.02) {
 #' @export
 exdyn_run_once <- function(row) {
   exdyn_run_core(row)$summary
+}
+
+#' Construct the small power-analysis grid
+#' @export
+exdyn_power_grid <- function(path = "config/experiments.yaml") {
+  cfg <- yaml::read_yaml(path)
+  defaults <- cfg$defaults
+  combos <- tidyr::expand_grid(
+    presence_rate = c(0.0008, 0.0025),
+    alpha = c(0, 0.2, 0.4),
+    scenario = c("predation_front", "habitat_erosion")
+  ) %>% tibble::as_tibble()
+  midpoint <- function(x) {
+    if (is.list(x)) x <- unlist(x)
+    if (length(x) == 2) mean(x) else x
+  }
+  param_template <- list(
+    dispersal_mean_km = midpoint(defaults$dispersal$mean_km),
+    pred_c = midpoint(defaults$predation$c),
+    pred_h = midpoint(defaults$predation$h),
+    pred_speed = midpoint(defaults$predation$speed_cells_per_year),
+    habitat_beta = midpoint(defaults$habitat$beta),
+    habitat_ramp_start = round(midpoint(defaults$habitat$ramp_start)),
+    habitat_ramp_end = round(midpoint(defaults$habitat$ramp_end)),
+    climate_drift = midpoint(defaults$climate$drift_per_century),
+    effort_strength = midpoint(defaults$obs$effort_strength)
+  )
+  if (param_template$habitat_ramp_end <= param_template$habitat_ramp_start) {
+    param_template$habitat_ramp_end <- param_template$habitat_ramp_start + 1
+  }
+  params_list <- rep(list(param_template), nrow(combos))
+  pred_seeds <- defaults$predation$seeds
+  purrr::map_dfr(seq_len(nrow(combos)), function(i) {
+    row <- tibble::tibble(
+      exp_id = sprintf("power_%s_rate%.4f_alpha%.1f", combos$scenario[i], combos$presence_rate[i], combos$alpha[i]),
+      species = "B",
+      scenario = combos$scenario[i],
+      predation_type = "II",
+      replicate = 1L,
+      params = list(params_list[[i]]),
+      seed = cfg$seed + i * 100L,
+      nx = defaults$nx,
+      ny = defaults$ny,
+      years = defaults$years,
+      cell_k = defaults$cell_k,
+      cellsize_km = defaults$cellsize_km,
+      alpha = combos$alpha[i],
+      presence_rate = combos$presence_rate[i],
+      fossil_sites = defaults$obs$fossil_sites,
+      fossil_sd = defaults$obs$fossil_date_sd_y,
+      pred_seeds = list(pred_seeds)
+    )
+    row
+  })
 }

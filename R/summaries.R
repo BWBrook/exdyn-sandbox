@@ -136,16 +136,87 @@ exdyn_xcorr <- function(series, driver, max_lag = 10) {
 
 #' Extirpation time map
 #' @keywords internal
-exdyn_extirpation_times <- function(N, threshold) {
+exdyn_extirpation_time <- function(N, K0, frac = 0.02) {
+  threshold <- K0 * frac
   apply(N, c(1, 2), function(ts) {
     idx <- which(ts <= threshold)
     if (length(idx)) idx[1] else NA_real_
   })
 }
 
-#' Plane fit diagnostics
+#' Arrival–extirpation coupling diagnostics
 #' @keywords internal
-exdyn_plane_metrics <- function(T_X) {
+#' @export
+exdyn_arrival_coupling <- function(T_X, T_P, D = NULL) {
+  if (is.null(T_P)) {
+    return(list(
+      r_arrival_pearson = NA_real_,
+      r_arrival_spearman = NA_real_,
+      r2_arrival = NA_real_,
+      lag_arrival_mean = NA_real_,
+      r2_dist = NA_real_,
+      coverage = 0
+    ))
+  }
+  valid <- !is.na(T_X) & !is.na(T_P)
+  coverage <- if (length(valid)) mean(valid) else 0
+  if (!any(valid)) {
+    return(list(
+      r_arrival_pearson = NA_real_,
+      r_arrival_spearman = NA_real_,
+      r2_arrival = NA_real_,
+      lag_arrival_mean = NA_real_,
+      r2_dist = NA_real_,
+      coverage = coverage
+    ))
+  }
+  tx <- T_X[valid]
+  tp <- T_P[valid]
+  r_arrival_pearson <- suppressWarnings(stats::cor(tx, tp, method = "pearson"))
+  r_arrival_spearman <- suppressWarnings(stats::cor(tx, tp, method = "spearman"))
+  model <- stats::lm(tx ~ tp)
+  r2_arrival <- summary(model)$r.squared
+  lag_arrival_mean <- mean(tx - tp, na.rm = TRUE)
+  r2_dist <- NA_real_
+  if (!is.null(D)) {
+    dist_vals <- D[valid]
+    dist_model <- stats::lm(tx ~ dist_vals)
+    r2_dist <- summary(dist_model)$r.squared
+  }
+  list(
+    r_arrival_pearson = r_arrival_pearson,
+    r_arrival_spearman = r_arrival_spearman,
+    r2_arrival = r2_arrival,
+    lag_arrival_mean = lag_arrival_mean,
+    r2_dist = r2_dist,
+    coverage = coverage
+  )
+}
+
+#' Centroid path diagnostics
+#' @keywords internal
+exdyn_centroid_metrics <- function(centroid) {
+  valid <- which(rowSums(is.na(centroid)) == 0)
+  if (length(valid) < 2) {
+    return(list(disp_per_year = NA_real_, r2_centroid_line = NA_real_))
+  }
+  cx <- centroid[valid,1]
+  cy <- centroid[valid,2]
+  t_valid <- valid
+  diffs <- sqrt(diff(cx)^2 + diff(cy)^2)
+  disp_per_year <- mean(diffs, na.rm = TRUE)
+  lm_x <- stats::lm(cx ~ t_valid)
+  lm_y <- stats::lm(cy ~ t_valid)
+  r2_x <- suppressWarnings(summary(lm_x)$r.squared)
+  r2_y <- suppressWarnings(summary(lm_y)$r.squared)
+  r2_centroid_line <- mean(c(r2_x, r2_y), na.rm = TRUE)
+  list(disp_per_year = disp_per_year, r2_centroid_line = r2_centroid_line)
+}
+
+#' Plane fit diagnostics for front directionality
+#' @keywords internal
+#' @export
+exdyn_front_plane <- function(T_X) {
   idx <- which(!is.na(T_X), arr.ind = TRUE)
   if (nrow(idx) < 3) {
     return(list(grad_mag = NA_real_, r2_plane = NA_real_, pc_ratio = NA_real_))
@@ -168,26 +239,6 @@ exdyn_plane_metrics <- function(T_X) {
     }
   }
   list(grad_mag = grad_mag, r2_plane = r2_plane, pc_ratio = pc_ratio)
-}
-
-#' Centroid path diagnostics
-#' @keywords internal
-exdyn_centroid_metrics <- function(centroid) {
-  valid <- which(rowSums(is.na(centroid)) == 0)
-  if (length(valid) < 2) {
-    return(list(disp_per_year = NA_real_, r2_centroid_line = NA_real_))
-  }
-  cx <- centroid[valid,1]
-  cy <- centroid[valid,2]
-  t_valid <- valid
-  diffs <- sqrt(diff(cx)^2 + diff(cy)^2)
-  disp_per_year <- mean(diffs, na.rm = TRUE)
-  lm_x <- stats::lm(cx ~ t_valid)
-  lm_y <- stats::lm(cy ~ t_valid)
-  r2_x <- summary(lm_x)$r.squared
-  r2_y <- summary(lm_y)$r.squared
-  r2_centroid_line <- mean(c(r2_x, r2_y), na.rm = TRUE)
-  list(disp_per_year = disp_per_year, r2_centroid_line = r2_centroid_line)
 }
 
 #' Discriminative summaries for a run
@@ -215,34 +266,10 @@ exdyn_summaries <- function(N, fields, K0, arrival_threshold_frac = 0.02, occ_th
   xcorr_P_vals <- exdyn_xcorr(total, mean_P, max_lag = 10)
   xcorr_H_vals <- exdyn_xcorr(total, mean_H, max_lag = 10)
 
-  threshold <- K0 * arrival_threshold_frac
-  T_X <- exdyn_extirpation_times(N, threshold)
+  T_X <- exdyn_extirpation_time(N, K0, frac = arrival_threshold_frac)
   T_P <- fields$T_P
-  arrival_mask <- !is.null(T_P)
-
-  r_arrival_pearson <- r_arrival_spearman <- r2_arrival <- lag_arrival_mean <- NA_real_
-  r2_dist <- NA_real_
-  dist_map <- fields$D
-
-  if (arrival_mask) {
-    valid <- !is.na(T_X) & !is.na(T_P)
-    if (any(valid)) {
-      tx <- T_X[valid]
-      tp <- T_P[valid]
-      r_arrival_pearson <- suppressWarnings(stats::cor(tx, tp, method = "pearson"))
-      r_arrival_spearman <- suppressWarnings(stats::cor(tx, tp, method = "spearman"))
-      model <- stats::lm(tx ~ tp)
-      r2_arrival <- summary(model)$r.squared
-      lag_arrival_mean <- mean(tx - tp, na.rm = TRUE)
-      if (!is.null(dist_map)) {
-        dist_vals <- dist_map[valid]
-        dist_model <- stats::lm(tx ~ dist_vals)
-        r2_dist <- summary(dist_model)$r.squared
-      }
-    }
-  }
-
-  plane_metrics <- exdyn_plane_metrics(T_X)
+  coupling <- exdyn_arrival_coupling(T_X, T_P, fields$D)
+  plane_metrics <- exdyn_front_plane(T_X)
 
   tibble::tibble(
     convexity = convexity,
@@ -262,13 +289,74 @@ exdyn_summaries <- function(N, fields, K0, arrival_threshold_frac = 0.02, occ_th
     xcorr_P_lag = xcorr_P_vals$lag,
     xcorr_H = xcorr_H_vals$corr,
     xcorr_H_lag = xcorr_H_vals$lag,
-    r_arrival_pearson = r_arrival_pearson,
-    r_arrival_spearman = r_arrival_spearman,
-    r2_arrival = r2_arrival,
-    lag_arrival_mean = lag_arrival_mean,
-    r2_dist = r2_dist,
+    r_arrival_pearson = coupling$r_arrival_pearson,
+    r_arrival_spearman = coupling$r_arrival_spearman,
+    r2_arrival = coupling$r2_arrival,
+    lag_arrival_mean = coupling$lag_arrival_mean,
+    r2_dist = coupling$r2_dist,
+    arrival_coverage = coupling$coverage,
     grad_mag = plane_metrics$grad_mag,
     r2_plane = plane_metrics$r2_plane,
     pc_ratio = plane_metrics$pc_ratio
+  )
+}
+
+#' Response-only summaries derived from abundance trajectories
+#' @export
+exdyn_summaries_response_only <- function(N, K0, arrival_threshold_frac = 0.02, occ_thresh = 1) {
+  yrs <- dim(N)[3]
+  total <- apply(N, 3, sum)
+  t <- seq_len(yrs)
+  fit <- stats::lm(total ~ stats::poly(t, 2, raw = TRUE))
+  convexity <- stats::coef(fit)[3]
+
+  occ <- exdyn_occupancy(N, thresh = occ_thresh)
+  centroid <- exdyn_centroid(occ)
+  centroid_shift <- if (any(is.na(centroid[c(1, yrs), ]))) NA_real_ else
+    sqrt(sum((centroid[yrs,] - centroid[1,])^2))
+  centroid_diag <- exdyn_centroid_metrics(centroid)
+
+  hull <- exdyn_hull_area(occ)
+  range_area <- exdyn_range_area(occ)
+  perim_ratio <- exdyn_perimeter_ratio(occ)
+  moran <- exdyn_moran_range(occ)
+
+  range_fit <- tryCatch(stats::lm(range_area ~ t), error = function(...) NULL)
+  range_slope <- if (is.null(range_fit)) NA_real_ else stats::coef(range_fit)[2]
+
+  total_fit <- tryCatch(stats::lm(total ~ t), error = function(...) NULL)
+  total_slope <- if (is.null(total_fit)) NA_real_ else stats::coef(total_fit)[2]
+
+  T_X <- exdyn_extirpation_time(N, K0, frac = arrival_threshold_frac)
+  finite_tx <- is.finite(T_X)
+  tx_mean <- if (any(finite_tx)) mean(T_X[finite_tx]) else NA_real_
+  tx_sd <- if (any(finite_tx)) stats::sd(T_X[finite_tx]) else NA_real_
+  tx_coverage <- mean(finite_tx)
+  plane_metrics <- exdyn_front_plane(T_X)
+
+  tibble::tibble(
+    resp_convexity = convexity,
+    resp_total_mean = mean(total),
+    resp_total_sd = stats::sd(total),
+    resp_total_final = total[yrs],
+    resp_total_ratio_final = if (!is.na(total[1]) && total[1] > 0) total[yrs] / total[1] else NA_real_,
+    resp_total_slope = total_slope,
+    resp_centroid_shift = centroid_shift,
+    resp_centroid_disp_per_year = centroid_diag$disp_per_year,
+    resp_r2_centroid_line = centroid_diag$r2_centroid_line,
+    resp_hull_area_mean = mean(hull, na.rm = TRUE),
+    resp_hull_area_final = hull[yrs],
+    resp_range_area_mean = mean(range_area, na.rm = TRUE),
+    resp_range_area_final = range_area[yrs],
+    resp_range_area_slope = range_slope,
+    resp_perimeter_ratio_mean = mean(perim_ratio, na.rm = TRUE),
+    resp_moran_median = moran$median,
+    resp_moran_first_gt_0_3 = moran$first_gt_0_3,
+    resp_grad_mag = plane_metrics$grad_mag,
+    resp_r2_plane = plane_metrics$r2_plane,
+    resp_pc_ratio = plane_metrics$pc_ratio,
+    resp_tx_mean = tx_mean,
+    resp_tx_sd = tx_sd,
+    resp_tx_coverage = tx_coverage
   )
 }

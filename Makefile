@@ -1,4 +1,4 @@
-.PHONY: init test run report exp report-id
+.PHONY: init test run report report-leak exp report-id
 
 init:
 	R --vanilla -e 'renv::restore(); devtools::document(); renv::snapshot(prompt=FALSE)'
@@ -16,4 +16,7 @@ exp:
 	R --vanilla -e 'targets::tar_make()'
 
 report-id:
-	R --vanilla -e 'targets::tar_load(c(results,confusion_primary,confusion_secondary,feature_importance_primary,primary_model,classifiers,diagnostic_maps,save_diagnostics)); quarto::quarto_render("reports/identifiability.qmd")'
+	R --vanilla -e 'quarto::quarto_render("reports/identifiability.qmd")'
+
+report-leak:
+	R --vanilla -e 'quarto::quarto_render("reports/leakage_and_ablation.qmd")'
