@@ -20,8 +20,10 @@ if (requireNamespace("pkgload", quietly = TRUE)) {
 
 source("R/utils.R", local = TRUE)
 source("R/targets_helpers.R", local = TRUE)
+source("pipelines/targets_realdata_gbif.R", local = TRUE)
 
-list(
+c(
+  list(
   # -- Baseline run ----------------------------------------------------------
   tar_target(cfg, exdyn_config("config/default.yaml"), cue = tar_cue("always")),
   tar_target(default_fields, exdyn_make_fields(
@@ -139,4 +141,6 @@ list(
     feature_importance_driver_aware,
     feature_importance_response_only
   ))
+  ),
+  targets_realdata_gbif()
 )

@@ -4,7 +4,7 @@
 \alias{exdyn_bin_f1}
 \title{Bin controls and compute macro-F1 per cell}
 \usage{
-exdyn_bin_f1(oof, x, y, bins = 8, min_n = 60)
+exdyn_bin_f1(oof, x, y, bins = 8, min_n = 5)
 }
 \arguments{
 \item{oof}{Tibble of out-of-fold predictions with control metadata, truth, and estimate.}
@@ -16,7 +16,7 @@ exdyn_bin_f1(oof, x, y, bins = 8, min_n = 60)
 \item{min_n}{Minimum observations per cell required to compute macro-F1.}
 }
 \value{
-Tibble with columns \code{x_bin}, \code{y_bin}, \code{n}, and \code{macro_f1}.
+Tibble with columns describing bin ids, midpoints, widths, counts, and macro-F1.
 }
 \description{
 Bin controls and compute macro-F1 per cell

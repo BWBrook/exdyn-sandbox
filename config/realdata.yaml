@@ -1,0 +1,20 @@
+gbif:
+  years: [1950, 2024]
+  country: "GB"
+grid:
+  cell_km: 10
+  crs_out: "EPSG:27700"
+arrival:
+  min_events_cell: 2
+  window_years: 5
+  neigh_radius_cells: 1
+  min_support_neigh: 3
+  outlier_iso_years: 8
+species:
+  mink:
+    scientific_name: "Neovison vison"
+    gbif_rank: "SPECIES"
+    folder: "mink"
+cache:
+  max_records: 200000
+  force_redownload: false

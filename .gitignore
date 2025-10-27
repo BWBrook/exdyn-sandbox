@@ -12,3 +12,4 @@ reports/_freeze/
 outputs/
 reports/*
 !reports/*.qmd
+/data/raw/*

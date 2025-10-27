@@ -1,0 +1,9 @@
+decimalLongitude,decimalLatitude,year,month,day,basisOfRecord,occurrenceID,catalogNumber,recordedBy,coordinateUncertaintyInMeters,issue
+-1.55,54.7,2001,5,10,HUMAN_OBSERVATION,occ-1,cat-1,A,50,
+-1.55,54.7,2001,5,10,HUMAN_OBSERVATION,occ-1,cat-1,A,50,
+-3.2,55.9,2005,7,21,OBSERVATION,occ-2,cat-2,B,100,
+NA,56.1,2003,9,3,OBSERVATION,occ-3,cat-3,C,80,COORDINATE_OUT_OF_RANGE
+-2.1,53.2,2010,4,14,PRESERVED_SPECIMEN,occ-4,cat-4,D,30,
+-2.1,53.2,2010,4,14,PRESERVED_SPECIMEN,occ-4,cat-4,D,30,
+-6,57.5,1998,11,2,HUMAN_OBSERVATION,occ-5,cat-5,E,200,
+-6,57.5,1998,11,2,HUMAN_OBSERVATION,occ-6,cat-6,F,200,

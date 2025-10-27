@@ -1,0 +1,77 @@
+---
+title: "GBIF-derived mink arrivals (Great Britain)"
+format:
+  html:
+    toc: true
+    number-sections: false
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(targets)
+tar_config_set(store = file.path("..", "_targets"))
+library(dplyr)
+library(ggplot2)
+library(knitr)
+if (requireNamespace("exdyn.sandbox", quietly = TRUE)) {
+  library(exdyn.sandbox)
+} else if (requireNamespace("pkgload", quietly = TRUE)) {
+  pkgload::load_all(path = normalizePath(".."), export_all = FALSE, helpers = FALSE, attach_testthat = FALSE)
+} else {
+  stop("Package exdyn.sandbox not available and pkgload not installed.")
+}
+
+real_cfg <- yaml::read_yaml(file.path("..", "config", "realdata.yaml"))
+real_grid <- tar_read(real_grid)
+real_arrivals_raw <- tar_read(real_arrivals_raw)
+real_arrivals_smooth <- tar_read(real_arrivals_smooth)
+real_cells <- tar_read(real_cells)
+real_qc <- tar_read(real_qc)
+real_gbif_clean <- tar_read(real_gbif_clean)
+```
+
+## Data summary
+
+- GBIF records fetched: **`r nrow(real_gbif_clean)`**
+- Time span: **`r min(real_gbif_clean$year)`** – **`r max(real_gbif_clean$year)`**
+- Grid cells (10 km): **`r nrow(real_grid)`**
+- Cells with smoothed arrivals: **`r sum(!is.na(real_arrivals_smooth$arrival_year_smooth))`**
+
+```{r occurrence-table}
+head(real_gbif_clean) %>%
+  knitr::kable(caption = "Sample of cleaned GBIF occurrences")
+```
+
+## Occurrence density
+
+```{r density-map}
+exdyn_occ_density_map(real_grid, real_cells, "Mink occurrence density")
+```
+
+## Arrival maps
+
+```{r arrival-maps}
+exdyn_plot_arrival_map(real_grid, mutate(real_arrivals_raw, arrival_year_smooth = arrival_year_raw),
+                       "Arrival year (raw criteria)")
+```
+
+```{r arrival-map-smooth}
+exdyn_plot_arrival_map(real_grid, real_arrivals_smooth,
+                       "Arrival year (smoothed neighbourhood fill)")
+```
+
+## QC summary
+
+```{r qc-table}
+tibble::enframe(real_qc, name = "Metric", value = "Value") %>%
+  knitr::kable(col.names = c("Metric", "Value"), caption = "Quality control metrics")
+```
+
+## Parameter settings
+
+```{r cfg-print}
+str(real_cfg$arrival)
+```
