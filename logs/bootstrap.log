@@ -117,3 +117,4 @@
 2025-10-27T11:17:21+11:00 devtools::document() [WO6 heatmaps]
 2025-10-27T11:17:29+11:00 devtools::test() [WO6 heatmaps]
 2025-10-27T11:17:41+11:00 tar_make save_heatmaps [WO6 heatmaps]
+2025-10-27T11:42:29+11:00 tweak heatmap fill + axes

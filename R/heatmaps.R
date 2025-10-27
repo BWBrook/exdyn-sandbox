@@ -78,25 +78,24 @@ exdyn_bin_f1 <- function(oof, x, y, bins = 8, min_n = 5) {
   all_x <- seq_along(x_info$mids)
   all_y <- seq_along(y_info$mids)
 
+  calc_f1 <- function(truth, estimate) {
+    truth_vec <- factor(truth, levels = levels_all)
+    estimate_vec <- factor(estimate, levels = levels_all)
+    suppressWarnings(yardstick::f_meas_vec(truth_vec, estimate_vec, estimator = "macro"))
+  }
+
   cell <- df %>%
     dplyr::group_by(x_id, y_id) %>%
     dplyr::summarise(
       n = dplyr::n(),
-      macro_f1 = {
-        if (n() < min_n) {
-          NA_real_
-        } else {
-          truth_vec <- factor(truth, levels = levels_all)
-          estimate_vec <- factor(estimate, levels = levels_all)
-          yardstick::f_meas_vec(truth_vec, estimate_vec, estimator = "macro")
-        }
-      },
+      macro_f1 = calc_f1(truth, estimate),
+      low_n = n < min_n,
       .groups = "drop"
     ) %>%
     tidyr::complete(
       x_id = all_x,
       y_id = all_y,
-      fill = list(n = 0L, macro_f1 = NA_real_)
+      fill = list(n = 0L, macro_f1 = NA_real_, low_n = TRUE)
     ) %>%
     dplyr::mutate(
       x_mid = x_info$mids[pmax(pmin(x_id, length(x_info$mids)), 1)],
@@ -130,15 +129,28 @@ exdyn_plot_heatmap <- function(cell, xlab, ylab, title = NULL) {
   }
   breaks_x <- sort(unique(cell$x_mid))
   breaks_y <- sort(unique(cell$y_mid))
-  label_fun <- function(vals) sprintf("%.2f", vals)
+  label_fun <- function(vals) {
+    if (length(vals) == 0) return(character())
+    rng <- max(abs(vals), na.rm = TRUE)
+    if (!is.finite(rng)) rng <- 1
+    if (rng < 1e-2) format(vals, digits = 2, scientific = TRUE)
+    else sprintf("%.2f", vals)
+  }
+  plot_data <- cell
 
-  ggplot2::ggplot(cell, ggplot2::aes(x = x_mid, y = y_mid, fill = macro_f1)) +
+  ggplot2::ggplot(plot_data, ggplot2::aes(x = x_mid, y = y_mid, fill = macro_f1)) +
     ggplot2::geom_tile(ggplot2::aes(width = x_width, height = y_height), color = "white") +
     ggplot2::geom_text(
-      data = subset(cell, is.na(macro_f1)),
+      data = subset(plot_data, low_n & !is.na(macro_f1)),
       ggplot2::aes(label = paste0("n=", n)),
       size = 2.8,
       color = "grey30"
+    ) +
+    ggplot2::geom_text(
+      data = subset(plot_data, is.na(macro_f1)),
+      ggplot2::aes(label = "n=0"),
+      size = 2.8,
+      color = "grey60"
     ) +
     ggplot2::scale_fill_viridis_c(
       option = "C",
