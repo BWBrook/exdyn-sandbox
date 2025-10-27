@@ -249,6 +249,7 @@ list(
   tar_target(sweep_summaries, exdyn_run_once(sweep_grid), pattern = map(sweep_grid), iteration = "list"),
   tar_target(sweep_results, dplyr::bind_rows(sweep_summaries)),
   tar_target(sweep_feature_sets, exdyn_feature_sets(sweep_results)),
+  tar_target(sweep_oof, exdyn_oof_predictions(sweep_results, sweep_feature_sets$response_only, v = 5, seed = 987)),
   tar_target(sweep_clf_response_only, exdyn_fit_and_eval(sweep_results, sweep_feature_sets$response_only)),
   tar_target(sweep_cv, exdyn_cv_macro_f1(sweep_results, sweep_feature_sets$response_only, v = 5, seed = 987)),
   tar_target(sweep_predictions, sweep_cv$predictions),
@@ -344,70 +345,45 @@ list(
   }),
   tar_target(save_heatmaps, {
     dir.create(file.path("outputs", "heatmaps"), recursive = TRUE, showWarnings = FALSE)
-    joined <- sweep_predictions %>%
-      dplyr::left_join(sweep_results %>% dplyr::select(exp_id, dispersal_mean_km, pred_speed, presence_rate,
-        effort_strength, allee_A_over_K), by = "exp_id")
-    helper_macro <- function(df) {
-      if (nrow(df) < 5) return(NA_real_)
-      truth <- factor(df$truth, levels = levels(sweep_predictions$truth))
-      est <- factor(df$estimate, levels = levels(truth))
-      conf <- table(truth, est)
-      diag_vals <- diag(conf)
-      precision <- diag_vals / pmax(1, colSums(conf))
-      recall <- diag_vals / pmax(1, rowSums(conf))
-      f1 <- ifelse(precision + recall == 0, NA_real_, 2 * precision * recall / (precision + recall))
-      mean(f1, na.rm = TRUE)
-    }
-    make_heat <- function(xvar, yvar, file_stub) {
-      png_path <- file.path("outputs", "heatmaps", paste0(file_stub, ".png"))
-      placeholder <- function(msg) {
+    combos <- list(
+      alpha_vs_pred_speed = list(
+        x = "alpha",
+        y = "pred_speed",
+        xlab = expression(alpha),
+        ylab = "Front speed (cells·yr\u207b\u00b9)",
+        title = "Macro-F1: \u03b1 vs front speed"
+      ),
+      mean_km_vs_presence = list(
+        x = "dispersal_mean_km",
+        y = "presence_rate",
+        xlab = "Dispersal mean (km)",
+        ylab = "Presence-only rate",
+        title = "Macro-F1: dispersal mean vs presence rate"
+      ),
+      allee_vs_pred_speed = list(
+        x = "allee_A_over_K",
+        y = "pred_speed",
+        xlab = "Allee A/K",
+        ylab = "Front speed (cells·yr\u207b\u00b9)",
+        title = "Macro-F1: Allee strength vs front speed"
+      )
+    )
+    purrr::map_chr(names(combos), function(name) {
+      combo <- combos[[name]]
+      cells <- exdyn_bin_f1(sweep_oof, combo$x, combo$y, bins = 8, min_n = 50)
+      png_path <- file.path("outputs", "heatmaps", paste0(name, ".png"))
+      if (!nrow(cells)) {
         grDevices::png(png_path, width = 650, height = 500)
         on.exit(grDevices::dev.off(), add = TRUE)
         par(mar = c(0, 0, 0, 0))
         plot.new()
-        text(0.5, 0.5, msg, cex = 1.2)
-        png_path
+        text(0.5, 0.5, "No data available", cex = 1.2)
+        return(png_path)
       }
-      if (!(xvar %in% names(joined)) || !(yvar %in% names(joined))) {
-        return(placeholder("Controls unavailable"))
-      }
-      df <- joined[, c("truth", "estimate", xvar, yvar), drop = FALSE]
-      df <- df[stats::complete.cases(df), , drop = FALSE]
-      if (!nrow(df)) return(placeholder("No observations"))
-      x_breaks <- unique(stats::quantile(df[[xvar]], probs = seq(0, 1, length.out = 8), na.rm = TRUE))
-      y_breaks <- unique(stats::quantile(df[[yvar]], probs = seq(0, 1, length.out = 8), na.rm = TRUE))
-      if (length(x_breaks) < 2 || length(y_breaks) < 2) return(placeholder("Insufficient spread"))
-      df$x_bin <- cut(df[[xvar]], breaks = x_breaks, include_lowest = TRUE)
-      df$y_bin <- cut(df[[yvar]], breaks = y_breaks, include_lowest = TRUE)
-      df <- df[!is.na(df$x_bin) & !is.na(df$y_bin), , drop = FALSE]
-      if (!nrow(df)) return(placeholder("Empty bins"))
-      df$key <- interaction(df$x_bin, df$y_bin, drop = TRUE)
-      heat <- purrr::imap_dfr(split(df, df$key), function(subdf, key) {
-        bins <- strsplit(key, "\\.")[[1]]
-        tibble::tibble(
-          x_bin = bins[1],
-          y_bin = bins[2],
-          macro_f1 = helper_macro(subdf),
-          x_mid = mean(subdf[[xvar]], na.rm = TRUE),
-          y_mid = mean(subdf[[yvar]], na.rm = TRUE),
-          n = nrow(subdf)
-        )
-      })
-      if (!nrow(heat) || all(is.na(heat$macro_f1))) return(placeholder("No variation"))
-      plt <- ggplot2::ggplot(heat, ggplot2::aes(x = x_mid, y = y_mid, fill = macro_f1)) +
-        ggplot2::geom_tile(color = NA) +
-        ggplot2::scale_fill_viridis_c(option = "C", na.value = "grey85") +
-        ggplot2::labs(x = xvar, y = yvar, fill = "Macro F1", title = paste("F1 heatmap:", xvar, "vs", yvar)) +
-        ggplot2::theme_minimal(base_size = 12)
-      ggplot2::ggsave(png_path, plt, width = 6.5, height = 5, dpi = 130)
+      plot_obj <- exdyn_plot_heatmap(cells, combo$xlab, combo$ylab, combo$title)
+      ggplot2::ggsave(png_path, plot_obj, width = 6.5, height = 5, dpi = 130)
       png_path
-    }
-    files <- c(
-      make_heat("alpha", "pred_speed", "alpha_vs_pred_speed"),
-      make_heat("dispersal_mean_km", "presence_rate", "mean_km_vs_presence"),
-      make_heat("allee_A_over_K", "pred_speed", "allee_vs_pred_speed")
-    )
-    files[!vapply(files, is.null, logical(1))]
+    })
   }),
   tar_target(design_table, {
     all_levels <- levels(factor(sweep_predictions$truth))

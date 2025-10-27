@@ -185,6 +185,72 @@ exdyn_fit_and_eval <- function(df, features, target = "scenario", seed = 321) {
   )
 }
 
+#' Out-of-fold predictions with metadata for sensitivity analyses
+#' @export
+exdyn_oof_predictions <- function(df, features, target = "scenario", v = 5, seed = 321) {
+  stopifnot(length(features) > 0, target %in% names(df))
+  required_meta <- c(
+    "exp_id", "alpha", "dispersal_mean_km", "pred_speed",
+    "presence_rate", "allee_A_over_K", "species", target
+  )
+  missing_meta <- setdiff(required_meta, names(df))
+  if (length(missing_meta)) {
+    stop("Missing columns for OOF predictions: ", paste(missing_meta, collapse = ", "))
+  }
+
+  data <- tibble::as_tibble(df)
+  feature_df <- exdyn_fill_na(data[, features, drop = FALSE])
+  meta_cols <- c(
+    "exp_id", "alpha", "dispersal_mean_km", "pred_speed",
+    "presence_rate", "allee_A_over_K", "species"
+  )
+  meta_df <- data[, meta_cols, drop = FALSE]
+  target_vec <- factor(data[[target]])
+  levels_all <- levels(target_vec)
+
+  cv_data <- dplyr::bind_cols(feature_df, meta_df, tibble::tibble(.target = target_vec))
+
+  set.seed(seed)
+  folds <- rsample::vfold_cv(cv_data, v = v, strata = ".target")
+
+  purrr::map2_dfr(folds$splits, seq_along(folds$splits), function(split, idx) {
+    train <- rsample::analysis(split)
+    test <- rsample::assessment(split)
+    train_x <- train[, features, drop = FALSE]
+    train_y <- factor(train$.target, levels = levels_all)
+    test_x <- test[, features, drop = FALSE]
+    truth <- factor(test$.target, levels = levels_all)
+
+    candidates <- exdyn_train_candidates(train_x, train_y, test_x, truth, features, seed + idx)
+    scores <- c(
+      ranger = candidates$ranger$macro_f1,
+      glmnet = candidates$glmnet$confusion$macro_f1
+    )
+    scores[is.na(scores)] <- -Inf
+    best <- names(scores)[which.max(scores)]
+    pred_tbl <- if (best == "ranger") {
+      candidates$ranger$predictions
+    } else {
+      candidates$glmnet$predictions
+    }
+    output <- tibble::tibble(
+      exp_id = test$exp_id,
+      alpha = test$alpha,
+      dispersal_mean_km = test$dispersal_mean_km,
+      pred_speed = test$pred_speed,
+      presence_rate = test$presence_rate,
+      allee_A_over_K = test$allee_A_over_K,
+      species = test$species,
+      scenario = truth,
+      fold = idx,
+      model = best,
+      truth = factor(pred_tbl$truth, levels = levels_all),
+      estimate = factor(pred_tbl$estimate, levels = levels_all)
+    )
+    output
+  })
+}
+
 #' Cross-validated macro-F1 and predictions (helper for power experiments)
 #' @export
 exdyn_cv_macro_f1 <- function(df, features, target = "scenario", v = 3, seed = 321) {

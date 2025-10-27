@@ -33,7 +33,9 @@ sweep_f1_by_archetype <- tar_read(sweep_f1_by_archetype, store = store_path)
 sweep_macro_overall <- tar_read(sweep_macro_overall, store = store_path)
 partial_files <- list.files(file.path("outputs", "partial_dependence"), pattern = "\\.csv$", full.names = TRUE)
 partial_png <- list.files(file.path("outputs", "partial_dependence"), pattern = "\\.png$", full.names = TRUE)
-heatmap_png <- list.files(file.path("outputs", "heatmaps"), pattern = "\\.png$", full.names = TRUE)
+heatmap_dir <- file.path("outputs", "heatmaps")
+heatmap_order <- file.path(heatmap_dir, c("alpha_vs_pred_speed.png", "mean_km_vs_presence.png", "allee_vs_pred_speed.png"))
+heatmap_png <- heatmap_order[file.exists(heatmap_order)]
 design_table_path <- file.path("outputs", "design_table.csv")
 design_table <- if (file.exists(design_table_path)) readr::read_csv(design_table_path, show_col_types = FALSE) else tibble::tibble()
 ```
