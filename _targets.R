@@ -6,7 +6,7 @@ tar_option_set(
     "yaml","data.table","ggplot2","matrixStats","tibble",
     "dplyr","purrr","tidyr","stringr","ranger","yardstick","lhs",
     "viridisLite","rlang",
-    "rsample","glmnet"
+    "rsample","glmnet","zoo","sf","readr"
   ),
   error = "continue",
   envir = globalenv()
@@ -21,6 +21,7 @@ if (requireNamespace("pkgload", quietly = TRUE)) {
 source("R/utils.R", local = TRUE)
 source("R/targets_helpers.R", local = TRUE)
 source("pipelines/targets_realdata_gbif.R", local = TRUE)
+source("pipelines/targets_pilot_mink_vole.R", local = TRUE)
 
 c(
   list(
@@ -142,5 +143,6 @@ c(
     feature_importance_response_only
   ))
   ),
-  targets_realdata_gbif()
+  targets_realdata_gbif(),
+  targets_pilot_mink_vole()
 )

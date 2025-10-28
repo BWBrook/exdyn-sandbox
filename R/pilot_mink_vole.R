@@ -1,0 +1,264 @@
+#' Mink → water vole pilot utilities
+#'
+#' Functions to sample parameter sets, run simulations, score them against
+#' observed vole extirpations, and emit diagnostic artefacts.
+#'
+#' @name pilot_mink_vole
+NULL
+
+#' Latin-hypercube parameter draws for the pilot
+#'
+#' @param cfg_screen List of parameter ranges (see \code{config/realdata.yaml}).
+#' @param n Number of draws.
+#' @param cell_km Grid cell size in kilometres.
+#' @param seed Random seed.
+#'
+#' @return Tibble of sampled parameters.
+#' @export
+exdyn_param_lhs <- function(cfg_screen, n = NULL, cell_km = 10, seed = 123) {
+  n <- n %||% cfg_screen$n_draws %||% 100
+  set.seed(seed)
+  lhs <- lhs::randomLHS(n, 6)
+  scalers <- function(vals, range) {
+    range[1] + vals * (range[2] - range[1])
+  }
+  tibble::tibble(
+    draw = seq_len(n),
+    alpha = scalers(lhs[, 1], cfg_screen$alpha),
+    disp_mean_km = scalers(lhs[, 2], cfg_screen$disp_mean_km),
+    A_over_K = scalers(lhs[, 3], cfg_screen$A_over_K),
+    pred_c = scalers(lhs[, 4], cfg_screen$pred_c),
+    pred_h = scalers(lhs[, 5], cfg_screen$pred_h),
+    ramp_years = round(scalers(lhs[, 6], cfg_screen$ramp_years)),
+    rmax = runif(n, cfg_screen$rmax[1], cfg_screen$rmax[2]),
+    K0 = cfg_screen$K0,
+    disp_mean_cells = disp_mean_km / cell_km
+  )
+}
+
+#' Wrapper around extirpation time helper (alias)
+#' @export
+exdyn_tx_first_passage <- function(N, K0, frac = 0.02, adaptive = TRUE, rel0 = 0.5) {
+  exdyn_extirpation_time(N, K0 = K0, frac = frac, adaptive = adaptive, rel0 = rel0)
+}
+
+#' Simulate vole dynamics for a parameter draw
+#'
+#' @param theta_row Single-row tibble of parameters.
+#' @param fields List from \code{exdyn_fields_from_mink()}.
+#' @param K0 Carrying capacity per cell.
+#'
+#' @return Abundance array \code{N[x,y,t]}.
+#' @export
+exdyn_simulate_params <- function(theta_row, fields, K0) {
+  theta <- as.list(theta_row)
+  pars <- list(
+    rmax = theta$rmax,
+    A_frac = theta$A_over_K * K0,
+    beta_H = 0,
+    d = 0.03
+  )
+  exdyn_simulate(
+    nx = dim(fields$S)[1],
+    ny = dim(fields$S)[2],
+    years = length(fields$years),
+    fields = list(S = fields$S, P = fields$P, H = fields$H),
+    pars = pars,
+    K0 = K0,
+    alpha = theta$alpha,
+    disp_mean_cells = theta$disp_mean_cells,
+    pred = list(type = "II", c = theta$pred_c, h = theta$pred_h)
+  )
+}
+
+#' Score simulated extirpations against observed data
+#'
+#' @param TX_obs Matrix of observed extirpation times.
+#' @param T_P Predation arrival matrix.
+#' @param TX_sim Matrix of simulated extirpation times.
+#' @param compat_cfg Compatibility thresholds.
+#'
+#' @return Tibble (one row) with metrics and loss.
+#' @export
+exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg) {
+  idx <- which(is.finite(TX_obs) & is.finite(T_P))
+  coverage <- if (length(idx)) length(idx) / length(T_P) else 0
+  if (length(idx) >= 3) {
+    fit <- stats::lm(TX_obs[idx] ~ T_P[idx])
+    r2 <- max(0, min(1, summary(fit)$r.squared))
+  } else {
+    r2 <- NA_real_
+  }
+  lag_mean <- if (length(idx)) mean(TX_obs[idx] - T_P[idx]) else NA_real_
+  orient_obs <- tryCatch(exdyn_orientation_metrics(TX_obs), error = function(...) list(R = NA_real_))
+  orient_sim <- tryCatch(exdyn_orientation_metrics(TX_sim), error = function(...) list(R = NA_real_))
+  R_obs <- orient_obs$R %||% NA_real_
+  R_sim <- orient_sim$R %||% NA_real_
+  anis_gap <- if (is.finite(R_obs) && is.finite(R_sim)) abs(R_obs - R_sim) else NA_real_
+
+  w1 <- 0.45; w2 <- 0.25; w3 <- 0.2; w4 <- 0.1
+  r2_term <- ifelse(is.finite(r2), 1 - r2, 1)
+  coverage_term <- 1 - coverage
+  lag_range <- compat_cfg$lag_range %||% c(0, Inf)
+  lag_pen <- if (is.finite(lag_mean)) {
+    if (lag_mean < lag_range[1]) (lag_range[1] - lag_mean) / max(1, diff(lag_range))
+    else if (lag_mean > lag_range[2]) (lag_mean - lag_range[2]) / max(1, diff(lag_range))
+    else 0
+  } else 1
+  anis_term <- ifelse(is.finite(anis_gap), anis_gap, 1)
+  loss <- w1 * r2_term + w2 * lag_pen + w3 * coverage_term + w4 * anis_term
+  compatible <- TRUE
+  compatible <- compatible && is.finite(r2) && r2 >= (compat_cfg$min_r2_arrival %||% 0)
+  compatible <- compatible && is.finite(lag_mean) &&
+    lag_mean >= lag_range[1] && lag_mean <= lag_range[2]
+  compatible <- compatible && coverage >= (compat_cfg$min_coverage %||% 0)
+
+  tibble::tibble(
+    r2_arrival = r2,
+    lag_mean = lag_mean,
+    coverage = coverage,
+    anisotropy_obs = R_obs,
+    anisotropy_sim = R_sim,
+    anisotropy_gap = anis_term,
+    loss = loss,
+    compatible = compatible
+  )
+}
+
+#' Run parameter screen and rank outputs
+#'
+#' @param theta Tibble of parameter draws.
+#' @param arrivals Mink arrivals tibble.
+#' @param grid_info Grid lookup.
+#' @param years Year vector.
+#' @param TX_obs Matrix of observed extirpations.
+#' @param cfg_screen Screen configuration.
+#' @param cfg_mink Mink predation config (ramp/leak).
+#' @param compat_cfg Compatibility thresholds.
+#'
+#' @return List with \code{results} tibble and \code{tx_sim} list.
+#' @export
+exdyn_screen_and_rank <- function(theta, arrivals, grid_info, years,
+                                  TX_obs, cfg_screen, cfg_mink, compat_cfg) {
+  results <- vector("list", nrow(theta))
+  tx_sims <- vector("list", nrow(theta))
+  for (i in seq_len(nrow(theta))) {
+    fields <- exdyn_fields_from_mink(
+      arrivals = arrivals,
+      grid_info = grid_info,
+      years = years,
+      ramp_years = theta$ramp_years[i],
+      pre_leak = cfg_mink$pre_arrival_leak %||% 0
+    )
+    N <- exdyn_simulate_params(theta[i, ], fields, K0 = theta$K0[i])
+    TX_sim <- exdyn_tx_first_passage(N, K0 = theta$K0[i])
+    metrics <- exdyn_score(TX_obs, fields$T_P, TX_sim, compat_cfg)
+    results[[i]] <- dplyr::bind_cols(theta[i, ], metrics)
+    tx_sims[[i]] <- TX_sim
+  }
+  res_df <- dplyr::bind_rows(results) %>%
+    dplyr::arrange(loss) %>%
+    dplyr::mutate(rank = dplyr::row_number())
+  list(results = res_df, tx_sim = tx_sims)
+}
+
+#' Convert matrix to long tibble for plotting
+#'
+#' @param mat Matrix (rows = row_levels, cols = col_levels).
+#' @param grid_info Grid lookup.
+#' @param value_name Column name for value.
+#'
+#' @return Tibble with columns \code{row,col,value}.
+#' @export
+exdyn_matrix_to_df <- function(mat, grid_info, value_name = "value") {
+  vals <- mat[cbind(grid_info$lookup$row_idx, grid_info$lookup$col_idx)]
+  tibble::tibble(
+    cell_id = grid_info$lookup$cell_id,
+    row = grid_info$lookup$row,
+    col = grid_info$lookup$col,
+    !!value_name := vals
+  )
+}
+
+#' Plot raster-like matrix as ggplot tile
+#'
+#' @param mat Matrix to visualise.
+#' @param grid_info Grid lookup.
+#' @param title Plot title.
+#' @param fill_label Legend title.
+#'
+#' @return ggplot object.
+#' @export
+exdyn_plot_surface <- function(mat, grid_info, title, fill_label = "Year") {
+  df <- exdyn_matrix_to_df(mat, grid_info, "value")
+  ggplot2::ggplot(df, ggplot2::aes(x = col, y = row, fill = value)) +
+    ggplot2::geom_tile(color = NA) +
+    ggplot2::scale_y_reverse() +
+    ggplot2::scale_fill_viridis_c(option = "magma", na.value = "grey90") +
+    ggplot2::coord_equal() +
+    ggplot2::labs(title = title, fill = fill_label, x = "Column", y = "Row") +
+    ggplot2::theme_minimal()
+}
+
+#' Scatter plot of observed vs predator arrival times
+#'
+#' @param TX_obs Matrix of observed extirpations.
+#' @param T_P Matrix of predator arrival times.
+#'
+#' @return ggplot object.
+#' @export
+exdyn_plot_tx_scatter <- function(TX_obs, T_P) {
+  idx <- which(is.finite(TX_obs) & is.finite(T_P))
+  df <- tibble::tibble(
+    T_P = T_P[idx],
+    T_X = TX_obs[idx]
+  )
+  if (!nrow(df)) {
+    return(ggplot2::ggplot() + ggplot2::labs(title = "No overlapping cells"))
+  }
+  fit <- tryCatch(stats::lm(T_X ~ T_P, data = df), error = function(...) NULL)
+  r2 <- if (!is.null(fit)) round(summary(fit)$r.squared, 3) else NA_real_
+  lag <- if (nrow(df)) round(mean(df$T_X - df$T_P), 2) else NA_real_
+  ggplot2::ggplot(df, ggplot2::aes(x = T_P, y = T_X)) +
+    ggplot2::geom_abline(slope = 1, intercept = 0, colour = "grey70", linetype = "dashed") +
+    ggplot2::geom_point(alpha = 0.3, size = 1.2) +
+    ggplot2::labs(
+      title = "Observed vole extirpation vs mink arrival",
+      subtitle = sprintf("r² = %s, mean lag = %s yrs", r2, lag),
+      x = "Mink arrival year",
+      y = "Observed vole extirpation year"
+    ) +
+    ggplot2::theme_minimal()
+}
+
+#' Write diagnostic PNGs for top parameter sets
+#'
+#' @param tx_obs_mat Observed extirpation matrix.
+#' @param tx_sim_list List of simulated matrices aligned with \code{scores}.
+#' @param scores Ranked tibble with `rank` column.
+#' @param grid_info Grid lookup.
+#' @param out_dir Output directory.
+#' @param top_k Number of best simulations to export.
+#'
+#' @return Vector of written file paths.
+#' @export
+exdyn_write_best_maps <- function(tx_obs_mat, tx_sim_list, scores, grid_info, out_dir, top_k = 3) {
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  paths <- c()
+  obs_plot <- exdyn_plot_surface(tx_obs_mat, grid_info, "Observed vole extirpation (TX_obs)")
+  obs_path <- file.path(out_dir, "TX_obs_map.png")
+  ggplot2::ggsave(obs_path, obs_plot, width = 7, height = 7, dpi = 150)
+  paths <- c(paths, obs_path)
+  top_ids <- scores %>% dplyr::arrange(loss) %>% dplyr::slice_head(n = top_k)
+  for (i in seq_len(nrow(top_ids))) {
+    rank_i <- top_ids$rank[i]
+    idx <- which(scores$rank == rank_i)
+    if (!length(idx)) next
+    mat <- tx_sim_list[[idx]]
+    sim_plot <- exdyn_plot_surface(mat, grid_info, sprintf("Simulated TX (rank %d)", rank_i))
+    path <- file.path(out_dir, sprintf("TX_sim_rank%02d.png", rank_i))
+    ggplot2::ggsave(path, sim_plot, width = 7, height = 7, dpi = 150)
+    paths <- c(paths, path)
+  }
+  paths
+}

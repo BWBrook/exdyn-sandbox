@@ -23,20 +23,19 @@ exdyn_make_grid <- function(country_code = "GB", cell_km = 10, crs_out = "EPSG:2
   cell_m <- cell_km * 1000
   grid_geom <- sf::st_make_grid(cntry, cellsize = cell_m, square = TRUE, what = "polygons")
 
+  cent_full <- sf::st_centroid(sf::st_sf(geometry = grid_geom))
+  coords_full <- sf::st_coordinates(cent_full)
+  x_levels <- sort(unique(round(coords_full[, 1], 6)))
+  y_levels <- sort(unique(round(coords_full[, 2], 6)))
+
   grid_sf <- sf::st_sf(
     cell_id = seq_along(grid_geom),
     geometry = grid_geom
   )
 
-  dims <- attr(grid_geom, "dim")
-  if (!is.null(dims)) {
-    ncol <- dims[1]; nrow <- dims[2]
-    grid_sf$col <- ((grid_sf$cell_id - 1) %% ncol) + 1
-    grid_sf$row <- nrow - ((grid_sf$cell_id - 1) %/% ncol)
-  } else {
-    grid_sf$col <- NA_integer_
-    grid_sf$row <- NA_integer_
-  }
+  grid_sf$col <- match(round(coords_full[, 1], 6), x_levels)
+  row_match <- match(round(coords_full[, 2], 6), y_levels)
+  grid_sf$row <- length(y_levels) - row_match + 1
 
   grid_sf <- sf::st_filter(grid_sf, cntry)
   grid_sf$geometry <- sf::st_intersection(grid_sf$geometry, sf::st_geometry(cntry))

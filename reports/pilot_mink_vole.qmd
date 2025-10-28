@@ -1,0 +1,143 @@
+---
+title: "Pilot: Mink front vs Water Vole extirpations (Great Britain)"
+format:
+  html:
+    toc: true
+    number-sections: false
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(targets)
+tar_config_set(store = file.path("..", "_targets"))
+if (requireNamespace("exdyn.sandbox", quietly = TRUE)) {
+  library(exdyn.sandbox)
+} else if (requireNamespace("pkgload", quietly = TRUE)) {
+  pkgload::load_all(path = normalizePath(".."), export_all = FALSE, helpers = FALSE, attach_testthat = FALSE)
+} else {
+  stop("Package exdyn.sandbox not available.")
+}
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(tidyr)
+library(readr)
+
+pilot_cfg <- tar_read(pilot_cfg)
+pilot_scores <- tar_read(pilot_scores)
+pilot_theta <- tar_read(pilot_theta)
+pilot_grid <- tar_read(pilot_grid)
+pilot_grid_info <- tar_read(pilot_grid_info)
+pilot_vole_tx <- tar_read(pilot_vole_tx)
+pilot_mink_field_default <- tar_read(pilot_mink_field_default)
+pilot_output_dir <- tar_read(pilot_output_dir)
+pilot_tx_sim <- tar_read(pilot_tx_sim)
+
+compat_top <- pilot_scores %>% arrange(loss) %>% slice_head(n = 10)
+```
+
+## Data overview
+
+```{r data-summary}
+vole_counts <- tar_read(pilot_vole_cells) %>%
+  count(year, name = "n_cells")
+knitr::kable(head(vole_counts), caption = "Water vole occupied cells per year (sample)")
+```
+
+```{r density-map, fig.width=6.5, fig.height=6}
+occ_density <- exdyn_occ_density_map(
+  pilot_grid,
+  tar_read(pilot_vole_cells),
+  "Water vole occurrence density"
+)
+occ_density
+```
+
+```{r mink-arrival, fig.width=6.5, fig.height=6}
+arrival_plot <- exdyn_plot_surface(
+  pilot_mink_field_default$T_P,
+  pilot_grid_info,
+  "Mink arrival year (smoothed)",
+  "Year"
+)
+arrival_plot
+```
+
+```{r tx-obs, fig.width=6.5, fig.height=6}
+tx_obs_plot <- exdyn_plot_surface(
+  pilot_vole_tx$matrix,
+  pilot_grid_info,
+  "Observed vole extirpation year (TX_obs)",
+  "Year"
+)
+tx_obs_plot
+```
+
+## Methods (summary)
+
+Water vole extirpations were inferred via a smoothed first-passage rule applied to GBIF presence-only counts (baseline window `r pilot_cfg$pilot$vole$baseline_window`, drop fraction `r pilot_cfg$pilot$vole$drop_fraction`). Mink arrivals were converted to a time-varying predation field using a `r pilot_cfg$pilot$mink_P$ramp_years`-year logistic ramp. We screened `r nrow(pilot_theta)` parameter sets via Latin hypercube for dispersal (`α`), dispersal scale, Allee (`A/K`), predation (`c`, `h`), and ramp duration, simulating vole dynamics with carrying capacity `K0 = ` `r pilot_cfg$pilot$screen$K0`. Compatibility scores combine r², mean lag (TX_obs − T_P), coverage, and anisotropy gap.
+
+## Diagnostics
+
+```{r scatter, fig.width=6, fig.height=5}
+scatter_plot <- exdyn_plot_tx_scatter(pilot_vole_tx$matrix, pilot_mink_field_default$T_P)
+scatter_plot
+```
+
+```{r coverage-lag}
+diag_table <- pilot_scores %>%
+  summarise(
+    best_r2 = max(r2_arrival, na.rm = TRUE),
+    median_lag = median(lag_mean, na.rm = TRUE),
+    median_coverage = median(coverage, na.rm = TRUE)
+  )
+knitr::kable(diag_table, caption = "Summary diagnostics across screen")
+```
+
+## Compatibility results
+
+```{r compat-table}
+compat_top %>%
+  mutate(across(where(is.numeric), ~ round(., 3))) %>%
+  knitr::kable(caption = "Top 10 parameter sets (lowest loss)")
+```
+
+```{r top-maps, fig.width=6.5, fig.height=6}
+top_ranks <- compat_top$rank[compat_top$compatible]
+top_ranks <- top_ranks[seq_len(min(3, length(top_ranks)))]
+if (!length(top_ranks)) {
+  ggplot2::ggplot() + ggplot2::theme_void() + ggplot2::labs(title = "No compatible simulations met thresholds.")
+} else {
+  for (rk in top_ranks) {
+    idx <- which(pilot_scores$rank == rk)
+    if (!length(idx)) next
+    plot(exdyn_plot_surface(
+      pilot_tx_sim[[idx]],
+      pilot_grid_info,
+      sprintf("Simulated TX (rank %d)", rk),
+      "Year"
+    ))
+  }
+}
+```
+
+Best compatible set (first rank) satisfies thresholds:
+
+```{r best-row}
+best_row <- compat_top %>% filter(compatible) %>% slice_head(n = 1)
+if (nrow(best_row)) {
+  knitr::kable(best_row, caption = "Best compatible parameter set")
+} else {
+  knitr::kable(compat_top, caption = "No parameter set met all compatibility thresholds; showing top 10 by loss.")
+}
+```
+
+## Output artefacts
+
+```{r outputs}
+paths <- list.files(pilot_output_dir, full.names = TRUE)
+knitr::kable(tibble::tibble(file = basename(paths)), caption = sprintf("Files in %s", pilot_output_dir))
+```
