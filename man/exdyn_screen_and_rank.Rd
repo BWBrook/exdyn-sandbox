@@ -6,19 +6,18 @@
 \usage{
 exdyn_screen_and_rank(
   theta,
-  arrivals,
   grid_info,
   years,
+  T_P,
   TX_obs,
   cfg_screen,
   cfg_mink,
-  compat_cfg
+  compat_cfg,
+  log_mem = FALSE
 )
 }
 \arguments{
 \item{theta}{Tibble of parameter draws.}
-
-\item{arrivals}{Mink arrivals tibble.}
 
 \item{grid_info}{Grid lookup.}
 
@@ -31,6 +30,8 @@ exdyn_screen_and_rank(
 \item{cfg_mink}{Mink predation config (ramp/leak).}
 
 \item{compat_cfg}{Compatibility thresholds.}
+
+\item{arrivals}{Mink arrivals tibble.}
 }
 \value{
 List with \code{results} tibble and \code{tx_sim} list.

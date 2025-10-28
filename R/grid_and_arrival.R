@@ -33,6 +33,8 @@ exdyn_make_grid <- function(country_code = "GB", cell_km = 10, crs_out = "EPSG:2
     geometry = grid_geom
   )
 
+  grid_sf$cell_km <- cell_km
+
   grid_sf$col <- match(round(coords_full[, 1], 6), x_levels)
   row_match <- match(round(coords_full[, 2], 6), y_levels)
   grid_sf$row <- length(y_levels) - row_match + 1

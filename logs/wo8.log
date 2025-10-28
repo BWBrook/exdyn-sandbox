@@ -19,3 +19,11 @@
 2025-10-28T14:57:05+11:00 - agent: rerunning tar_make after invalidation
 2025-10-28T15:15:31+11:00 - agent: resuming WO8 debugging (pilot_screen error)
 2025-10-28T15:17:40+11:00 - agent: rebuilding WO8 targets
+2025-10-28T15:49:38+11:00 - agent: building pilot_mink_field_default target
+2025-10-28T15:50:08+11:00 - agent: inspecting pilot_theta sample
+2025-10-28T15:50:22+11:00 - agent: running pilot_screen target
+2025-10-28T15:56:58+11:00 - agent: reduced pilot n_draws to 24 for debugging
+2025-10-28T15:58:43+11:00 - agent: running pilot_screen with 24 draws
+2025-10-28T17:00:09+11:00 - agent: running devtools::document() after streaming refactor
+2025-10-28T17:00:36+11:00 - agent: running devtools::test() post-refactor
+2025-10-28T17:01:25+11:00 - agent: testing pilot_screen with streaming simulation

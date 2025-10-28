@@ -22,12 +22,18 @@ exdyn_grid_lookup <- function(grid_sf) {
   col_levels <- sort(unique(meta$col))
   meta$row_idx <- match(meta$row, row_levels)
   meta$col_idx <- match(meta$col, col_levels)
+  cell_km <- if ("cell_km" %in% names(grid_sf)) {
+    unique(grid_sf$cell_km)[1]
+  } else {
+    NA_real_
+  }
   list(
     lookup = meta,
     row_levels = row_levels,
     col_levels = col_levels,
     nx = length(row_levels),
-    ny = length(col_levels)
+    ny = length(col_levels),
+    cell_km = cell_km
   )
 }
 
@@ -108,6 +114,7 @@ exdyn_fields_from_mink <- function(arrivals, grid_info, years, ramp_years, pre_l
     H = H,
     T_P = P_info$T_P,
     grid_info = grid_info,
-    years = years
+    years = years,
+    pre_leak = pre_leak
   )
 }

@@ -51,6 +51,7 @@ exdyn_tx_first_passage <- function(N, K0, frac = 0.02, adaptive = TRUE, rel0 = 0
 #' @return Abundance array \code{N[x,y,t]}.
 #' @export
 exdyn_simulate_params <- function(theta_row, fields, K0) {
+  .Deprecated("exdyn_simulate_tx_only")
   theta <- as.list(theta_row)
   pars <- list(
     rmax = theta$rmax,
@@ -58,16 +59,18 @@ exdyn_simulate_params <- function(theta_row, fields, K0) {
     beta_H = 0,
     d = 0.03
   )
-  exdyn_simulate(
-    nx = dim(fields$S)[1],
-    ny = dim(fields$S)[2],
-    years = length(fields$years),
-    fields = list(S = fields$S, P = fields$P, H = fields$H),
+  exdyn_simulate_tx_only(
+    grid_info = fields$grid_info,
+    years = fields$years,
+    T_P = fields$T_P,
+    ramp_years = theta$ramp_years,
     pars = pars,
     K0 = K0,
     alpha = theta$alpha,
     disp_mean_cells = theta$disp_mean_cells,
-    pred = list(type = "II", c = theta$pred_c, h = theta$pred_h)
+    pred = list(type = "II", c = theta$pred_c, h = theta$pred_h),
+    pre_leak = fields$pre_leak %||% 0,
+    log_mem = FALSE
   )
 }
 
@@ -138,23 +141,35 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg) {
 #'
 #' @return List with \code{results} tibble and \code{tx_sim} list.
 #' @export
-exdyn_screen_and_rank <- function(theta, arrivals, grid_info, years,
-                                  TX_obs, cfg_screen, cfg_mink, compat_cfg) {
+exdyn_screen_and_rank <- function(theta, grid_info, years, T_P,
+                                  TX_obs, cfg_screen, cfg_mink, compat_cfg,
+                                  log_mem = FALSE) {
   results <- vector("list", nrow(theta))
   tx_sims <- vector("list", nrow(theta))
   for (i in seq_len(nrow(theta))) {
-    fields <- exdyn_fields_from_mink(
-      arrivals = arrivals,
+    pars <- list(
+      rmax = theta$rmax[i],
+      A_frac = theta$A_over_K[i] * theta$K0[i],
+      beta_H = 0,
+      d = 0.03
+    )
+    TX_sim <- exdyn_simulate_tx_only(
       grid_info = grid_info,
       years = years,
+      T_P = T_P,
       ramp_years = theta$ramp_years[i],
-      pre_leak = cfg_mink$pre_arrival_leak %||% 0
+      pars = pars,
+      K0 = theta$K0[i],
+      alpha = theta$alpha[i],
+      disp_mean_cells = theta$disp_mean_cells[i],
+      pred = list(type = "II", c = theta$pred_c[i], h = theta$pred_h[i]),
+      pre_leak = cfg_mink$pre_arrival_leak %||% 0,
+      log_mem = log_mem
     )
-    N <- exdyn_simulate_params(theta[i, ], fields, K0 = theta$K0[i])
-    TX_sim <- exdyn_tx_first_passage(N, K0 = theta$K0[i])
-    metrics <- exdyn_score(TX_obs, fields$T_P, TX_sim, compat_cfg)
+    metrics <- exdyn_score(TX_obs, T_P, TX_sim, compat_cfg)
     results[[i]] <- dplyr::bind_cols(theta[i, ], metrics)
     tx_sims[[i]] <- TX_sim
+    gc()
   }
   res_df <- dplyr::bind_rows(results) %>%
     dplyr::arrange(loss) %>%

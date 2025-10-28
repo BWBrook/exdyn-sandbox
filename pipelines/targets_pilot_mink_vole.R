@@ -37,9 +37,9 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     )),
     tar_target(pilot_screen, exdyn_screen_and_rank(
       theta = pilot_theta,
-      arrivals = pilot_mink_arrivals,
       grid_info = pilot_grid_info,
       years = pilot_years,
+      T_P = pilot_mink_field_default$T_P,
       TX_obs = pilot_vole_tx$matrix,
       cfg_screen = pilot_cfg$pilot$screen,
       cfg_mink = pilot_cfg$pilot$mink_P,
