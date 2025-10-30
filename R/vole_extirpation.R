@@ -46,6 +46,9 @@ exdyn_cell_timeseries <- function(cells_df, years, grid_info = NULL) {
         col_idx = NA_integer_
       )
   }
+  if (nrow(counts) > 5L * dplyr::n_distinct(counts$cell_id) * length(yrs)) {
+    warning("exdyn_cell_timeseries: unusually large table; check grouping logic.", call. = FALSE)
+  }
   counts
 }
 
@@ -81,24 +84,10 @@ exdyn_ts_smooth <- function(counts, k = 5) {
     last_presence <- years[max(detections)]
     return(list(tx = NA_integer_, last_presence = last_presence))
   }
-  baseline_idx <- which(years >= y0 & years <= y0 + cfg$baseline_window - 1)
+  baseline_idx <- which(years >= y0 & years <= y0 + cfg$baseline_window - 1L)
   baseline_idx <- baseline_idx[baseline_idx <= length(smooth_vals)]
   baseline_vals <- smooth_vals[baseline_idx]
-  if (!any(is.finite(baseline_vals))) baseline_vals <- baseline_vals <- baseline_vals
-  baseline_vals_raw <- baseline_vals
-  if (!any(is.finite(baseline_vals))) {
-    baseline_vals <- baseline_vals_raw <- NA_real_
-  }
-  if (!any(is.finite(baseline_vals))) {
-    baseline_vals <- baseline_vals_raw <- NA_real_
-  }
-  if (!any(is.finite(baseline_vals))) {
-    return(list(tx = NA_integer_, last_presence = years[max(detections)]))
-  }
-  B <- stats::median(baseline_vals, na.rm = TRUE)
-  if (!is.finite(B) || B <= 0) {
-    B <- stats::median(baseline_vals_raw, na.rm = TRUE)
-  }
+  B <- suppressWarnings(stats::median(baseline_vals, na.rm = TRUE))
   if (!is.finite(B) || B <= 0) {
     return(list(tx = NA_integer_, last_presence = years[max(detections)]))
   }
@@ -170,12 +159,11 @@ exdyn_tx_map <- function(cells_df, years, cfg, grid_info) {
 
   tx_mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
   lp_mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
-  for (i in seq_len(nrow(per_cell))) {
-    r <- per_cell$row_idx[i]
-    c <- per_cell$col_idx[i]
-    if (is.na(r) || is.na(c)) next
-    tx_mat[r, c] <- per_cell$tx_obs[i]
-    lp_mat[r, c] <- per_cell$last_presence[i]
+  valid_idx <- stats::complete.cases(per_cell$row_idx, per_cell$col_idx)
+  if (any(valid_idx)) {
+    matrix_index <- cbind(per_cell$row_idx[valid_idx], per_cell$col_idx[valid_idx])
+    tx_mat[matrix_index] <- per_cell$tx_obs[valid_idx]
+    lp_mat[matrix_index] <- per_cell$last_presence[valid_idx]
   }
 
   list(
