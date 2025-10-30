@@ -13,11 +13,16 @@ exdyn_mem_log <- function(tag = "") {
     error = function(...) NA_real_
   )
   rss_mb <- if (is.na(rss_kb)) NA_real_ else rss_kb / 1024
-  total_mb <- sum(info[, "used"]) / 1024
-  msg <- sprintf("[mem] %s GC=%.1f MB RSS=%s MB",
+
+  vc_mb <- info["Vcells", "used"] * 8 / (1024^2)
+  ptr_size <- if (.Machine$sizeof.pointer == 8) 8 else 4
+  nc_mb <- info["Ncells", "used"] * (2 * ptr_size) / (1024^2)
+  gc_mb <- vc_mb + nc_mb
+
+  msg <- sprintf("[mem] %s GC≈%.1f MB RSS=%s MB",
                  tag,
-                 total_mb,
+                 gc_mb,
                  if (is.na(rss_mb)) "NA" else sprintf("%.1f", rss_mb))
   message(msg)
-  invisible(list(gc_mb = total_mb, rss_mb = rss_mb))
+  invisible(list(gc_mb = gc_mb, rss_mb = rss_mb))
 }
