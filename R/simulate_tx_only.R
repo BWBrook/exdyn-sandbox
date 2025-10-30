@@ -1,3 +1,17 @@
+# Internal helper for tx-only simulation with constant S and H
+exdyn_update_local_const <- function(N, P, pars, K0, pred_type = c("II", "III"), pred_c, pred_h, r_eff_const) {
+  pred_type <- match.arg(pred_type)
+  A <- pars$A_frac
+  allee <- (1 - A / (pmax(N, 0) + A))
+  if (pred_type == "II") {
+    M <- pred_c * (P * N) / (pred_h + N)
+  } else {
+    M <- pred_c * (P * N^2) / (pred_h^2 + N^2)
+  }
+  growth <- r_eff_const * allee * (1 - N / K0) - M - pars$d
+  N * exp(growth)
+}
+
 #' Streamed simulation returning first-passage times only
 #'
 #' This helper runs the vole dynamics for a single parameter draw while
@@ -38,13 +52,13 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
   N <- matrix(pmax(1, round(K0 * 0.1)), nrow = nx, ncol = ny)
   tau <- pmin(frac * K0, rel0 * N)
   TX <- matrix(NA_integer_, nrow = nx, ncol = ny)
-  if (alpha > 0) {
+  conv_plan <- if (alpha > 0) {
     ker <- exdyn_kernel(mean_cells = disp_mean_cells, radius = 5L)
+    exdyn_conv2_plan(nx, ny, ker)
   } else {
-    ker <- NULL
+    NULL
   }
-  ones <- matrix(1, nrow = nx, ncol = ny)
-  zeros <- matrix(0, nrow = nx, ncol = ny)
+  r_eff_const <- pars$rmax * exdyn_fS(1)
   k <- 6 / ramp_years
 
   for (tt in seq_len(Tn - 1)) {
@@ -58,22 +72,21 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
         pmax(pre_leak, pmin(1, val))
       }
     )
-    local <- exdyn_update_local(
+    local <- exdyn_update_local_const(
       N = N,
-      S = ones,
-      H = zeros,
       P = P_t,
       pars = pars,
       K0 = K0,
       pred_type = pred$type,
       pred_c = pred$c,
-      pred_h = pred$h
+      pred_h = pred$h,
+      r_eff_const = r_eff_const
     )
-    if (alpha > 0) {
-      moved <- exdyn_conv2(local, ker)
-      N_next <- (1 - alpha) * local + alpha * moved
+    N_next <- if (alpha > 0) {
+      moved <- exdyn_conv2_apply(local, conv_plan)
+      (1 - alpha) * local + alpha * moved
     } else {
-      N_next <- local
+      local
     }
     crossed <- is.na(TX) & (N > tau) & (N_next <= tau)
     if (any(crossed, na.rm = TRUE)) {

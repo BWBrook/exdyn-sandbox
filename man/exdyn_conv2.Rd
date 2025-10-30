@@ -2,11 +2,11 @@
 % Please edit documentation in R/conv2.R
 \name{exdyn_conv2}
 \alias{exdyn_conv2}
-\title{Simple 2D FFT convolution for dispersal}
+\title{Simple 2D FFT convolution for dispersal (backward-compatible wrapper)}
 \usage{
 exdyn_conv2(mat, kernel)
 }
 \description{
-Simple 2D FFT convolution for dispersal
+Simple 2D FFT convolution for dispersal (backward-compatible wrapper)
 }
 \keyword{internal}

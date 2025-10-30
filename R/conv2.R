@@ -1,13 +1,33 @@
-#' Simple 2D FFT convolution for dispersal
+#' Precompute FFT plan for 2D convolution
+#' @export
+exdyn_conv2_plan <- function(nx, ny, kernel) {
+  stopifnot(all(dim(kernel) %% 2L == 1L))
+  pad <- (dim(kernel) - 1L) / 2L
+  big_dim <- c(nx + 2L * pad[1], ny + 2L * pad[2])
+  list(
+    pad = pad,
+    big_dim = big_dim,
+    fb = stats::fft(kern_pad(kernel, big_dim)),
+    x_idx = (pad[1] + 1L):(pad[1] + nx),
+    y_idx = (pad[2] + 1L):(pad[2] + ny)
+  )
+}
+
+#' Apply cached FFT plan
+#' @export
+exdyn_conv2_apply <- function(mat, plan) {
+  big <- matrix(0, nrow = plan$big_dim[1], ncol = plan$big_dim[2])
+  big[plan$x_idx, plan$y_idx] <- mat
+  fa <- stats::fft(big)
+  Re(stats::fft(fa * plan$fb, inverse = TRUE) / length(fa))[plan$x_idx, plan$y_idx]
+}
+
+#' Simple 2D FFT convolution for dispersal (backward-compatible wrapper)
 #' @keywords internal
 #' @export
 exdyn_conv2 <- function(mat, kernel) {
-  stopifnot(all(dim(kernel) %% 2 == 1))
-  pad <- (dim(kernel)-1)/2
-  big <- matrix(0, nrow = nrow(mat)+2*pad[1], ncol = ncol(mat)+2*pad[2])
-  big[ (pad[1]+1):(pad[1]+nrow(mat)), (pad[2]+1):(pad[2]+ncol(mat)) ] <- mat
-  fa <- fft(big); fb <- fft(kern_pad(kernel, dim(big)))
-  Re(fft(fa*fb, inverse=TRUE)/length(fa))[ (pad[1]+1):(pad[1]+nrow(mat)), (pad[2]+1):(pad[2]+ncol(mat)) ]
+  plan <- exdyn_conv2_plan(nrow(mat), ncol(mat), kernel)
+  exdyn_conv2_apply(mat, plan)
 }
 kern_pad <- function(k, dims) {
   out <- matrix(0, nrow=dims[1], ncol=dims[2])

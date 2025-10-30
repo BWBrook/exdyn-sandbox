@@ -23,13 +23,14 @@ exdyn_simulate <- function(nx, ny, years, fields, pars, K0=100, alpha=0.2, disp_
   N <- array(0, c(nx,ny,years))
   N[,,1] <- pmax(1, round(K0 * fields$S[,,1] * 0.1))
   ker <- exdyn_kernel(mean_cells=disp_mean_cells, radius=5L)
+  conv_plan <- if (alpha > 0) exdyn_conv2_plan(nx, ny, ker) else NULL
   for (t in 1:(years-1)) {
     local <- exdyn_update_local(
       N = N[,,t], S = fields$S[,,t], H = fields$H[,,t], P = fields$P[,,t],
       pars = pars, K0 = K0, pred_type = pred$type, pred_c = pred$c, pred_h = pred$h
     )
     if (alpha > 0) {
-      moved <- exdyn_conv2(local, ker)
+      moved <- exdyn_conv2_apply(local, conv_plan)
       N[,,t+1] <- (1-alpha)*local + alpha*moved
     } else {
       N[,,t+1] <- local
