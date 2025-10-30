@@ -7,7 +7,7 @@ if (!requireNamespace("qs", quietly = TRUE)) {
   install.packages("qs")
 }
 
-tar_option_set(
+tar_option_args <- list(
   packages = c(
     "yaml","data.table","ggplot2","matrixStats","tibble",
     "dplyr","purrr","tidyr","stringr","ranger","yardstick","lhs",
@@ -15,12 +15,19 @@ tar_option_set(
     "rsample","glmnet","zoo","sf","readr"
   ),
   error = "stop",
-  reporter = "timestamp",
   envir = globalenv(),
   format = "qs",
   memory = "transient",
   garbage_collection = TRUE,
-  cue = tar_cue(mode = "thorough")
+  cue = tar_cue(mode = "thorough"),
+  reporter = "timestamp"
+)
+tryCatch(
+  do.call(tar_option_set, tar_option_args),
+  error = function(e) {
+    tar_option_args$reporter <- NULL
+    do.call(tar_option_set, tar_option_args)
+  }
 )
 
 if (requireNamespace("pkgload", quietly = TRUE)) {
