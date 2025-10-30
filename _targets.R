@@ -14,7 +14,8 @@ tar_option_set(
     "viridisLite","rlang","future",
     "rsample","glmnet","zoo","sf","readr"
   ),
-  error = "continue",
+  error = "stop",
+  reporter = "timestamp",
   envir = globalenv(),
   format = "qs",
   memory = "transient",

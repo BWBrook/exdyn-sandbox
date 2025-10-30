@@ -58,7 +58,8 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       base::gc()
       result
     },
-    pattern = map(pilot_theta_rows)
+    pattern = map(pilot_theta_rows),
+    iteration = "list"
   )
   list(
     tar_target_raw("pilot_cfg", rlang::expr(yaml::read_yaml(!!cfg_path))),
@@ -67,7 +68,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       country_code = pilot_cfg$gbif$country,
       cell_km = pilot_cfg$pilot$grid_cell_km,
       crs_out = pilot_cfg$pilot$crs_out
-    )),
+    ), deployment = "main"),
     tar_target(pilot_grid_info, exdyn_grid_lookup(pilot_grid)),
     tar_target(pilot_mink_arrivals, real_arrivals_smooth),
     tar_target(pilot_vole_gbif, exdyn_gbif_species(
@@ -79,7 +80,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       max_records = pilot_cfg$cache$max_records,
       force = isTRUE(pilot_cfg$cache$force_redownload)
     )),
-    tar_target(pilot_vole_cells, exdyn_points_to_grid(pilot_vole_gbif, pilot_grid)),
+    tar_target(pilot_vole_cells, exdyn_points_to_grid(pilot_vole_gbif, pilot_grid), deployment = "main"),
     tar_target(pilot_vole_tx, exdyn_tx_map(
       pilot_vole_cells, pilot_cfg$pilot$years, pilot_cfg$pilot$vole, pilot_grid_info
     )),
@@ -107,7 +108,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     pilot_theta_rows_target,
     pilot_draw_result_target,
     tar_target(pilot_screen, {
-      rows <- pilot_draw_result
+      rows <- Filter(Negate(is.null), pilot_draw_result)
       if (!length(rows)) {
         tibble::tibble()
       } else {
