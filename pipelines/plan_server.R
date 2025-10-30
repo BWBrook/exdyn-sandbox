@@ -11,6 +11,8 @@ if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
 
 options(mc.cores = parallel::detectCores())
 
+# Parallel plan below is only used when calling targets::tar_make_future();
+# regular tar_make() still runs sequentially with these BLAS thread caps.
 future::plan(
   future::multicore,
   workers = max(1, min(6, parallel::detectCores()))

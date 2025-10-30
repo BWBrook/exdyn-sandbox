@@ -1,10 +1,10 @@
-.PHONY: init test run report report-leak report-qa exp report-id report-sens
+.PHONY: init test run report report-leak report-qa exp report-id report-sens pilot pilot-future
 
 init:
 	R --vanilla -e 'renv::restore(); devtools::document(); renv::snapshot(prompt=FALSE)'
 
 test:
-	R --vanilla -e 'devtools::test()'
+	R --vanilla -e 'source("renv/activate.R"); devtools::test()'
 
 run:
 	R --vanilla -e 'targets::tar_make()'
@@ -26,3 +26,9 @@ report-qa:
 
 report-sens:
 	R --vanilla -e 'quarto::quarto_render("reports/sensitivity.qmd")'
+
+pilot:
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("pilot_screen","pilot_report"))'
+
+pilot-future:
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make_future(names=c("pilot_screen","pilot_report"), workers=6)'
