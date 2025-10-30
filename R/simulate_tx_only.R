@@ -19,6 +19,7 @@
 #' @param rel0 Relative threshold to initial abundance (defaults to 0.5).
 #' @param pre_leak Baseline predation prior to arrival (default 0).
 #' @param log_mem If TRUE, emits memory telemetry every 10 time steps.
+#' @param log_tag Optional label appended to memory log messages.
 #'
 #' @return Matrix of first-passage times (year indices).
 #' @export
@@ -26,7 +27,8 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
                                    pars, K0, alpha,
                                    disp_mean_cells, pred,
                                    frac = 0.02, rel0 = 0.5,
-                                   pre_leak = 0, log_mem = FALSE) {
+                                   pre_leak = 0, log_mem = FALSE,
+                                   log_tag = NULL) {
   nx <- grid_info$nx
   ny <- grid_info$ny
   stopifnot(length(years) >= 2)
@@ -79,7 +81,8 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
     }
     N <- pmax(N_next, 0)
     if (log_mem && tt %% 10L == 0L) {
-      exdyn_mem_log(sprintf("t=%d", tt))
+      msg <- if (is.null(log_tag)) sprintf("t=%d", tt) else sprintf("%s t=%d", log_tag, tt)
+      exdyn_mem_log(msg)
     }
   }
   TX

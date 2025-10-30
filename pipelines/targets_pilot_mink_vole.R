@@ -1,6 +1,65 @@
 targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
   cfg_path <- normalizePath(cfg_path, mustWork = FALSE)
-  years_seq_expr <- rlang::expr(seq.int(pilot_cfg$pilot$years[1], pilot_cfg$pilot$years[2]))
+  pilot_theta_rows_target <- tar_target(
+    pilot_theta_rows,
+    purrr::transpose(pilot_theta),
+    iteration = "list"
+  )
+  pilot_draw_result_target <- tar_target(
+    pilot_draw_result,
+    {
+      theta <- pilot_theta_rows
+      draw <- theta$draw[[1]]
+      log_mem_flag <- pilot_cfg$pilot$screen$log_mem %||% TRUE
+      tx_path <- file.path(pilot_tx_dir, sprintf("tx_%03d.rds", draw))
+      dir.create(dirname(tx_path), recursive = TRUE, showWarnings = FALSE)
+      TX <- exdyn_simulate_tx_only(
+        grid_info = pilot_grid_info,
+        years = pilot_years,
+        T_P = pilot_mink_field_default$T_P,
+        ramp_years = theta$ramp_years[[1]],
+        pars = list(
+          rmax = theta$rmax[[1]],
+          A_frac = theta$A_over_K[[1]] * theta$K0[[1]],
+          beta_H = 0,
+          d = 0.03
+        ),
+        K0 = theta$K0[[1]],
+        alpha = theta$alpha[[1]],
+        disp_mean_cells = theta$disp_mean_cells[[1]],
+        pred = list(type = "II", c = theta$pred_c[[1]], h = theta$pred_h[[1]]),
+        pre_leak = pilot_cfg$pilot$mink_P$pre_arrival_leak,
+        log_mem = isTRUE(log_mem_flag),
+        log_tag = sprintf("draw %03d", draw)
+      )
+      saveRDS(TX, tx_path)
+      score <- exdyn_score(
+        pilot_vole_tx$matrix,
+        pilot_mink_field_default$T_P,
+        TX,
+        pilot_cfg$pilot$compat
+      )
+      result <- dplyr::bind_cols(
+        tibble::tibble(
+          draw = draw,
+          tx_path = tx_path,
+          alpha = theta$alpha[[1]],
+          disp_mean_km = theta$disp_mean_km[[1]],
+          disp_mean_cells = theta$disp_mean_cells[[1]],
+          A_over_K = theta$A_over_K[[1]],
+          pred_c = theta$pred_c[[1]],
+          pred_h = theta$pred_h[[1]],
+          ramp_years = theta$ramp_years[[1]],
+          rmax = theta$rmax[[1]],
+          K0 = theta$K0[[1]]
+        ),
+        score
+      )
+      base::gc()
+      result
+    },
+    pattern = map(pilot_theta_rows)
+  )
   list(
     tar_target_raw("pilot_cfg", rlang::expr(yaml::read_yaml(!!cfg_path))),
     tar_target(pilot_years, seq.int(pilot_cfg$pilot$years[1], pilot_cfg$pilot$years[2])),
@@ -35,34 +94,39 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       cell_km = pilot_cfg$pilot$grid_cell_km,
       seed = 42
     )),
-    tar_target(pilot_screen, exdyn_screen_and_rank(
-      theta = pilot_theta,
-      grid_info = pilot_grid_info,
-      years = pilot_years,
-      T_P = pilot_mink_field_default$T_P,
-      TX_obs = pilot_vole_tx$matrix,
-      cfg_screen = pilot_cfg$pilot$screen,
-      cfg_mink = pilot_cfg$pilot$mink_P,
-      compat_cfg = pilot_cfg$pilot$compat
-    )),
-    tar_target(pilot_scores, pilot_screen$results),
-    tar_target(pilot_tx_sim, pilot_screen$tx_sim),
     tar_target(pilot_output_dir, {
       dir <- file.path("outputs", "realdata", "pilot_mink_vole")
       dir.create(dir, recursive = TRUE, showWarnings = FALSE)
       dir
     }),
+    tar_target(pilot_tx_dir, {
+      dir <- file.path(pilot_output_dir, "tx_sim")
+      dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+      dir
+    }),
+    pilot_theta_rows_target,
+    pilot_draw_result_target,
+    tar_target(pilot_screen, {
+      rows <- pilot_draw_result
+      if (!length(rows)) {
+        tibble::tibble()
+      } else {
+        df <- dplyr::bind_rows(rows)
+        if (!nrow(df)) df else df %>% dplyr::arrange(loss) %>% dplyr::mutate(rank = dplyr::row_number())
+      }
+    }),
+    tar_target(pilot_scores, pilot_screen),
     tar_target(pilot_tables_written, {
       dir.create(pilot_output_dir, recursive = TRUE, showWarnings = FALSE)
       readr::write_csv(pilot_vole_tx$table, file.path(pilot_output_dir, "vole_tx_obs.csv"))
       readr::write_csv(pilot_theta, file.path(pilot_output_dir, "params_lhs.csv"))
-      readr::write_csv(pilot_scores, file.path(pilot_output_dir, "compatibility_ranked.csv"))
+      readr::write_csv(pilot_screen, file.path(pilot_output_dir, "compatibility_ranked.csv"))
       file.path(pilot_output_dir, c("vole_tx_obs.csv", "params_lhs.csv", "compatibility_ranked.csv"))
     }),
     tar_target(pilot_maps_written, exdyn_write_best_maps(
       tx_obs_mat = pilot_vole_tx$matrix,
-      tx_sim_list = pilot_tx_sim,
-      scores = pilot_scores,
+      tx_sources = pilot_screen$tx_path,
+      scores = pilot_screen,
       grid_info = pilot_grid_info,
       out_dir = pilot_output_dir,
       top_k = 3
@@ -79,7 +143,6 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       pilot_grid
       pilot_grid_info
       pilot_vole_tx
-      pilot_tx_sim
       pilot_mink_field_default
       pilot_output_dir
       pilot_tables_written

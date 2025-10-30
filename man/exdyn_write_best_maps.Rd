@@ -6,7 +6,7 @@
 \usage{
 exdyn_write_best_maps(
   tx_obs_mat,
-  tx_sim_list,
+  tx_sources = NULL,
   scores,
   grid_info,
   out_dir,
@@ -16,7 +16,9 @@ exdyn_write_best_maps(
 \arguments{
 \item{tx_obs_mat}{Observed extirpation matrix.}
 
-\item{tx_sim_list}{List of simulated matrices aligned with \code{scores}.}
+\item{tx_sources}{Optional list of simulated matrices or character vector of
+file paths (one per row of \code{scores}). When omitted, the function will
+look for a \code{tx_path} column in \code{scores}.}
 
 \item{scores}{Ranked tibble with \code{rank} column.}
 

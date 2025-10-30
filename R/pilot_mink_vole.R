@@ -164,7 +164,11 @@ exdyn_screen_and_rank <- function(theta, grid_info, years, T_P,
       disp_mean_cells = theta$disp_mean_cells[i],
       pred = list(type = "II", c = theta$pred_c[i], h = theta$pred_h[i]),
       pre_leak = cfg_mink$pre_arrival_leak %||% 0,
-      log_mem = log_mem
+      log_mem = log_mem,
+      log_tag = sprintf(
+        "draw %03d",
+        if ("draw" %in% names(theta)) theta$draw[i] else i
+      )
     )
     metrics <- exdyn_score(TX_obs, T_P, TX_sim, compat_cfg)
     results[[i]] <- dplyr::bind_cols(theta[i, ], metrics)
@@ -249,7 +253,9 @@ exdyn_plot_tx_scatter <- function(TX_obs, T_P) {
 #' Write diagnostic PNGs for top parameter sets
 #'
 #' @param tx_obs_mat Observed extirpation matrix.
-#' @param tx_sim_list List of simulated matrices aligned with \code{scores}.
+#' @param tx_sources Optional list of simulated matrices or character vector of
+#'   file paths (one per row of \code{scores}). When omitted, the function will
+#'   look for a \code{tx_path} column in \code{scores}.
 #' @param scores Ranked tibble with `rank` column.
 #' @param grid_info Grid lookup.
 #' @param out_dir Output directory.
@@ -257,7 +263,7 @@ exdyn_plot_tx_scatter <- function(TX_obs, T_P) {
 #'
 #' @return Vector of written file paths.
 #' @export
-exdyn_write_best_maps <- function(tx_obs_mat, tx_sim_list, scores, grid_info, out_dir, top_k = 3) {
+exdyn_write_best_maps <- function(tx_obs_mat, tx_sources = NULL, scores, grid_info, out_dir, top_k = 3) {
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c()
   obs_plot <- exdyn_plot_surface(tx_obs_mat, grid_info, "Observed vole extirpation (TX_obs)")
@@ -269,7 +275,24 @@ exdyn_write_best_maps <- function(tx_obs_mat, tx_sim_list, scores, grid_info, ou
     rank_i <- top_ids$rank[i]
     idx <- which(scores$rank == rank_i)
     if (!length(idx)) next
-    mat <- tx_sim_list[[idx]]
+    mat <- NULL
+    if (!is.null(tx_sources)) {
+      if (is.character(tx_sources)) {
+        candidate <- tx_sources[idx]
+        if (length(candidate) && !is.na(candidate) && file.exists(candidate)) {
+          mat <- readRDS(candidate)
+        }
+      } else if (is.list(tx_sources)) {
+        mat <- tx_sources[[idx]]
+      }
+    }
+    if (is.null(mat) && "tx_path" %in% names(scores)) {
+      candidate <- scores$tx_path[idx]
+      if (length(candidate) && !is.na(candidate) && file.exists(candidate)) {
+        mat <- readRDS(candidate)
+      }
+    }
+    if (is.null(mat)) next
     sim_plot <- exdyn_plot_surface(mat, grid_info, sprintf("Simulated TX (rank %d)", rank_i))
     path <- file.path(out_dir, sprintf("TX_sim_rank%02d.png", rank_i))
     ggplot2::ggsave(path, sim_plot, width = 7, height = 7, dpi = 150)

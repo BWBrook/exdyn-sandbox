@@ -17,7 +17,8 @@ exdyn_simulate_tx_only(
   frac = 0.02,
   rel0 = 0.5,
   pre_leak = 0,
-  log_mem = FALSE
+  log_mem = FALSE,
+  log_tag = NULL
 )
 }
 \arguments{
@@ -47,6 +48,8 @@ exdyn_simulate_tx_only(
 \item{pre_leak}{Baseline predation prior to arrival (default 0).}
 
 \item{log_mem}{If TRUE, emits memory telemetry every 10 time steps.}
+
+\item{log_tag}{Optional label appended to memory log messages.}
 }
 \value{
 Matrix of first-passage times (year indices).

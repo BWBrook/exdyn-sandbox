@@ -34,7 +34,6 @@ pilot_grid_info <- tar_read(pilot_grid_info)
 pilot_vole_tx <- tar_read(pilot_vole_tx)
 pilot_mink_field_default <- tar_read(pilot_mink_field_default)
 pilot_output_dir <- tar_read(pilot_output_dir)
-pilot_tx_sim <- tar_read(pilot_tx_sim)
 
 compat_top <- pilot_scores %>% arrange(loss) %>% slice_head(n = 10)
 ```
@@ -114,8 +113,10 @@ if (!length(top_ranks)) {
   for (rk in top_ranks) {
     idx <- which(pilot_scores$rank == rk)
     if (!length(idx)) next
+    tx_path <- pilot_scores$tx_path[idx]
+    if (!length(tx_path) || is.na(tx_path) || !file.exists(tx_path)) next
     plot(exdyn_plot_surface(
-      pilot_tx_sim[[idx]],
+      readRDS(tx_path),
       pilot_grid_info,
       sprintf("Simulated TX (rank %d)", rk),
       "Year"

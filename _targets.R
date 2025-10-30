@@ -1,15 +1,25 @@
 
 library(targets)
 library(tarchetypes)
+source("pipelines/plan_server.R", local = TRUE)
+
+if (!requireNamespace("qs", quietly = TRUE)) {
+  install.packages("qs")
+}
+
 tar_option_set(
   packages = c(
     "yaml","data.table","ggplot2","matrixStats","tibble",
     "dplyr","purrr","tidyr","stringr","ranger","yardstick","lhs",
-    "viridisLite","rlang",
+    "viridisLite","rlang","future",
     "rsample","glmnet","zoo","sf","readr"
   ),
   error = "continue",
-  envir = globalenv()
+  envir = globalenv(),
+  format = "qs",
+  memory = "transient",
+  garbage_collection = TRUE,
+  cue = tar_cue(mode = "thorough")
 )
 
 if (requireNamespace("pkgload", quietly = TRUE)) {

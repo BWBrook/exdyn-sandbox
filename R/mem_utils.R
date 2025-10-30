@@ -7,7 +7,7 @@
 #' @keywords internal
 #' @export
 exdyn_mem_log <- function(tag = "") {
-  info <- utils::gc()
+  info <- base::gc()
   rss_kb <- tryCatch(
     as.numeric(system("awk '/VmRSS/ {print $2}' /proc/self/status", intern = TRUE)),
     error = function(...) NA_real_
