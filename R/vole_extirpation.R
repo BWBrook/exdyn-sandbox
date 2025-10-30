@@ -30,7 +30,9 @@ exdyn_cell_timeseries <- function(cells_df, years, grid_info = NULL) {
   counts <- cells_df %>%
     dplyr::mutate(year = as.integer(year)) %>%
     dplyr::count(cell_id, row, col, year, name = "n_obs") %>%
-    tidyr::complete(cell_id, row, col, year = yrs, fill = list(n_obs = 0L))
+    dplyr::group_by(cell_id, row, col) %>%
+    tidyr::complete(year = yrs, fill = list(n_obs = 0L)) %>%
+    dplyr::ungroup()
   if (!is.null(grid_info)) {
     counts <- counts %>%
       dplyr::mutate(
