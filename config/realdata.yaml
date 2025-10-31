@@ -36,7 +36,7 @@ pilot:
     ramp_years: 8
     pre_arrival_leak: 0.0
   screen:
-    n_draws: 1
+    n_draws: 24
     log_mem: true
     K0: 120
     rmax: [0.3, 0.6]

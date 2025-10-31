@@ -27,3 +27,5 @@
 2025-10-28T17:00:09+11:00 - agent: running devtools::document() after streaming refactor
 2025-10-28T17:00:36+11:00 - agent: running devtools::test() post-refactor
 2025-10-28T17:01:25+11:00 - agent: testing pilot_screen with streaming simulation
+[2025-10-31 11:09:39] WO8 pilot start 
+[2025-10-31 11:12:49] WO8 summary: n_mink_cells=2407 n_vole_cells=550 r2=0.011 lag=-2.14 coverage=0.068 best_draw=1 PNGs=outputs/realdata/pilot_mink_vole/TX_obs_map.png;outputs/realdata/pilot_mink_vole/TX_sim_rank01.png;outputs/realdata/pilot_mink_vole/TX_sim_rank02.png;outputs/realdata/pilot_mink_vole/TX_sim_rank03.png 

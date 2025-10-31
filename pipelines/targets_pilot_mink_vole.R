@@ -1,5 +1,16 @@
 targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
   cfg_path <- normalizePath(cfg_path, mustWork = FALSE)
+  wo8_log_start_target <- tar_target(
+    wo8_log_start,
+    {
+      dir.create("logs", showWarnings = FALSE)
+      msg <- sprintf("[%s] WO8 pilot start", format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
+      cat(msg, "\n", file = file.path("logs", "wo8.log"), append = TRUE)
+      msg
+    },
+    cue = tar_cue("always"),
+    deployment = "main"
+  )
   pilot_theta_rows_target <- tar_target(
     pilot_theta_rows,
     purrr::transpose(pilot_theta),
@@ -62,7 +73,14 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     iteration = "list"
   )
   list(
-    tar_target_raw("pilot_cfg", rlang::expr(yaml::read_yaml(!!cfg_path))),
+    wo8_log_start_target,
+    tar_target_raw(
+      "pilot_cfg",
+      rlang::expr({
+        wo8_log_start
+        yaml::read_yaml(!!cfg_path)
+      })
+    ),
     tar_target(pilot_years, seq.int(pilot_cfg$pilot$years[1], pilot_cfg$pilot$years[2])),
     tar_target(pilot_grid, exdyn_make_grid(
       country_code = pilot_cfg$gbif$country,
@@ -119,9 +137,24 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     tar_target(pilot_scores, pilot_screen),
     tar_target(pilot_tables_written, {
       dir.create(pilot_output_dir, recursive = TRUE, showWarnings = FALSE)
-      readr::write_csv(pilot_vole_tx$table, file.path(pilot_output_dir, "vole_tx_obs.csv"))
-      readr::write_csv(pilot_theta, file.path(pilot_output_dir, "params_lhs.csv"))
-      readr::write_csv(pilot_screen, file.path(pilot_output_dir, "compatibility_ranked.csv"))
+      vole_table <- pilot_vole_tx$table %>%
+        dplyr::mutate(
+          crs = pilot_cfg$pilot$crs_out,
+          cell_km = pilot_cfg$pilot$grid_cell_km
+        )
+      params_table <- pilot_theta %>%
+        dplyr::mutate(
+          crs = pilot_cfg$pilot$crs_out,
+          cell_km = pilot_cfg$pilot$grid_cell_km
+        )
+      compat_table <- pilot_screen %>%
+        dplyr::mutate(
+          crs = pilot_cfg$pilot$crs_out,
+          cell_km = pilot_cfg$pilot$grid_cell_km
+        )
+      readr::write_csv(vole_table, file.path(pilot_output_dir, "vole_tx_obs.csv"))
+      readr::write_csv(params_table, file.path(pilot_output_dir, "params_lhs.csv"))
+      readr::write_csv(compat_table, file.path(pilot_output_dir, "compatibility_ranked.csv"))
       file.path(pilot_output_dir, c("vole_tx_obs.csv", "params_lhs.csv", "compatibility_ranked.csv"))
     }),
     tar_target(pilot_maps_written, exdyn_write_best_maps(
@@ -150,6 +183,32 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       pilot_maps_written
       pilot_scatter_path
       quarto::quarto_render("reports/pilot_mink_vole.qmd")
-    })
+    }),
+    tar_target(pilot_summary, {
+      best <- dplyr::arrange(pilot_screen, .data$rank) %>% dplyr::slice_head(n = 1)
+      n_mink_cells <- sum(!is.na(as.vector(pilot_mink_field_default$T_P)))
+      n_vole_cells <- sum(!is.na(as.vector(pilot_vole_tx$matrix)))
+      summary <- if (!nrow(best)) {
+        "WO8 summary: no compatible parameter sets"
+      } else {
+        png_dir <- file.path("outputs", "realdata", "pilot_mink_vole")
+        png_paths <- file.path(png_dir, c("TX_obs_map.png", "TX_sim_rank01.png", "TX_sim_rank02.png", "TX_sim_rank03.png"))
+        sprintf(
+          "WO8 summary: n_mink_cells=%d n_vole_cells=%d r2=%.3f lag=%.2f coverage=%.3f best_draw=%s PNGs=%s",
+          n_mink_cells,
+          n_vole_cells,
+          best$r2_arrival,
+          best$lag_mean,
+          best$coverage,
+          best$draw,
+          paste(png_paths, collapse = ";")
+        )
+      }
+      cat(summary, "\n")
+      dir.create("logs", showWarnings = FALSE)
+      log_line <- sprintf("[%s] %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), summary)
+      cat(log_line, "\n", file = file.path("logs", "wo8.log"), append = TRUE)
+      summary
+    }, deployment = "main")
   )
 }
