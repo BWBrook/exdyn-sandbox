@@ -10,25 +10,30 @@ run:
 	R --vanilla -e 'targets::tar_make()'
 
 report:
-	R --vanilla -e 'targets::tar_load(c(default_N,default_po,default_foss,default_summs,cfg)); quarto::quarto_render("reports/sandbox.qmd")'
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_load(c(default_N,default_po,default_foss,default_summs,cfg), store="_targets"); quarto::quarto_render("reports/sandbox.qmd", output_format="html")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/sandbox.qmd", output_format="pdf")'
 
 exp:
 	R --vanilla -e 'targets::tar_make()'
 
 report-id:
-	R --vanilla -e 'quarto::quarto_render("reports/identifiability.qmd")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/identifiability.qmd", output_format="html")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/identifiability.qmd", output_format="pdf")'
 
 report-leak:
-	R --vanilla -e 'quarto::quarto_render("reports/leakage_and_ablation.qmd")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/leakage_and_ablation.qmd", output_format="html")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/leakage_and_ablation.qmd", output_format="pdf")'
 
 report-qa:
-	R --vanilla -e 'quarto::quarto_render("reports/qa_sanity.qmd")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/qa_sanity.qmd", output_format="html")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/qa_sanity.qmd", output_format="pdf")'
 
 report-sens:
-	R --vanilla -e 'quarto::quarto_render("reports/sensitivity.qmd")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/sensitivity.qmd", output_format="html")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/sensitivity.qmd", output_format="pdf")'
 
 pilot:
-	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("pilot_screen","pilot_report"))'
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("pilot_screen","pilot_report_html","pilot_report_pdf","pilot_summary"))'
 
 pilot-future:
-	R --vanilla -e 'source("renv/activate.R"); targets::tar_make_future(names=c("pilot_screen","pilot_report"), workers=6)'
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make_future(names=c("pilot_screen","pilot_report_html","pilot_report_pdf","pilot_summary"), workers=6)'

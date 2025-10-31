@@ -171,7 +171,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       ggplot2::ggsave(path, scatter, width = 6, height = 5, dpi = 150)
       path
     }),
-    tar_target(pilot_report, {
+    tar_target(pilot_report_html, {
       pilot_scores
       pilot_theta
       pilot_grid
@@ -182,8 +182,21 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       pilot_tables_written
       pilot_maps_written
       pilot_scatter_path
-      quarto::quarto_render("reports/pilot_mink_vole.qmd")
-    }),
+      quarto::quarto_render("reports/pilot_mink_vole.qmd", output_format = "html")
+    }, format = "file"),
+    tar_target(pilot_report_pdf, {
+      pilot_scores
+      pilot_theta
+      pilot_grid
+      pilot_grid_info
+      pilot_vole_tx
+      pilot_mink_field_default
+      pilot_output_dir
+      pilot_tables_written
+      pilot_maps_written
+      pilot_scatter_path
+      quarto::quarto_render("reports/pilot_mink_vole.qmd", output_format = "pdf")
+    }, format = "file"),
     tar_target(pilot_summary, {
       best <- dplyr::arrange(pilot_screen, .data$rank) %>% dplyr::slice_head(n = 1)
       n_mink_cells <- sum(!is.na(as.vector(pilot_mink_field_default$T_P)))
