@@ -4,7 +4,7 @@
 \alias{exdyn_tx_map}
 \title{Map extirpation results across all cells}
 \usage{
-exdyn_tx_map(cells_df, years, cfg, grid_info)
+exdyn_tx_map(cells_df, years, cfg, grid_info, effort_cells = NULL)
 }
 \arguments{
 \item{cells_df}{Tibble with columns \code{cell_id,row,col,year}.}
@@ -17,7 +17,8 @@ exdyn_tx_map(cells_df, years, cfg, grid_info)
 }
 \value{
 List with \code{table} (tibble), \code{matrix} (tx_obs),
-\code{last_presence} (matrix), and the supplied \code{grid_info}.
+\code{last_presence} (matrix), the supplied \code{grid_info}, and the
+per-cell \code{counts}.
 }
 \description{
 Map extirpation results across all cells

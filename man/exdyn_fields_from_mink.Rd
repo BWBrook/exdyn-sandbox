@@ -4,7 +4,15 @@
 \alias{exdyn_fields_from_mink}
 \title{Construct simulation fields from mink arrivals}
 \usage{
-exdyn_fields_from_mink(arrivals, grid_info, years, ramp_years, pre_leak = 0)
+exdyn_fields_from_mink(
+  arrivals,
+  grid_info,
+  years,
+  ramp_years,
+  pre_leak = 0,
+  scale = 1,
+  gamma = 1
+)
 }
 \arguments{
 \item{arrivals}{Tibble with mink arrival years.}
@@ -16,6 +24,10 @@ exdyn_fields_from_mink(arrivals, grid_info, years, ramp_years, pre_leak = 0)
 \item{ramp_years}{Ramp duration.}
 
 \item{pre_leak}{Pre-arrival predation level.}
+
+\item{scale}{Amplitude multiplier applied post-ramp.}
+
+\item{gamma}{Ramp shape parameter.}
 }
 \value{
 List with \code{S}, \code{P}, \code{H}, \code{T_P}, \code{grid_info}, \code{years}.

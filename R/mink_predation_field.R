@@ -44,10 +44,13 @@ exdyn_grid_lookup <- function(grid_sf) {
 #' @param years Vector of simulation years (ascending).
 #' @param ramp_years Number of years to ramp from 0.2 to 1.0 after arrival.
 #' @param pre_leak Pre-arrival baseline (default 0).
+#' @param scale Post-ramp amplitude multiplier (default 1).
+#' @param gamma Shape parameter (>1 steepens the ramp).
 #'
 #' @return List with elements \code{P} (array), \code{T_P} (matrix).
 #' @export
-exdyn_P_from_arrival <- function(arrivals, grid_info, years, ramp_years, pre_leak = 0) {
+exdyn_P_from_arrival <- function(arrivals, grid_info, years, ramp_years,
+                                 pre_leak = 0, scale = 1, gamma = 1) {
   stopifnot(!is.null(grid_info))
   ramp_years <- max(1, ramp_years)
   k <- 6 / ramp_years
@@ -88,9 +91,32 @@ exdyn_P_from_arrival <- function(arrivals, grid_info, years, ramp_years, pre_lea
     ramp_vals <- 0.2 + 0.8 * logistic_component
     ramp_vals[diffs < 0] <- pre_leak
     ramp_vals <- pmax(pre_leak, pmin(1, ramp_vals))
+    ramp_vals <- (ramp_vals ^ gamma) * scale
     P_arr[r, c, ] <- ramp_vals
   }
-  list(P = P_arr, T_P = T_P, years = years, grid_info = grid_info)
+  valid_cells <- which(is.finite(T_P), arr.ind = TRUE)
+  stats_offset <- function(offset, label) {
+    if (!nrow(valid_cells)) return(NULL)
+    target_years <- T_P[valid_cells] + offset
+    idx <- match(target_years, years)
+    keep <- which(!is.na(idx))
+    if (!length(keep)) return(NULL)
+    mat_idx <- cbind(valid_cells[keep, , drop = FALSE], idx[keep])
+    vals <- P_arr[mat_idx]
+    if (!length(vals)) return(NULL)
+    sprintf("%s min=%.3f median=%.3f max=%.3f", label, min(vals), stats::median(vals), max(vals))
+  }
+  msgs <- c(
+    sprintf("[pred_field] scale=%.3f gamma=%.3f", scale, gamma),
+    stats_offset(0, "P(arrival)"),
+    stats_offset(ramp_years, sprintf("P(arrival+%d)", ramp_years)),
+    stats_offset(10, "P(arrival+10)")
+  )
+  purrr::walk(msgs[!is.na(msgs)], message)
+  out <- list(P = P_arr, T_P = T_P, years = years, grid_info = grid_info)
+  attr(out, "scale") <- scale
+  attr(out, "gamma") <- gamma
+  out
 }
 
 #' Construct simulation fields from mink arrivals
@@ -100,11 +126,22 @@ exdyn_P_from_arrival <- function(arrivals, grid_info, years, ramp_years, pre_lea
 #' @param years Simulation years.
 #' @param ramp_years Ramp duration.
 #' @param pre_leak Pre-arrival predation level.
+#' @param scale Amplitude multiplier applied post-ramp.
+#' @param gamma Ramp shape parameter.
 #'
 #' @return List with \code{S}, \code{P}, \code{H}, \code{T_P}, \code{grid_info}, \code{years}.
 #' @export
-exdyn_fields_from_mink <- function(arrivals, grid_info, years, ramp_years, pre_leak = 0) {
-  P_info <- exdyn_P_from_arrival(arrivals, grid_info, years, ramp_years, pre_leak)
+exdyn_fields_from_mink <- function(arrivals, grid_info, years, ramp_years,
+                                   pre_leak = 0, scale = 1, gamma = 1) {
+  P_info <- exdyn_P_from_arrival(
+    arrivals = arrivals,
+    grid_info = grid_info,
+    years = years,
+    ramp_years = ramp_years,
+    pre_leak = pre_leak,
+    scale = scale,
+    gamma = gamma
+  )
   nx <- grid_info$nx; ny <- grid_info$ny; T_len <- length(years)
   S <- array(1, dim = c(nx, ny, T_len))
   H <- array(0, dim = c(nx, ny, T_len))
@@ -115,6 +152,8 @@ exdyn_fields_from_mink <- function(arrivals, grid_info, years, ramp_years, pre_l
     T_P = P_info$T_P,
     grid_info = grid_info,
     years = years,
-    pre_leak = pre_leak
+    pre_leak = pre_leak,
+    scale = scale,
+    gamma = gamma
   )
 }

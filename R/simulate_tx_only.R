@@ -60,6 +60,8 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
   }
   r_eff_const <- pars$rmax * exdyn_fS(1)
   k <- 6 / ramp_years
+  pred_scale <- pred$scale %||% 1
+  pred_gamma <- pred$gamma %||% 1
 
   for (tt in seq_len(Tn - 1)) {
     dt <- years[tt] - T_P
@@ -69,7 +71,16 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
       {
         val <- 0.2 + 0.8 / (1 + exp(-k * (dt - ramp_years / 2)))
         val[dt < 0] <- pre_leak
-        pmax(pre_leak, pmin(1, val))
+        val <- pmax(pre_leak, pmin(1, val))
+        if (!isTRUE(all.equal(pred_gamma, 1)) || !isTRUE(all.equal(pred_scale, 1))) {
+          idx <- dt >= 0 & !is.na(dt)
+          if (any(idx)) {
+            scaled <- (val[idx] ^ pred_gamma) * pred_scale
+            val[idx] <- scaled
+          }
+        }
+        val[val < 0] <- 0
+        val
       }
     )
     local <- exdyn_update_local_const(

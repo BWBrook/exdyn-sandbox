@@ -32,12 +32,27 @@ pilot:
     baseline_window: 10
     drop_fraction: 0.2
     hold_years: 5
+    normalize_by: "taxa"
+    normalize_taxa:
+      - name: "Mustelidae"
+        rank: "FAMILY"
+      - name: "Microtus"
+        rank: "GENUS"
+      - name: "Arvicola amphibius"
+        rank: "SPECIES"
+      - name: "Ondatra zibethicus"
+        rank: "SPECIES"
+    normalize_years: [1975, 2024]
+    normalize_max_records: 5000
   mink_P:
     ramp_years: 8
     pre_arrival_leak: 0.0
+    scale: 1.0
+    gamma: 1.0
   screen:
     n_draws: 24
     log_mem: true
+    adapt_c: true
     K0: 120
     rmax: [0.3, 0.6]
     alpha: [0.0, 0.4]
@@ -46,6 +61,8 @@ pilot:
     pred_c: [0.4, 0.9]
     pred_h: [15, 60]
     ramp_years: [5, 12]
+    pred_scale: [0.8, 3.0]
+    gamma: [1.0, 2.0]
   compat:
     min_r2_arrival: 0.25
     lag_range: [2, 25]

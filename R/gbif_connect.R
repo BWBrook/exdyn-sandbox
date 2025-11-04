@@ -54,34 +54,50 @@ exdyn_gbif_fetch <- function(key, country, year_min, year_max,
   }
 
   message("Downloading GBIF occurrences for key ", key, " (", country, ")")
-  per_page <- 200
+  per_page <- min(500, max_records, 500L)
   offset <- 0
   out <- list()
   repeat {
-    query <- rgbif::occ_search(
-      taxonKey = key,
-      country = country,
-      year = paste(year_min, year_max, sep = ","),
-      hasCoordinate = TRUE,
-      limit = per_page,
-      start = offset,
-      fields = c(
-        "decimalLongitude", "decimalLatitude", "year", "month", "day",
-        "basisOfRecord", "occurrenceID", "catalogNumber", "recordedBy",
-        "coordinateUncertaintyInMeters", "issue", "issues"
+    resp <- httr::GET(
+      url = "https://api.gbif.org/v1/occurrence/search",
+      query = list(
+        taxonKey = key,
+        country = country,
+        year = paste(year_min, year_max, sep = ","),
+        hasCoordinate = "true",
+        limit = per_page,
+        offset = offset
       )
     )
-    if (NROW(query$data) == 0) break
-    out[[length(out) + 1]] <- tibble::as_tibble(query$data)
-    returned <- query$meta$returned
-    end_of_records <- isTRUE(query$meta$endOfRecords)
-    if (!length(returned) || is.na(returned)) returned <- NROW(query$data)
+    httr::stop_for_status(resp)
+    payload <- jsonlite::fromJSON(httr::content(resp, as = "text", encoding = "UTF-8"), simplifyDataFrame = TRUE)
+    results <- payload$results
+    if (length(results) == 0) break
+    df <- tibble::as_tibble(results, .name_repair = "minimal")
+    wanted_fields <- c(
+      "decimalLongitude", "decimalLatitude", "year", "month", "day",
+      "basisOfRecord", "occurrenceID", "catalogNumber", "recordedBy",
+      "coordinateUncertaintyInMeters", "issue", "issues"
+    )
+    missing_cols <- setdiff(wanted_fields, names(df))
+    if (length(missing_cols)) {
+      for (nm in missing_cols) df[[nm]] <- NA
+    }
+    df <- df[, wanted_fields, drop = FALSE]
+    out[[length(out) + 1]] <- df
+    returned <- length(results)
     offset <- offset + returned
-    total_count <- query$meta$count
-    if (!length(total_count) || is.na(total_count)) total_count <- Inf
-    if (end_of_records || returned < per_page || offset >= total_count) {
+    total_count <- payload$count %||% Inf
+    message(sprintf(
+      "  fetched %d of ~%s (batch=%d)",
+      offset,
+      ifelse(is.finite(total_count), total_count, "?"),
+      returned
+    ))
+    if (offset >= total_count || offset >= max_records) {
       break
     }
+    Sys.sleep(0.1)
   }
 
   if (!length(out)) {
@@ -96,17 +112,16 @@ exdyn_gbif_fetch <- function(key, country, year_min, year_max,
     set.seed(42)
     n_years <- max(1L, dplyr::n_distinct(raw$year))
     per_year <- max(1L, max_records %/% n_years)
-    raw <- raw %>%
-      dplyr::group_by(year) %>%
-      dplyr::group_modify(function(df, ...) {
-        size <- min(per_year, nrow(df))
-        if (size >= nrow(df)) {
-          df
-        } else {
-          df[sample.int(nrow(df), size = size), , drop = FALSE]
-        }
-      }) %>%
-      dplyr::ungroup()
+    raw <- dplyr::group_by(raw, year)
+    raw <- dplyr::group_modify(raw, function(df, ...) {
+      size <- min(per_year, nrow(df))
+      if (size >= nrow(df)) {
+        df
+      } else {
+        df[sample.int(nrow(df), size = size), , drop = FALSE]
+      }
+    })
+    raw <- dplyr::ungroup(raw)
   }
 
   readr::write_csv(raw, cache_file)
@@ -143,28 +158,34 @@ exdyn_gbif_clean <- function(df) {
     rep("", nrow(df))
   }
 
-  clean <- df %>%
+  clean <- df |>
     dplyr::rename(
       lon = decimalLongitude,
       lat = decimalLatitude
-    ) %>%
+    ) |>
     dplyr::mutate(
       issue = as.character(issue_values),
       issue = dplyr::coalesce(issue, "")
-    ) %>%
+    ) |>
     dplyr::filter(
       !is.na(lon), !is.na(lat), !is.na(year),
       basisOfRecord %in% c("HUMAN_OBSERVATION", "OBSERVATION", "PRESERVED_SPECIMEN"),
       !stringr::str_detect(issue, paste(issues_bad, collapse = "|"))
-    ) %>%
+    ) |>
     dplyr::distinct(
       occurrenceID, catalogNumber, lon, lat, year, month, day,
       .keep_all = TRUE
-    ) %>%
+    ) |>
     dplyr::select(
       lon, lat, year, month, day,
       basisOfRecord, occurrenceID, catalogNumber,
       coordinateUncertaintyInMeters
+    ) |>
+    dplyr::mutate(
+      catalogNumber = as.character(catalogNumber),
+      occurrenceID = as.character(occurrenceID),
+      basisOfRecord = as.character(basisOfRecord),
+      coordinateUncertaintyInMeters = as.numeric(coordinateUncertaintyInMeters)
     )
 
   clean

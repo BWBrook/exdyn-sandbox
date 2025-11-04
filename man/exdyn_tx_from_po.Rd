@@ -4,7 +4,7 @@
 \alias{exdyn_tx_from_po}
 \title{Infer observed extirpation years from presence-only counts}
 \usage{
-exdyn_tx_from_po(counts_by_cell, years, cfg)
+exdyn_tx_from_po(counts_by_cell, years, cfg, normalize_by = NULL)
 }
 \arguments{
 \item{counts_by_cell}{Output of \code{exdyn_cell_timeseries()} for one cell.}

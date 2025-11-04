@@ -14,6 +14,20 @@ grid_info_stub <- list(
   ny = 1L
 )
 
+grid_info_multi <- list(
+  lookup = tibble::tibble(
+    cell_id = c(1L, 2L),
+    row = c(1L, 2L),
+    col = c(1L, 1L),
+    row_idx = c(1L, 2L),
+    col_idx = c(1L, 1L)
+  ),
+  row_levels = c(1L, 2L),
+  col_levels = 1L,
+  nx = 2L,
+  ny = 1L
+)
+
 cfg_vol <- list(
   smooth_window = 1,
   min_years_active = 4,
@@ -37,12 +51,11 @@ test_that("extirpation requires hold period", {
 })
 
 test_that("insufficient history returns NA", {
-  cells <- tibble::tibble(
-    cell_id = 1L,
-    row = 1L,
-    col = 1L,
-    year = base_years[1:3],
-    n = c(3, 0, 0)
+  years_subset <- base_years[1:3]
+  counts_vec <- c(3, 0, 0)
+  cells <- purrr::map2_dfr(
+    years_subset, counts_vec,
+    ~ if (.y > 0) tibble::tibble(cell_id = 1L, row = 1L, col = 1L, year = rep(.x, .y)) else tibble::tibble()
   )
   res <- exdyn_tx_map(cells, years, cfg_vol, grid_info_stub)
   expect_true(is.na(res$matrix[1, 1]))
@@ -53,4 +66,62 @@ test_that("smoother preserves length", {
   sm <- exdyn_ts_smooth(vec, 3)
   expect_length(sm, length(vec))
   expect_true(all(!is.na(sm)))
+})
+
+test_that("cell timeseries joins effort counts correctly", {
+  cells <- tibble::tibble(
+    cell_id = c(1L, 1L, 2L, 2L),
+    row = c(1L, 1L, 2L, 2L),
+    col = 1L,
+    year = c(2000L, 2002L, 2001L, 2003L)
+  )
+  effort <- tibble::tibble(
+    cell_id = c(1L, 2L, 2L),
+    row = c(1L, 2L, 2L),
+    col = 1L,
+    year = c(2000L, 2001L, 2004L)
+  )
+  counts <- exdyn_cell_timeseries(cells, c(2000L, 2004L), grid_info_multi, effort_cells = effort)
+  expect_true(all(c("n_mammal", "norm_mammal") %in% names(counts)))
+  expect_equal(dplyr::filter(counts, cell_id == 1L, year == 2000L)$n_mammal, 1L)
+  expect_equal(dplyr::filter(counts, cell_id == 1L, year == 2002L)$n_mammal, 0L)
+  expect_equal(dplyr::filter(counts, cell_id == 2L, year == 2001L)$n_mammal, 1L)
+})
+
+test_that("normalisation can change extirpation detection", {
+  cfg_norm <- utils::modifyList(cfg_vol, list(
+    smooth_window = 1,
+    baseline_window = 3,
+    min_years_active = 3,
+    hold_years = 1,
+    normalize_by = "taxa"
+  ))
+  years_short <- c(2000L, 2005L)
+  series_data <- tibble::tibble(
+    year = rep(seq.int(years_short[1], years_short[2]), times = c(5, 5, 5, 1, 1, 1)),
+    cell_id = 1L,
+    row = 1L,
+    col = 1L
+  )
+  cells <- series_data
+  effort <- tibble::tibble(
+    cell_id = 1L,
+    row = 1L,
+    col = 1L,
+    year = rep(seq.int(years_short[1], years_short[2]), times = c(5, 5, 5, 10, 10, 10))
+  )
+  res_norm <- exdyn_tx_map(cells, years_short, cfg_norm, grid_info_stub, effort_cells = effort)
+  res_raw <- exdyn_tx_map(cells, years_short, utils::modifyList(cfg_norm, list(normalize_by = NULL)), grid_info_stub)
+  expect_true(is.na(res_norm$matrix[1, 1]) || res_norm$matrix[1, 1] >= res_raw$matrix[1, 1])
+})
+
+test_that("cell timeseries rows scale with cells not cross-product", {
+  df <- tibble::tibble(
+    cell_id = c(1L, 2L),
+    row = c(1L, 2L),
+    col = c(1L, 1L),
+    year = c(2000L, 2002L)
+  )
+  counts <- exdyn_cell_timeseries(df, c(2000L, 2002L), grid_info_multi)
+  expect_equal(nrow(counts), 2L * length(2000:2002))
 })

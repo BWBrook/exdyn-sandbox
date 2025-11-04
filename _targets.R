@@ -12,7 +12,7 @@ tar_option_args <- list(
     "yaml","data.table","ggplot2","matrixStats","tibble",
     "dplyr","purrr","tidyr","stringr","ranger","yardstick","lhs",
     "viridisLite","rlang","future",
-    "rsample","glmnet","zoo","sf","readr"
+    "rsample","glmnet","zoo","sf","readr","httr","jsonlite"
   ),
   error = "stop",
   envir = globalenv(),

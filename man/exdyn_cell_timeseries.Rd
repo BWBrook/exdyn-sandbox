@@ -4,17 +4,20 @@
 \alias{exdyn_cell_timeseries}
 \title{Build per-cell annual time series of occurrence counts}
 \usage{
-exdyn_cell_timeseries(cells_df, years, grid_info = NULL)
+exdyn_cell_timeseries(cells_df, years, grid_info = NULL, effort_cells = NULL)
 }
 \arguments{
 \item{cells_df}{Tibble with columns \code{cell_id,row,col,year}.}
 
-\item{years}{Integer vector of length 2 giving \link{min, max} year.}
+\item{years}{Integer vector of length 2 giving min/max year.}
 
 \item{grid_info}{Optional lookup as returned by \code{exdyn_grid_lookup()}.}
+
+\item{effort_cells}{Optional tibble of effort occurrences with
+\code{cell_id,row,col,year} columns for normalisation.}
 }
 \value{
-Tibble with columns \code{cell_id,row,col,year,n_obs,row_idx,col_idx}.
+Tibble with columns \code{cell_id,row,col,year,n_obs,n_mammal,norm_mammal,row_idx,col_idx}.
 }
 \description{
 Build per-cell annual time series of occurrence counts

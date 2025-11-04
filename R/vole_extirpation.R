@@ -9,12 +9,14 @@ NULL
 #' Build per-cell annual time series of occurrence counts
 #'
 #' @param cells_df Tibble with columns \code{cell_id,row,col,year}.
-#' @param years Integer vector of length 2 giving [min, max] year.
+#' @param years Integer vector of length 2 giving min/max year.
 #' @param grid_info Optional lookup as returned by \code{exdyn_grid_lookup()}.
+#' @param effort_cells Optional tibble of effort occurrences with
+#'   \code{cell_id,row,col,year} columns for normalisation.
 #'
-#' @return Tibble with columns \code{cell_id,row,col,year,n_obs,row_idx,col_idx}.
+#' @return Tibble with columns \code{cell_id,row,col,year,n_obs,n_mammal,norm_mammal,row_idx,col_idx}.
 #' @export
-exdyn_cell_timeseries <- function(cells_df, years, grid_info = NULL) {
+exdyn_cell_timeseries <- function(cells_df, years, grid_info = NULL, effort_cells = NULL) {
   if (!nrow(cells_df)) {
     return(tibble::tibble(
       cell_id = integer(),
@@ -22,6 +24,8 @@ exdyn_cell_timeseries <- function(cells_df, years, grid_info = NULL) {
       col = integer(),
       year = integer(),
       n_obs = integer(),
+      n_mammal = integer(),
+      norm_mammal = numeric(),
       row_idx = integer(),
       col_idx = integer()
     ))
@@ -33,6 +37,31 @@ exdyn_cell_timeseries <- function(cells_df, years, grid_info = NULL) {
     dplyr::group_by(cell_id, row, col) %>%
     tidyr::complete(year = yrs, fill = list(n_obs = 0L)) %>%
     dplyr::ungroup()
+
+  if (!is.null(effort_cells) && nrow(effort_cells)) {
+    effort_counts <- effort_cells %>%
+      dplyr::mutate(year = as.integer(year)) %>%
+      dplyr::count(cell_id, row, col, year, name = "n_mammal") %>%
+      dplyr::group_by(cell_id, row, col) %>%
+      tidyr::complete(year = yrs, fill = list(n_mammal = 0L)) %>%
+      dplyr::ungroup()
+    counts <- counts %>%
+      dplyr::left_join(effort_counts, by = c("cell_id", "row", "col", "year")) %>%
+      dplyr::mutate(
+        n_mammal = dplyr::coalesce(.data$n_mammal, 0L),
+        norm_mammal = dplyr::if_else(
+          .data$n_mammal > 0L,
+          .data$n_obs / pmax(1, .data$n_mammal),
+          as.numeric(.data$n_obs)
+        )
+      )
+  } else {
+    counts <- counts %>%
+      dplyr::mutate(
+        n_mammal = 0L,
+        norm_mammal = as.numeric(.data$n_obs)
+      )
+  }
   if (!is.null(grid_info)) {
     counts <- counts %>%
       dplyr::mutate(
@@ -116,12 +145,24 @@ exdyn_ts_smooth <- function(counts, k = 5) {
 #'
 #' @return List with elements \code{tx_obs} and \code{last_presence}.
 #' @export
-exdyn_tx_from_po <- function(counts_by_cell, years, cfg) {
+exdyn_tx_from_po <- function(counts_by_cell, years, cfg, normalize_by = NULL) {
   yrs <- seq.int(years[1], years[2])
-  counts <- counts_by_cell$n_obs
-  smooth_vals <- exdyn_ts_smooth(counts, cfg$smooth_window %||% 5)
-  if (!any(is.finite(smooth_vals))) smooth_vals <- counts
+  raw_counts <- counts_by_cell$n_obs
+  norm_mode <- if (is.null(normalize_by)) "none" else match.arg(normalize_by, c("mammal", "taxa"))
+  series <- raw_counts
+  if (norm_mode %in% c("mammal", "taxa")) {
+    if ("norm_mammal" %in% names(counts_by_cell)) {
+      series <- counts_by_cell$norm_mammal
+    } else if ("n_mammal" %in% names(counts_by_cell)) {
+      series <- raw_counts / pmax(1, counts_by_cell$n_mammal)
+    }
+  }
+  series[!is.finite(series)] <- 0
+  smooth_vals <- exdyn_ts_smooth(series, cfg$smooth_window %||% 5)
+  if (!any(is.finite(smooth_vals))) smooth_vals <- series
   res <- .exdyn_first_passage_hold(smooth_vals, yrs, cfg)
+  res$series <- series
+  res$series_raw <- raw_counts
   res
 }
 
@@ -133,11 +174,12 @@ exdyn_tx_from_po <- function(counts_by_cell, years, cfg) {
 #' @param grid_info Grid lookup (from \code{exdyn_grid_lookup()}).
 #'
 #' @return List with \code{table} (tibble), \code{matrix} (tx_obs),
-#'   \code{last_presence} (matrix), and the supplied \code{grid_info}.
+#'   \code{last_presence} (matrix), the supplied \code{grid_info}, and the
+#'   per-cell \code{counts}.
 #' @export
-exdyn_tx_map <- function(cells_df, years, cfg, grid_info) {
+exdyn_tx_map <- function(cells_df, years, cfg, grid_info, effort_cells = NULL) {
   stopifnot(!is.null(grid_info))
-  counts <- exdyn_cell_timeseries(cells_df, years, grid_info)
+  counts <- exdyn_cell_timeseries(cells_df, years, grid_info, effort_cells)
   if (!nrow(counts)) {
     mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
     return(list(
@@ -147,11 +189,12 @@ exdyn_tx_map <- function(cells_df, years, cfg, grid_info) {
       grid_info = grid_info
     ))
   }
+  norm_mode <- cfg$normalize_by %||% NULL
   per_cell <- counts %>%
     dplyr::group_by(cell_id, row, col, row_idx, col_idx) %>%
-    tidyr::nest(counts = c(year, n_obs)) %>%
+    tidyr::nest(counts = c(year, n_obs, n_mammal, norm_mammal)) %>%
     dplyr::mutate(
-      res = purrr::map(counts, ~ exdyn_tx_from_po(.x, years, cfg)),
+      res = purrr::map(counts, ~ exdyn_tx_from_po(.x, years, cfg, normalize_by = norm_mode)),
       tx_obs = purrr::map_int(res, ~ .x$tx %||% NA_integer_),
       last_presence = purrr::map_int(res, ~ .x$last_presence %||% NA_integer_)
     ) %>%
@@ -171,6 +214,7 @@ exdyn_tx_map <- function(cells_df, years, cfg, grid_info) {
     matrix = tx_mat,
     last_presence = lp_mat,
     grid_info = grid_info,
-    years = years
+    years = years,
+    counts = counts
   )
 }

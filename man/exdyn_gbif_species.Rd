@@ -21,7 +21,7 @@ exdyn_gbif_species(
 
 \item{country}{Two-letter country code (ISO2).}
 
-\item{years}{Integer vector of length 2 giving \link{min, max} years.}
+\item{years}{Integer vector of length 2 giving min/max years.}
 
 \item{cache_dir}{Directory where cached CSVs are stored.}
 

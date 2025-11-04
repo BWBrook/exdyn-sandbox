@@ -4,7 +4,15 @@
 \alias{exdyn_P_from_arrival}
 \title{Predation array from arrival years}
 \usage{
-exdyn_P_from_arrival(arrivals, grid_info, years, ramp_years, pre_leak = 0)
+exdyn_P_from_arrival(
+  arrivals,
+  grid_info,
+  years,
+  ramp_years,
+  pre_leak = 0,
+  scale = 1,
+  gamma = 1
+)
 }
 \arguments{
 \item{arrivals}{Tibble with \code{cell_id} and arrival year column (raw/smooth).}
@@ -16,6 +24,10 @@ exdyn_P_from_arrival(arrivals, grid_info, years, ramp_years, pre_leak = 0)
 \item{ramp_years}{Number of years to ramp from 0.2 to 1.0 after arrival.}
 
 \item{pre_leak}{Pre-arrival baseline (default 0).}
+
+\item{scale}{Post-ramp amplitude multiplier (default 1).}
+
+\item{gamma}{Shape parameter (>1 steepens the ramp).}
 }
 \value{
 List with elements \code{P} (array), \code{T_P} (matrix).

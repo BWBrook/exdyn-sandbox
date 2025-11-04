@@ -4,8 +4,9 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     wo8_log_start,
     {
       dir.create("logs", showWarnings = FALSE)
-      msg <- sprintf("[%s] WO8 pilot start", format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
+      msg <- sprintf("[%s] WO9 pilot start", format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
       cat(msg, "\n", file = file.path("logs", "wo8.log"), append = TRUE)
+      cat(msg, "\n", file = file.path("logs", "wo9.log"), append = TRUE)
       msg
     },
     cue = tar_cue("always"),
@@ -38,7 +39,13 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
         K0 = theta$K0[[1]],
         alpha = theta$alpha[[1]],
         disp_mean_cells = theta$disp_mean_cells[[1]],
-        pred = list(type = "II", c = theta$pred_c[[1]], h = theta$pred_h[[1]]),
+        pred = list(
+          type = "II",
+          c = theta$pred_c[[1]],
+          h = theta$pred_h[[1]],
+          scale = theta$pred_scale[[1]] %||% 1,
+          gamma = theta$gamma[[1]] %||% 1
+        ),
         pre_leak = pilot_cfg$pilot$mink_P$pre_arrival_leak,
         log_mem = isTRUE(log_mem_flag),
         log_tag = sprintf("draw %03d", draw)
@@ -62,12 +69,34 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
           pred_h = theta$pred_h[[1]],
           ramp_years = theta$ramp_years[[1]],
           rmax = theta$rmax[[1]],
-          K0 = theta$K0[[1]]
+          K0 = theta$K0[[1]],
+          pred_scale = theta$pred_scale[[1]],
+          gamma = theta$gamma[[1]]
         ),
         score
       )
+      coverage_sim <- mean(is.finite(TX))
+      meta_path <- file.path(pilot_tx_meta_dir, sprintf("tx_%03d.json", draw))
+      jsonlite::write_json(
+        list(
+          draw = draw,
+          params = result %>%
+            dplyr::select(alpha, disp_mean_km, disp_mean_cells, A_over_K, pred_c, pred_h, pred_scale, gamma, ramp_years, rmax, K0) %>%
+            dplyr::slice(1) %>%
+            as.list(),
+          loss = result$loss,
+          coverage = coverage_sim,
+          tx_path = tx_path
+        ),
+        meta_path,
+        auto_unbox = TRUE,
+        pretty = TRUE
+      )
       base::gc()
-      result
+      result %>% dplyr::mutate(
+        coverage_sim = coverage_sim,
+        tx_meta = meta_path
+      )
     },
     pattern = map(pilot_theta_rows),
     iteration = "list"
@@ -89,6 +118,20 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     ), deployment = "main"),
     tar_target(pilot_grid_info, exdyn_grid_lookup(pilot_grid)),
     tar_target(pilot_mink_arrivals, real_arrivals_smooth),
+    tar_target(pilot_effort_taxa, pilot_cfg$pilot$vole$normalize_taxa %||% list()),
+    tar_target(pilot_effort_years, pilot_cfg$pilot$vole$normalize_years %||% pilot_cfg$pilot$years),
+    tar_target(pilot_effort_max_records, pilot_cfg$pilot$vole$normalize_max_records %||% pilot_cfg$cache$max_records),
+    tar_target(pilot_mammal_gbif, exdyn_gbif_target_group(
+      taxa = pilot_effort_taxa,
+      group = "Mammalia",
+      rank = "CLASS",
+      country = pilot_cfg$gbif$country,
+      years = pilot_effort_years,
+      cache_dir = "data/raw/gbif",
+      max_records = pilot_effort_max_records,
+      force = isTRUE(pilot_cfg$cache$force_redownload)
+    )),
+    tar_target(pilot_mammal_cells, exdyn_points_to_grid(pilot_mammal_gbif, pilot_grid), deployment = "main"),
     tar_target(pilot_vole_gbif, exdyn_gbif_species(
       sci = pilot_cfg$species$vole$scientific_name,
       rank = pilot_cfg$species$vole$gbif_rank,
@@ -100,16 +143,231 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     )),
     tar_target(pilot_vole_cells, exdyn_points_to_grid(pilot_vole_gbif, pilot_grid), deployment = "main"),
     tar_target(pilot_vole_tx, exdyn_tx_map(
-      pilot_vole_cells, pilot_cfg$pilot$years, pilot_cfg$pilot$vole, pilot_grid_info
+      pilot_vole_cells,
+      pilot_cfg$pilot$years,
+      pilot_cfg$pilot$vole,
+      pilot_grid_info,
+      effort_cells = pilot_mammal_cells
     )),
+    tar_target(pilot_vole_tx_qc, {
+      counts <- pilot_vole_tx$counts
+      if (!nrow(counts)) {
+        return(list(correlation = NA_real_, n_changed = 0L, changed = tibble::tibble()))
+      }
+      mammal_counts <- counts %>% dplyr::filter(.data$n_mammal > 0)
+      cor_val <- if (nrow(mammal_counts) >= 10) {
+        suppressWarnings(stats::cor(
+          mammal_counts$n_obs,
+          mammal_counts$norm_mammal,
+          use = "complete.obs",
+          method = "spearman"
+        ))
+      } else {
+        NA_real_
+      }
+      cfg_vol <- pilot_cfg$pilot$vole
+      nested <- counts %>%
+        dplyr::group_by(cell_id, row, col, row_idx, col_idx) %>%
+        tidyr::nest(counts = c(year, n_obs, n_mammal, norm_mammal))
+      tx_norm <- purrr::map_int(
+        nested$counts,
+        ~ exdyn_tx_from_po(.x, pilot_cfg$pilot$years, cfg_vol, normalize_by = cfg_vol$normalize_by %||% NULL)$tx %||% NA_integer_
+      )
+      tx_raw <- purrr::map_int(
+        nested$counts,
+        ~ exdyn_tx_from_po(.x, pilot_cfg$pilot$years, cfg_vol, normalize_by = NULL)$tx %||% NA_integer_
+      )
+      changed_idx <- which(!(tx_norm == tx_raw | (is.na(tx_norm) & is.na(tx_raw))))
+      changed_tbl <- if (length(changed_idx)) {
+        nested[changed_idx, c("cell_id", "row", "col")] %>%
+          dplyr::mutate(tx_norm = tx_norm[changed_idx], tx_raw = tx_raw[changed_idx])
+      } else {
+        tibble::tibble()
+      }
+      dir.create("logs", showWarnings = FALSE)
+      mode_label <- cfg_vol$normalize_by %||% "none"
+      taxa_n <- length(cfg_vol$normalize_taxa %||% list())
+      log_line <- sprintf(
+        "[%s] Vole TX normalisation mode=%s taxa=%d: spearman=%.3f changed_cells=%d",
+        format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+        mode_label,
+        taxa_n,
+        ifelse(is.finite(cor_val), cor_val, NA_real_),
+        nrow(changed_tbl)
+      )
+      cat(log_line, "\n", file = file.path("logs", "wo9.log"), append = TRUE)
+      list(correlation = cor_val, n_changed = nrow(changed_tbl), changed = changed_tbl)
+    }, deployment = "main"),
     tar_target(pilot_mink_field_default, exdyn_fields_from_mink(
-      pilot_mink_arrivals, pilot_grid_info, pilot_years,
+      pilot_mink_arrivals,
+      pilot_grid_info,
+      pilot_years,
       ramp_years = pilot_cfg$pilot$mink_P$ramp_years,
-      pre_leak = pilot_cfg$pilot$mink_P$pre_arrival_leak
+      pre_leak = pilot_cfg$pilot$mink_P$pre_arrival_leak,
+      scale = pilot_cfg$pilot$mink_P$scale %||% 1,
+      gamma = pilot_cfg$pilot$mink_P$gamma %||% 1
     )),
+    tar_target(pilot_c_star_summary, {
+      screen_cfg <- pilot_cfg$pilot$screen
+      nx <- pilot_grid_info$nx
+      ny <- pilot_grid_info$ny
+      K0_mat <- matrix(screen_cfg$K0, nrow = nx, ncol = ny)
+      rmax_mid <- mean(screen_cfg$rmax)
+      h_med <- stats::median(screen_cfg$pred_h)
+      c_star <- exdyn_c_critical(K0_mat, rmax_mid, h_med)
+      arrivals_mask <- is.finite(pilot_mink_field_default$T_P)
+      vals <- c_star[arrivals_mask]
+      vals <- vals[is.finite(vals)]
+      if (!length(vals)) {
+        vals <- c_star[is.finite(c_star)]
+      }
+      if (length(vals) > 5000) {
+        set.seed(123)
+        vals <- sample(vals, size = 5000)
+      }
+      quant <- if (length(vals)) stats::quantile(vals, probs = c(0.25, 0.5, 0.75, 0.9), na.rm = TRUE) else {
+        stats::setNames(rep(NA_real_, 4), c("25%", "50%", "75%", "90%"))
+      }
+      bounds <- if (length(vals)) {
+        lower <- max(0.2, 0.6 * quant["50%"])
+        upper <- max(lower + 1e-3, min(3.0, 3.0 * quant["90%"]))
+        c(lower, upper)
+      } else {
+        screen_cfg$pred_c
+      }
+      dir.create("logs", showWarnings = FALSE)
+      log_line <- sprintf(
+        "[%s] c* quantiles p25=%.3f p50=%.3f p75=%.3f p90=%.3f; pred_c bounds=[%.3f, %.3f]",
+        format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+        quant["25%"], quant["50%"], quant["75%"], quant["90%"],
+        bounds[1], bounds[2]
+      )
+      cat(log_line, "\n", file = file.path("logs", "wo9.log"), append = TRUE)
+      list(values = c_star, quantiles = quant, bounds = bounds)
+    }, deployment = "main"),
+    tar_target(pilot_screen_cfg, {
+      cfg <- pilot_cfg$pilot$screen
+      if (isTRUE(cfg$adapt_c)) {
+        bounds <- pilot_c_star_summary$bounds
+        if (length(bounds) == 2 && all(is.finite(bounds))) {
+          cfg$pred_c <- bounds
+        }
+      }
+      cfg
+    }),
+    tar_target(pilot_guard_cfg, {
+      cfg <- pilot_screen_cfg
+      guard_draws <- min(12L, cfg$n_draws %||% 12L)
+      if (guard_draws <= 0L) {
+        return(list(cfg = cfg, attempts = list()))
+      }
+      run_guard <- function(cfg_local, attempt) {
+        theta_guard <- exdyn_param_lhs(
+          cfg_local,
+          n = guard_draws,
+          cell_km = pilot_cfg$pilot$grid_cell_km,
+          seed = 900 + attempt
+        )
+        coverage <- numeric(nrow(theta_guard))
+        for (i in seq_len(nrow(theta_guard))) {
+          pars <- list(
+            rmax = theta_guard$rmax[i],
+            A_frac = theta_guard$A_over_K[i] * theta_guard$K0[i],
+            beta_H = 0,
+            d = 0.03
+          )
+          TX_guard <- exdyn_simulate_tx_only(
+            grid_info = pilot_grid_info,
+            years = pilot_years,
+            T_P = pilot_mink_field_default$T_P,
+            ramp_years = theta_guard$ramp_years[i],
+            pars = pars,
+            K0 = theta_guard$K0[i],
+            alpha = theta_guard$alpha[i],
+            disp_mean_cells = theta_guard$disp_mean_cells[i],
+            pred = list(
+              type = "II",
+              c = theta_guard$pred_c[i],
+              h = theta_guard$pred_h[i],
+              scale = theta_guard$pred_scale[i],
+              gamma = theta_guard$gamma[i]
+            ),
+            pre_leak = pilot_cfg$pilot$mink_P$pre_arrival_leak %||% 0,
+            log_mem = FALSE
+          )
+          coverage[i] <- mean(is.finite(TX_guard))
+        }
+        list(
+          cfg = cfg_local,
+          theta = theta_guard,
+          coverage = coverage,
+          mean_cov = mean(coverage),
+          attempt = attempt
+        )
+      }
+      dir.create("logs", showWarnings = FALSE)
+      guard1 <- run_guard(cfg, attempt = 1)
+      cat(
+        sprintf(
+          "[%s] Guard attempt 1 coverage=%.4f",
+          format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+          guard1$mean_cov
+        ),
+        "\n",
+        file = file.path("logs", "wo9.log"),
+        append = TRUE
+      )
+      attempts <- list(guard1)
+      final_cfg <- cfg
+      if (is.finite(guard1$mean_cov) && guard1$mean_cov < 0.01) {
+        widened <- cfg
+        widened$pred_scale[2] <- widened$pred_scale[2] * 2
+        upper_c <- pilot_c_star_summary$bounds[2] %||% widened$pred_c[2]
+        widened$pred_c[2] <- max(widened$pred_c[1] + 1e-3, min(5, upper_c * 1.5))
+        guard2 <- run_guard(widened, attempt = 2)
+        cat(
+          sprintf(
+            "[%s] Guard attempt 2 coverage=%.4f (pred_scale_max=%.3f pred_c_max=%.3f)",
+            format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+            guard2$mean_cov,
+            widened$pred_scale[2],
+            widened$pred_c[2]
+          ),
+          "\n",
+          file = file.path("logs", "wo9.log"),
+          append = TRUE
+        )
+        attempts <- c(attempts, list(guard2))
+        if (is.finite(guard2$mean_cov) && guard2$mean_cov > guard1$mean_cov) {
+          cat(
+            sprintf(
+              "[%s] Guard accepted widened bounds (coverage %.4f → %.4f)",
+              format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+              guard1$mean_cov,
+              guard2$mean_cov
+            ),
+            "\n",
+            file = file.path("logs", "wo9.log"),
+            append = TRUE
+          )
+          final_cfg <- guard2$cfg
+        } else {
+          cat(
+            sprintf(
+              "[%s] Guard coverage did not improve; retaining original bounds",
+              format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+            ),
+            "\n",
+            file = file.path("logs", "wo9.log"),
+            append = TRUE
+          )
+        }
+      }
+      list(cfg = final_cfg, attempts = attempts)
+    }, deployment = "main"),
     tar_target(pilot_theta, exdyn_param_lhs(
-      pilot_cfg$pilot$screen,
-      n = pilot_cfg$pilot$screen$n_draws,
+      pilot_guard_cfg$cfg,
+      n = pilot_guard_cfg$cfg$n_draws,
       cell_km = pilot_cfg$pilot$grid_cell_km,
       seed = 42
     )),
@@ -120,6 +378,11 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     }),
     tar_target(pilot_tx_dir, {
       dir <- file.path(pilot_output_dir, "tx_sim")
+      dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+      dir
+    }),
+    tar_target(pilot_tx_meta_dir, {
+      dir <- file.path(pilot_tx_dir, "meta")
       dir.create(dir, recursive = TRUE, showWarnings = FALSE)
       dir
     }),
@@ -155,7 +418,16 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       readr::write_csv(vole_table, file.path(pilot_output_dir, "vole_tx_obs.csv"))
       readr::write_csv(params_table, file.path(pilot_output_dir, "params_lhs.csv"))
       readr::write_csv(compat_table, file.path(pilot_output_dir, "compatibility_ranked.csv"))
-      file.path(pilot_output_dir, c("vole_tx_obs.csv", "params_lhs.csv", "compatibility_ranked.csv"))
+      changes_path <- file.path(pilot_output_dir, "vole_tx_normalisation_changes.csv")
+      if (nrow(pilot_vole_tx_qc$changed)) {
+        readr::write_csv(pilot_vole_tx_qc$changed, changes_path)
+      } else {
+        readr::write_csv(tibble::tibble(), changes_path)
+      }
+      file.path(
+        pilot_output_dir,
+        c("vole_tx_obs.csv", "params_lhs.csv", "compatibility_ranked.csv", "vole_tx_normalisation_changes.csv")
+      )
     }),
     tar_target(pilot_maps_written, exdyn_write_best_maps(
       tx_obs_mat = pilot_vole_tx$matrix,
@@ -202,12 +474,15 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       n_mink_cells <- sum(!is.na(as.vector(pilot_mink_field_default$T_P)))
       n_vole_cells <- sum(!is.na(as.vector(pilot_vole_tx$matrix)))
       summary <- if (!nrow(best)) {
-        "WO8 summary: no compatible parameter sets"
+        "WO9 summary: no compatible parameter sets"
       } else {
         png_dir <- file.path("outputs", "realdata", "pilot_mink_vole")
-        png_paths <- file.path(png_dir, c("TX_obs_map.png", "TX_sim_rank01.png", "TX_sim_rank02.png", "TX_sim_rank03.png"))
+        png_paths <- file.path(
+          png_dir,
+          c("TX_obs_map.png", "TX_sim_rank01.png", "TX_diff_rank01.png", "TX_sim_rank02.png", "TX_sim_rank03.png")
+        )
         sprintf(
-          "WO8 summary: n_mink_cells=%d n_vole_cells=%d r2=%.3f lag=%.2f coverage=%.3f best_draw=%s PNGs=%s",
+          "WO9 summary: n_mink_cells=%d n_vole_cells=%d r2=%.3f lag=%.2f coverage=%.3f best_draw=%s PNGs=%s",
           n_mink_cells,
           n_vole_cells,
           best$r2_arrival,
@@ -221,6 +496,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       dir.create("logs", showWarnings = FALSE)
       log_line <- sprintf("[%s] %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), summary)
       cat(log_line, "\n", file = file.path("logs", "wo8.log"), append = TRUE)
+      cat(log_line, "\n", file = file.path("logs", "wo9.log"), append = TRUE)
       summary
     }, deployment = "main")
   )
