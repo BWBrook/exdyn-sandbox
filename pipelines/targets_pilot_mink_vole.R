@@ -168,7 +168,8 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       cfg_vol <- pilot_cfg$pilot$vole
       nested <- counts %>%
         dplyr::group_by(cell_id, row, col, row_idx, col_idx) %>%
-        tidyr::nest(counts = c(year, n_obs, n_mammal, norm_mammal))
+        tidyr::nest(counts = c(year, n_obs, n_mammal, norm_mammal)) %>%
+        dplyr::ungroup()
       tx_norm <- purrr::map_int(
         nested$counts,
         ~ exdyn_tx_from_po(.x, pilot_cfg$pilot$years, cfg_vol, normalize_by = cfg_vol$normalize_by %||% NULL)$tx %||% NA_integer_

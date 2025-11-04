@@ -150,14 +150,17 @@ if (length(c_vals)) {
 ```
 
 ```{r guard-attempts}
-guard_table <- purrr::map_dfr(pilot_guard_attempts, function(attempt) {
-  tibble::tibble(
-    attempt = attempt$attempt,
-    mean_sim_extirpation = attempt$mean_cov,
-    pred_scale_max = attempt$cfg$pred_scale[2],
-    pred_c_max = attempt$cfg$pred_c[2]
-  )
-})
+guard_table <- tryCatch({
+  purrr::map_dfr(pilot_guard_attempts, function(attempt) {
+    attempt <- if (is.list(attempt)) attempt else list(mean_cov = attempt)
+    tibble::tibble(
+      attempt = attempt$attempt %||% NA_real_,
+      mean_sim_extirpation = attempt$mean_cov %||% NA_real_,
+      pred_scale_max = attempt$cfg$pred_scale[2] %||% NA_real_,
+      pred_c_max = attempt$cfg$pred_c[2] %||% NA_real_
+    )
+  })
+}, error = function(e) tibble::tibble())
 if (nrow(guard_table)) {
   knitr::kable(guard_table, digits = 3, caption = "Guard draws before full screen")
 } else {
@@ -230,7 +233,11 @@ best_sim <- pilot_scores %>%
 if (!nrow(best_sim)) {
   ggplot2::ggplot() + ggplot2::theme_void() + ggplot2::labs(title = "No simulations produced finite TX outputs.")
 } else {
-  tx_best <- readRDS(best_sim$tx_path)
+  tx_file <- best_sim$tx_path[[1]]
+  if (!file.exists(tx_file)) {
+    tx_file <- file.path("..", tx_file)
+  }
+  tx_best <- readRDS(tx_file)
   sim_plot <- exdyn_plot_surface(
     tx_best,
     pilot_grid_info,

@@ -16,14 +16,8 @@
 #' @export
 exdyn_c_critical <- function(K0, rmax, h, N0_frac = 0.1, S0 = 1, d = 0.03) {
   K0 <- as.matrix(K0)
-  rmax <- as.matrix(rmax)
-  h <- as.matrix(h)
-  if (!all(dim(rmax) %in% c(1, dim(K0)))) {
-    rmax <- matrix(rmax, nrow = nrow(K0), ncol = ncol(K0), byrow = TRUE)
-  }
-  if (!all(dim(h) %in% c(1, dim(K0)))) {
-    h <- matrix(h, nrow = nrow(K0), ncol = ncol(K0), byrow = TRUE)
-  }
+  rmax <- matrix(rmax, nrow = nrow(K0), ncol = ncol(K0))
+  h <- matrix(h, nrow = nrow(K0), ncol = ncol(K0))
   N0 <- K0 * N0_frac
   r_eff <- rmax * exdyn_fS(S0)
   num <- r_eff * (1 - N0 / K0) - d
