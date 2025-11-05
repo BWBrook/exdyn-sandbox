@@ -30,3 +30,17 @@ test_that("arrival adjustment applies regional delta", {
   adj <- exdyn_adjust_arrival_matrix(T_P, grid_info, c(SCT = 3), 1975:2024)
   expect_equal(adj[1, 1], 1997)
 })
+
+test_that("riparian components group rook-adjacent cells", {
+  mat <- matrix(c(
+    TRUE, TRUE, FALSE,
+    FALSE, TRUE, FALSE,
+    FALSE, FALSE, TRUE
+  ), nrow = 3, byrow = TRUE)
+  comps <- exdyn_riparian_components(mat)
+  expect_equal(max(comps$matrix), 2)
+  tbl <- comps$table
+  expect_equal(sum(tbl$comp_id == 1), 3)
+  expect_equal(sum(tbl$comp_id == 2), 1)
+  expect_true(all(comps$summary$n_cells == c(3L, 1L)))
+})

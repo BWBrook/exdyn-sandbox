@@ -48,6 +48,17 @@ pilot_riparian_table <- tar_read(pilot_riparian_table)
 pilot_effort_years <- tar_read(pilot_effort_years)
 pilot_effort_max_records <- tar_read(pilot_effort_max_records)
 compat_cfg <- pilot_cfg$pilot$compat
+mask_summary <- tar_read(pilot_mask_summary)
+mask_results_tbl <- tar_read(pilot_mask_results_csv)
+mask_matrices <- tar_read(pilot_mask_matrices)
+tx_hyper_results <- tar_read(pilot_tx_sweep)$results
+tx_hyper_summary <- tar_read(pilot_tx_hyper_summary)
+resolution_sweep <- tar_read(pilot_resolution_sweep)
+resolution_summary <- resolution_sweep$summary
+resolution_details <- resolution_sweep$details
+baseline_funnel <- tar_read(pilot_baseline_funnel)
+segment_tx <- tar_read(pilot_segment_tx)
+segment_cell_tx <- tar_read(pilot_segment_cell_tx)
 
 compat_top <- pilot_scores %>% arrange(loss) %>% slice_head(n = 10)
 pilot_bounds <- tibble::tibble(
@@ -147,6 +158,280 @@ if (pilot_vole_tx_qc$n_changed > 0) {
     digits = 0
   )
 }
+```
+
+## Triage: mask, estimator, and resolution
+
+```{r triage-metrics-setup}
+arrival_tbl <- pilot_grid_info$lookup %>%
+  dplyr::mutate(T_P = pilot_mink_field_default$T_P[cbind(.data$row_idx, .data$col_idx)])
+
+metrics_from_df <- function(df) {
+  n_units <- nrow(df)
+  n_tx <- sum(!is.na(df$tx_obs))
+  coverage <- if (n_units > 0) n_tx / n_units else NA_real_
+  valid <- df %>% dplyr::filter(is.finite(.data$tx_obs), is.finite(.data$T_P))
+  r2 <- if (nrow(valid) >= 3) {
+    summary(stats::lm(tx_obs ~ T_P, data = valid))$r.squared
+  } else {
+    NA_real_
+  }
+  lag <- if (nrow(valid)) mean(valid$tx_obs - valid$T_P) else NA_real_
+  tibble::tibble(
+    n_units = n_units,
+    n_tx = n_tx,
+    coverage = coverage,
+    r2_arrival = r2,
+    lag_mean = lag
+  )
+}
+
+baseline_tbl <- pilot_vole_tx$table %>%
+  dplyr::left_join(arrival_tbl, by = "cell_id")
+baseline_metrics <- metrics_from_df(baseline_tbl)
+
+mask_metrics <- mask_results_tbl %>%
+  dplyr::left_join(arrival_tbl, by = "cell_id")
+mask_groups <- if (nrow(mask_metrics)) dplyr::group_split(mask_metrics, tau_km) else list()
+mask_metrics <- if (length(mask_groups)) {
+  purrr::map_dfr(mask_groups, function(df) {
+    tau <- df$tau_km[1]
+    metrics_from_df(df) %>%
+      dplyr::mutate(tau_km = tau, .before = 1)
+  }) %>%
+    dplyr::arrange(tau_km)
+} else {
+  tibble::tibble(
+    tau_km = numeric(),
+    n_units = integer(),
+    n_tx = integer(),
+    coverage = numeric(),
+    r2_arrival = numeric(),
+    lag_mean = numeric()
+  )
+}
+
+hyper_metrics <- tx_hyper_results %>%
+  dplyr::left_join(arrival_tbl, by = "cell_id")
+hyper_groups <- if (nrow(hyper_metrics)) {
+  dplyr::group_split(hyper_metrics, baseline_window, hold_years, drop_fraction)
+} else {
+  list()
+}
+hyper_metrics <- if (length(hyper_groups)) {
+  purrr::map_dfr(hyper_groups, function(df) {
+    bw <- df$baseline_window[1]
+    hold <- df$hold_years[1]
+    drop <- df$drop_fraction[1]
+    metrics_from_df(df) %>%
+      dplyr::mutate(
+        baseline_window = bw,
+        hold_years = hold,
+        drop_fraction = drop,
+        .before = 1
+      )
+  })
+} else {
+  tibble::tibble(
+    baseline_window = numeric(),
+    hold_years = numeric(),
+    drop_fraction = numeric(),
+    n_units = integer(),
+    n_tx = integer(),
+    coverage = numeric(),
+    r2_arrival = numeric(),
+    lag_mean = numeric()
+  )
+}
+
+resolution_metrics <- resolution_summary %>%
+  dplyr::rename(n_tx = n_tx_obs) %>%
+  dplyr::select(resolution_km, n_units, n_tx, coverage, r2_arrival, lag_mean)
+
+comp_lookup <- tar_read(pilot_riparian_components)$table %>%
+  dplyr::select(cell_id, comp_id, n_cells_comp)
+segment_arrivals <- comp_lookup %>%
+  dplyr::left_join(arrival_tbl, by = "cell_id") %>%
+  dplyr::group_by(comp_id) %>%
+  dplyr::summarise(
+    T_P = mean(.data$T_P, na.rm = TRUE),
+    n_cells_arrival = max(.data$n_cells_comp, na.rm = TRUE),
+    .groups = "drop"
+  )
+segment_joined <- segment_tx %>%
+  dplyr::left_join(segment_arrivals, by = "comp_id") %>%
+  dplyr::mutate(
+    n_cells = dplyr::coalesce(.data$n_cells, .data$n_cells_arrival)
+  )
+segment_metrics <- metrics_from_df(segment_joined)
+
+best_mask <- if (nrow(mask_metrics)) mask_metrics %>% dplyr::arrange(dplyr::desc(coverage)) %>% dplyr::slice_head(n = 1) else NULL
+best_hyper <- if (nrow(hyper_metrics)) hyper_metrics %>% dplyr::arrange(dplyr::desc(coverage)) %>% dplyr::slice_head(n = 1) else NULL
+best_resolution <- if (nrow(resolution_metrics)) resolution_metrics %>% dplyr::arrange(dplyr::desc(coverage)) %>% dplyr::slice_head(n = 1) else NULL
+
+overview_rows <- list(
+  tibble::tibble(scenario = sprintf("Baseline (τ = %.1f km)", pilot_cfg$pilot$vole$riparian_tau_km)) %>%
+    dplyr::bind_cols(baseline_metrics)
+)
+if (!is.null(best_mask)) {
+  overview_rows <- append(overview_rows, list(
+    best_mask %>%
+      dplyr::mutate(scenario = sprintf("Mask τ = %.1f km", tau_km)) %>%
+      dplyr::select(scenario, n_units, n_tx, coverage, r2_arrival, lag_mean)
+  ))
+}
+if (!is.null(best_hyper)) {
+  overview_rows <- append(overview_rows, list(
+    best_hyper %>%
+      dplyr::mutate(scenario = sprintf("Hyper bw=%d, hold=%d, drop=%.1f", baseline_window, hold_years, drop_fraction)) %>%
+      dplyr::select(scenario, n_units, n_tx, coverage, r2_arrival, lag_mean)
+  ))
+}
+if (!is.null(best_resolution)) {
+  overview_rows <- append(overview_rows, list(
+    best_resolution %>%
+      dplyr::mutate(scenario = sprintf("Resolution %d km", resolution_km)) %>%
+      dplyr::select(scenario, n_units, n_tx, coverage, r2_arrival, lag_mean)
+  ))
+}
+overview_rows <- append(overview_rows, list(
+  tibble::tibble(scenario = "Segments (rook components)") %>%
+    dplyr::bind_cols(segment_metrics)
+))
+triage_overview <- purrr::map_dfr(purrr::compact(overview_rows), dplyr::as_tibble)
+```
+
+### Funnel (baseline)
+
+```{r funnel-table}
+knitr::kable(
+  baseline_funnel,
+  caption = sprintf("Filter funnel for baseline configuration (τ = %.1f km)", pilot_cfg$pilot$vole$riparian_tau_km)
+)
+```
+
+```{r triage-overview}
+knitr::kable(triage_overview, digits = 3, caption = "Triage overview (coverage, r², lag)")
+```
+
+### Mask τ sweep
+
+```{r mask-metrics}
+knitr::kable(mask_metrics, digits = 3, caption = "Mask threshold sweep (τ in km)")
+```
+
+```{r mask-maps, fig.width=7, fig.height=6}
+mask_plots <- purrr::imap(mask_matrices, function(mat, tau) {
+  tau_num <- as.numeric(tau)
+  mask_df <- pilot_grid_info$lookup |>
+    dplyr::mutate(mask = mat[cbind(.data$row_idx, .data$col_idx)]) |>
+    dplyr::filter(.data$mask) |>
+    dplyr::left_join(mask_results_tbl |> dplyr::filter(tau_km == tau_num) |> dplyr::select(cell_id, tx_obs), by = "cell_id") |>
+    dplyr::mutate(has_tx = !is.na(.data$tx_obs))
+  grid_plot <- pilot_grid |>
+    dplyr::left_join(mask_df |> dplyr::select(cell_id, has_tx), by = "cell_id")
+  ggplot(grid_plot) +
+    geom_sf(aes(fill = has_tx), colour = NA) +
+    scale_fill_manual(values = c("grey90", "#b2182b"), na.value = "grey95", name = "TX obs", labels = c("No", "Yes")) +
+    coord_sf() +
+    theme_minimal() +
+    labs(title = sprintf("τ = %s km", tau), subtitle = sprintf("TX cells: %d", sum(mask_df$has_tx, na.rm = TRUE)))
+})
+if (has_patchwork) {
+  patchwork::wrap_plots(mask_plots)
+} else {
+  mask_plots[[1]]
+}
+```
+
+### Estimator hyper-parameters
+
+```{r hyper-metrics}
+knitr::kable(
+  hyper_metrics %>% dplyr::arrange(dplyr::desc(coverage)) %>% dplyr::slice_head(n = 6),
+  digits = 3,
+  caption = "Top hyper-parameter combinations by coverage"
+)
+```
+
+```{r hyper-map, fig.width=6.5, fig.height=6}
+if (is.null(best_hyper) || !nrow(best_hyper)) {
+  ggplot() +
+    theme_void() +
+    labs(title = "Hyper-parameter sweep: no combinations produced TX observations")
+} else {
+  best_h <- best_hyper %>% dplyr::slice(1)
+  best_h_params <- list(
+    baseline_window = best_h$baseline_window,
+    hold_years = best_h$hold_years,
+    drop_fraction = best_h$drop_fraction
+  )
+  best_h_cells <- tx_hyper_results %>%
+    dplyr::filter(
+      baseline_window == best_h_params$baseline_window,
+      hold_years == best_h_params$hold_years,
+      drop_fraction == best_h_params$drop_fraction
+    ) %>%
+    dplyr::select(cell_id, tx_obs)
+  grid_hyper <- pilot_grid %>% dplyr::left_join(best_h_cells, by = "cell_id")
+  ggplot(grid_hyper) +
+    geom_sf(aes(fill = !is.na(tx_obs)), colour = NA) +
+    scale_fill_manual(values = c("grey90", "#1b9e77"), name = "TX obs", labels = c("No", "Yes")) +
+    coord_sf() +
+    theme_minimal() +
+    labs(
+      title = sprintf("Best hyper sweep (bw=%d, hold=%d, drop=%.1f)", best_h_params$baseline_window, best_h_params$hold_years, best_h_params$drop_fraction)
+    )
+}
+```
+
+### Resolution sweep
+
+```{r resolution-table}
+knitr::kable(resolution_metrics, digits = 3, caption = "Resolution sweep metrics")
+```
+
+```{r resolution-map, fig.width=6.5, fig.height=6}
+if (is.null(best_resolution) || !nrow(best_resolution) || is.na(best_resolution$resolution_km[1])) {
+  ggplot() +
+    theme_void() +
+    labs(title = "Resolution sweep: no cells with TX observations")
+} else {
+  best_res <- best_resolution$resolution_km[1]
+  res_detail <- resolution_details[[as.character(best_res)]]
+  agg_grid <- exdyn_aggregate_grid(pilot_grid, best_res)
+  grid_res <- agg_grid$grid %>% dplyr::left_join(res_detail %>% dplyr::select(cell_id, tx_obs), by = "cell_id")
+  ggplot(grid_res) +
+    geom_sf(aes(fill = !is.na(tx_obs)), colour = NA) +
+    scale_fill_manual(values = c("grey90", "#7570b3"), name = "TX obs", labels = c("No", "Yes")) +
+    coord_sf() +
+    theme_minimal() +
+    labs(title = sprintf("Resolution %d km", best_res))
+}
+```
+
+### Segment-level estimator
+
+```{r segment-table}
+segment_metrics_detail <- segment_joined %>%
+  dplyr::mutate(has_tx = !is.na(tx_obs)) %>%
+  dplyr::arrange(dplyr::desc(has_tx), dplyr::desc(n_cells))
+knitr::kable(
+  segment_metrics_detail %>% dplyr::select(comp_id, n_cells, tx_obs, reason, T_P) %>% head(10),
+  digits = 2,
+  caption = "Segment-level TX (first 10 components)"
+)
+```
+
+```{r segment-map, fig.width=6.5, fig.height=6}
+segment_map <- pilot_grid %>%
+  dplyr::left_join(segment_cell_tx %>% dplyr::select(cell_id, tx_obs), by = "cell_id")
+ggplot(segment_map) +
+  geom_sf(aes(fill = !is.na(tx_obs)), colour = NA) +
+  scale_fill_manual(values = c("grey90", "#d95f02"), name = "TX obs", labels = c("No", "Yes")) +
+  coord_sf() +
+  theme_minimal() +
+  labs(title = "Segment-level extirpation (components)")
 ```
 
 ## Calibration diagnostics

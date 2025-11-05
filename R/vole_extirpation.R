@@ -105,20 +105,40 @@ exdyn_ts_smooth <- function(counts, k = 5) {
 # Internal helper -------------------------------------------------------------
 .exdyn_first_passage_hold <- function(smooth_vals, years, cfg) {
   detections <- which(smooth_vals > 0 & is.finite(smooth_vals))
-  if (!length(detections)) return(list(tx = NA_integer_, last_presence = NA_integer_))
+  if (!length(detections)) {
+    return(list(
+      tx = NA_integer_,
+      last_presence = NA_integer_,
+      baseline = NA_real_,
+      tau = NA_real_,
+      reason = "no_records"
+    ))
+  }
   y0_idx <- detections[1]
   y0 <- years[y0_idx]
   active_years <- length(detections)
   if (active_years < cfg$min_years_active) {
     last_presence <- years[max(detections)]
-    return(list(tx = NA_integer_, last_presence = last_presence))
+    return(list(
+      tx = NA_integer_,
+      last_presence = last_presence,
+      baseline = NA_real_,
+      tau = NA_real_,
+      reason = "too_few_years"
+    ))
   }
   baseline_idx <- which(years >= y0 & years <= y0 + cfg$baseline_window - 1L)
   baseline_idx <- baseline_idx[baseline_idx <= length(smooth_vals)]
   baseline_vals <- smooth_vals[baseline_idx]
   B <- suppressWarnings(stats::median(baseline_vals, na.rm = TRUE))
   if (!is.finite(B) || B <= 0) {
-    return(list(tx = NA_integer_, last_presence = years[max(detections)]))
+    return(list(
+      tx = NA_integer_,
+      last_presence = years[max(detections)],
+      baseline = B,
+      tau = NA_real_,
+      reason = "no_baseline"
+    ))
   }
   tau <- max(1, floor(cfg$drop_fraction * B))
   hold <- max(1L, cfg$hold_years)
@@ -130,11 +150,23 @@ exdyn_ts_smooth <- function(counts, k = 5) {
     if (all(is.finite(window_vals) & window_vals <= tau)) {
       prev_vals <- smooth_vals[seq_len(idx - 1)]
       if (any(is.finite(prev_vals) & prev_vals > tau)) {
-        return(list(tx = years[idx], last_presence = last_presence))
+        return(list(
+          tx = years[idx],
+          last_presence = last_presence,
+          baseline = B,
+          tau = tau,
+          reason = NA_character_
+        ))
       }
     }
   }
-  list(tx = NA_integer_, last_presence = last_presence)
+  list(
+    tx = NA_integer_,
+    last_presence = last_presence,
+    baseline = B,
+    tau = tau,
+    reason = "no_hold_crossing"
+  )
 }
 
 #' Infer observed extirpation years from presence-only counts
@@ -163,6 +195,9 @@ exdyn_tx_from_po <- function(counts_by_cell, years, cfg, normalize_by = NULL) {
   res <- .exdyn_first_passage_hold(smooth_vals, yrs, cfg)
   res$series <- series
   res$series_raw <- raw_counts
+  res$baseline <- res$baseline %||% NA_real_
+  res$tau <- res$tau %||% NA_real_
+  res$reason <- res$reason %||% NA_character_
   res
 }
 
@@ -200,7 +235,10 @@ exdyn_tx_map <- function(cells_df, years, cfg, grid_info,
     dplyr::mutate(
       res = purrr::map(counts, ~ exdyn_tx_from_po(.x, years, cfg, normalize_by = norm_mode)),
       tx_obs = purrr::map_int(res, ~ .x$tx %||% NA_integer_),
-      last_presence = purrr::map_int(res, ~ .x$last_presence %||% NA_integer_)
+      last_presence = purrr::map_int(res, ~ .x$last_presence %||% NA_integer_),
+      baseline = purrr::map_dbl(res, ~ .x$baseline %||% NA_real_),
+      tau = purrr::map_dbl(res, ~ .x$tau %||% NA_real_),
+      reason = purrr::map_chr(res, ~ .x$reason %||% NA_character_)
     ) %>%
     dplyr::ungroup()
 

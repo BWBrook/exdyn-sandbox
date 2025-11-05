@@ -178,6 +178,70 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
                  sf::st_drop_geometry() |>
                  dplyr::select(cell_id, riparian, river_km, region)),
     tar_target(pilot_grid_info, exdyn_grid_lookup(pilot_grid_riparian)),
+    tar_target(pilot_riparian_components, exdyn_riparian_components(
+      pilot_grid_info[["riparian_matrix"]],
+      pilot_grid_info
+    )),
+    tar_target(pilot_triage_dir, {
+      dir <- file.path("outputs", "realdata", "pilot_mink_vole")
+      dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+      dir
+    }, deployment = "main"),
+    tar_target(pilot_mask_sweep, {
+      taus <- c(1, 2, 5, 10)
+      mask_list <- list()
+      result_list <- list()
+      summary <- purrr::map_dfr(taus, function(tau) {
+        mask_sf <- exdyn_make_riparian_mask(pilot_grid, pilot_rivers, tau_km = tau)
+        lookup <- pilot_grid_info$lookup |>
+          dplyr::select(cell_id, row_idx, col_idx)
+        mask_vec <- mask_sf |>
+          sf::st_drop_geometry() |>
+          dplyr::select(cell_id, riparian)
+        mask_lookup <- lookup |>
+          dplyr::left_join(mask_vec, by = "cell_id") |>
+          dplyr::mutate(riparian = dplyr::coalesce(.data$riparian, FALSE)) |>
+          dplyr::filter(!is.na(.data$row_idx), !is.na(.data$col_idx))
+        mask_mat <- matrix(FALSE, nrow = pilot_grid_info$nx, ncol = pilot_grid_info$ny)
+        idx <- cbind(mask_lookup$row_idx, mask_lookup$col_idx)
+        mask_mat[idx] <- mask_lookup$riparian
+        mask_list[[as.character(tau)]] <<- mask_mat
+        cfg_local <- pilot_cfg$pilot$vole
+        res <- exdyn_tx_apply_cfg(
+          pilot_vole_cells,
+          pilot_cfg$pilot$years,
+          cfg_local,
+          pilot_grid_info,
+          effort_cells = pilot_mammal_cells,
+          normalize_by = cfg_local$normalize_by %||% "mammal",
+          mask = mask_mat
+        )
+        result_list[[as.character(tau)]] <<- res
+        tibble::tibble(
+          tau_km = tau,
+          n_cells_riparian = sum(mask_mat, na.rm = TRUE),
+          n_tx_obs = sum(is.na(res$results$reason)),
+          coverage = ifelse(
+            sum(mask_mat, na.rm = TRUE) > 0,
+            sum(is.na(res$results$reason)) / sum(mask_mat, na.rm = TRUE),
+            NA_real_
+          )
+        )
+      })
+      readr::write_csv(summary, file.path(pilot_triage_dir, "riparian_mask_sweep.csv"))
+      list(summary = summary, matrices = mask_list, results = result_list)
+    }, deployment = "main"),
+    tar_target(pilot_mask_summary, pilot_mask_sweep$summary),
+    tar_target(pilot_mask_matrices, pilot_mask_sweep$matrices),
+    tar_target(pilot_mask_results, pilot_mask_sweep$results),
+    tar_target(pilot_mask_results_csv, {
+      res_tbl <- purrr::imap_dfr(pilot_mask_results, function(res, tau) {
+        res$results |>
+          dplyr::mutate(tau_km = as.numeric(tau))
+      })
+      readr::write_csv(res_tbl, file.path(pilot_triage_dir, "mask_tau_results.csv"))
+      res_tbl
+    }),
     tar_target(pilot_mink_arrivals, real_arrivals_smooth),
     tar_target(pilot_effort_taxa, pilot_cfg$pilot$vole$normalize_taxa %||% list()),
     tar_target(pilot_effort_years, pilot_cfg$pilot$vole$normalize_years %||% pilot_cfg$pilot$years),
@@ -270,6 +334,183 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       cat(log_line, "\n", file = file.path("logs", "wo9b.log"), append = TRUE)
       list(correlation = cor_val, n_changed = nrow(changed_tbl), changed = changed_tbl)
     }, deployment = "main"),
+    tar_target(pilot_tx_hyper_grid, exdyn_tx_hyper_grid(
+      baseline_window = c(6, 8, 10),
+      hold_years = c(2, 3, 5),
+      drop_fraction = c(0.2, 0.3, 0.4)
+    )),
+    tar_target(pilot_tx_sweep, {
+      mask_tau2 <- pilot_mask_matrices[[as.character(2)]]
+      hyper <- pilot_tx_hyper_grid
+      res_list <- vector("list", nrow(hyper))
+      funnel_list <- vector("list", nrow(hyper))
+      for (i in seq_len(nrow(hyper))) {
+        cfg_local <- pilot_cfg$pilot$vole
+        cfg_local$baseline_window <- hyper$baseline_window[i]
+        cfg_local$hold_years <- hyper$hold_years[i]
+        cfg_local$drop_fraction <- hyper$drop_fraction[i]
+        res <- exdyn_tx_apply_cfg(
+          pilot_vole_cells,
+          pilot_cfg$pilot$years,
+          cfg_local,
+          pilot_grid_info,
+          effort_cells = pilot_mammal_cells,
+          normalize_by = cfg_local$normalize_by %||% "mammal",
+          mask = mask_tau2
+        )
+        res_tbl <- res$results |>
+          dplyr::mutate(
+            baseline_window = hyper$baseline_window[i],
+            hold_years = hyper$hold_years[i],
+            drop_fraction = hyper$drop_fraction[i]
+          )
+        res_list[[i]] <- res_tbl
+        funnel_list[[i]] <- res$funnel |>
+          dplyr::mutate(
+            baseline_window = hyper$baseline_window[i],
+            hold_years = hyper$hold_years[i],
+            drop_fraction = hyper$drop_fraction[i]
+          )
+      }
+      results <- dplyr::bind_rows(res_list)
+      funnels <- dplyr::bind_rows(funnel_list)
+      readr::write_csv(results, file.path(pilot_triage_dir, "tx_hyper_results.csv"))
+      readr::write_csv(funnels, file.path(pilot_triage_dir, "tx_hyper_funnel.csv"))
+      list(results = results, funnels = funnels)
+    }, deployment = "main"),
+    tar_target(pilot_tx_hyper_summary, exdyn_funnel_summary(pilot_tx_sweep$results)),
+    tar_target(pilot_baseline_funnel, {
+      res <- exdyn_tx_apply_cfg(
+        pilot_vole_cells,
+        pilot_cfg$pilot$years,
+        pilot_cfg$pilot$vole,
+        pilot_grid_info,
+        effort_cells = pilot_mammal_cells,
+        normalize_by = pilot_cfg$pilot$vole$normalize_by %||% "mammal",
+        mask = pilot_grid_info[["riparian_matrix"]]
+      )
+      readr::write_csv(res$funnel, file.path(pilot_triage_dir, "funnel_baseline.csv"))
+      res$funnel
+    }, deployment = "main"),
+    tar_target(pilot_resolution_sweep, {
+      resolutions <- c(15, 20)
+      res_tables <- list()
+      summary <- purrr::map_dfr(resolutions, function(res_km) {
+        agg <- exdyn_aggregate_grid(pilot_grid, res_km)
+        grid_new <- agg$grid
+        map <- agg$mapping_tbl
+
+        vole_rebin <- exdyn_rebin_cells(pilot_vole_cells, map, grid_new)
+        mammal_rebin <- exdyn_rebin_cells(pilot_mammal_cells, map, grid_new)
+
+        river_agg <- pilot_riparian_table |>
+          dplyr::left_join(map, by = c("cell_id" = "cell_id_old")) |>
+          dplyr::filter(!is.na(.data$cell_id_new)) |>
+          dplyr::group_by(cell_id_new) |>
+          dplyr::summarise(
+            river_km = sum(.data$river_km, na.rm = TRUE),
+            region = {
+              vals <- .data$region[!is.na(.data$region)]
+              if (length(vals)) as.character(vals[1]) else NA_character_
+            },
+            .groups = "drop"
+          )
+
+        grid_new <- grid_new |>
+          dplyr::left_join(river_agg, by = c("cell_id" = "cell_id_new")) |>
+          dplyr::mutate(
+            river_km = dplyr::coalesce(.data$river_km, 0),
+            region = dplyr::coalesce(.data$region, "UNKNOWN"),
+            riparian = .data$river_km >= 2
+          )
+
+        grid_info_new <- exdyn_grid_lookup(grid_new)
+
+        arrival_lookup <- pilot_grid_info$lookup |>
+          dplyr::mutate(T_P = pilot_mink_field_default$T_P[cbind(.data$row_idx, .data$col_idx)]) |>
+          dplyr::left_join(map, by = c("cell_id" = "cell_id_old")) |>
+          dplyr::filter(!is.na(.data$cell_id_new)) |>
+          dplyr::group_by(cell_id_new) |>
+          dplyr::summarise(T_P = mean(.data$T_P, na.rm = TRUE), .groups = "drop") |>
+          dplyr::rename(cell_id = cell_id_new)
+
+        cfg_res <- pilot_cfg$pilot$vole
+        cfg_res$baseline_window <- 8
+        cfg_res$hold_years <- 3
+        cfg_res$drop_fraction <- 0.3
+        cfg_res$normalize_by <- cfg_res$normalize_by %||% "mammal"
+
+        res <- exdyn_tx_apply_cfg(
+          vole_rebin,
+          pilot_cfg$pilot$years,
+          cfg_res,
+          grid_info_new,
+          effort_cells = mammal_rebin,
+          normalize_by = cfg_res$normalize_by,
+          mask = grid_info_new[["riparian_matrix"]]
+        )
+
+        detail <- res$results |>
+          dplyr::left_join(arrival_lookup, by = "cell_id") |>
+          dplyr::mutate(resolution_km = res_km)
+
+        res_tables[[as.character(res_km)]] <<- detail
+
+        valid <- detail |>
+          dplyr::filter(is.finite(.data$tx_obs), is.finite(.data$T_P))
+
+        r2_val <- if (nrow(valid) >= 3) {
+          summary(stats::lm(tx_obs ~ T_P, data = valid))$r.squared
+        } else {
+          NA_real_
+        }
+        lag_val <- if (nrow(valid)) mean(valid$tx_obs - valid$T_P) else NA_real_
+
+        tibble::tibble(
+          resolution_km = res_km,
+          n_units = res$funnel$n_units[res$funnel$stage == "mask"],
+          n_tx_obs = sum(is.na(detail$reason)),
+          coverage = ifelse(
+            res$funnel$n_units[res$funnel$stage == "mask"] > 0,
+            sum(is.na(detail$reason)) / res$funnel$n_units[res$funnel$stage == "mask"],
+            NA_real_
+          ),
+          r2_arrival = r2_val,
+          lag_mean = lag_val
+        )
+      })
+
+      readr::write_csv(summary, file.path(pilot_triage_dir, "resolution_sweep_summary.csv"))
+      readr::write_csv(
+        dplyr::bind_rows(res_tables),
+        file.path(pilot_triage_dir, "resolution_sweep_results.csv")
+      )
+      list(summary = summary, details = res_tables)
+    }, deployment = "main"),
+    tar_target(pilot_segment_tx, {
+      comp_lookup <- pilot_riparian_components$table |>
+        dplyr::filter(!is.na(.data$cell_id)) |>
+        dplyr::select(cell_id, comp_id, n_cells_comp)
+      exdyn_segment_tx(
+        pilot_vole_cells,
+        comp_lookup,
+        pilot_cfg$pilot$years,
+        pilot_cfg$pilot$vole,
+        normalize_by = pilot_cfg$pilot$vole$normalize_by %||% "mammal",
+        effort_cells = pilot_mammal_cells
+      )
+    }),
+    tar_target(pilot_segment_cell_tx, {
+      comp_lookup <- pilot_riparian_components$table |>
+        dplyr::filter(!is.na(.data$cell_id)) |>
+        dplyr::select(cell_id, comp_id)
+      comp_lookup |>
+        dplyr::left_join(pilot_segment_tx, by = "comp_id")
+    }),
+    tar_target(pilot_segment_tx_csv, {
+      readr::write_csv(pilot_segment_tx, file.path(pilot_triage_dir, "segment_tx.csv"))
+      pilot_segment_tx
+    }),
     tar_target(pilot_mink_field_default, {
       delta_cfg <- pilot_cfg$pilot$mink_P$delta_region %||% list()
       delta_defaults <- if (length(delta_cfg)) {
@@ -607,6 +848,8 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       best <- dplyr::arrange(pilot_screen, .data$rank) %>% dplyr::slice_head(n = 1)
       n_mink_cells <- sum(!is.na(as.vector(pilot_mink_field_default$T_P)))
       n_vole_cells <- sum(!is.na(as.vector(pilot_vole_tx$matrix)))
+      baseline_units <- nrow(pilot_vole_tx$table)
+      baseline_tx <- sum(!is.na(pilot_vole_tx$table$tx_obs))
       summary <- if (!nrow(best)) {
         "WO9b summary: no compatible parameter sets"
       } else {
@@ -616,9 +859,11 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
           c("TX_obs_riparian_map.png", "TX_sim_rank01.png", "TX_diff_rank01.png", "TX_sim_rank02.png", "TX_sim_rank03.png")
         )
         sprintf(
-          "WO9b summary: n_mink_cells=%d n_vole_cells=%d r2=%.3f lag=%.2f coverage=%.3f best_draw=%s PNGs=%s",
+          "WO9b summary: n_mink_cells=%d n_vole_cells=%d baseline_units=%d baseline_tx=%d r2=%.3f lag=%.2f coverage=%.3f best_draw=%s PNGs=%s",
           n_mink_cells,
           n_vole_cells,
+          baseline_units,
+          baseline_tx,
           best$r2_arrival,
           best$lag_mean,
           best$coverage,

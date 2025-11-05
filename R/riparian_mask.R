@@ -141,3 +141,96 @@ exdyn_make_riparian_mask <- function(grid_sf, rivers_sf, tau_km = 5) {
     )
   mask
 }
+
+#' Identify connected riparian components
+#'
+#' Given a logical riparian matrix, derive rook-adjacent connected components
+#' and return both the component matrix and a per-cell summary.
+#'
+#' @param riparian_matrix Logical matrix (nx × ny) marking riparian cells.
+#' @param grid_info Optional lookup from [exdyn_grid_lookup()] used to attach
+#'   `cell_id` and ancillary attributes.
+#'
+#' @return List with components matrix (`matrix`), tibble (`table`) containing
+#'   `row_idx`, `col_idx`, `comp_id`, `n_cells_comp`, and a component summary
+#'   tibble (`summary`).
+#' @export
+exdyn_riparian_components <- function(riparian_matrix, grid_info = NULL) {
+  if (is.null(riparian_matrix)) {
+    stop("riparian_matrix must be supplied.")
+  }
+  mat <- as.matrix(riparian_matrix)
+  if (!is.logical(mat)) {
+    mat <- mat != 0
+  }
+  if (!all(dim(mat) >= 1)) {
+    stop("riparian_matrix must be at least 1x1.")
+  }
+  nx <- nrow(mat); ny <- ncol(mat)
+  comp_mat <- matrix(0L, nrow = nx, ncol = ny)
+  comp_id <- 0L
+  dirs <- matrix(c(-1, 0,
+                   1, 0,
+                   0, -1,
+                   0, 1), ncol = 2, byrow = TRUE)
+  for (r in seq_len(nx)) {
+    for (c in seq_len(ny)) {
+      if (!mat[r, c] || comp_mat[r, c] != 0L) next
+      comp_id <- comp_id + 1L
+      queue_r <- r
+      queue_c <- c
+      head <- 1L
+      tail <- 1L
+      comp_mat[r, c] <- comp_id
+      while (head <= tail) {
+        cr <- queue_r[head]
+        cc <- queue_c[head]
+        head <- head + 1L
+        for (k in seq_len(nrow(dirs))) {
+          nr <- cr + dirs[k, 1]
+          nc <- cc + dirs[k, 2]
+          if (nr < 1L || nr > nx || nc < 1L || nc > ny) next
+          if (!mat[nr, nc] || comp_mat[nr, nc] != 0L) next
+          comp_mat[nr, nc] <- comp_id
+          tail <- tail + 1L
+          queue_r[tail] <- nr
+          queue_c[tail] <- nc
+        }
+      }
+    }
+  }
+  if (comp_id == 0L) {
+    component_summary <- tibble::tibble(comp_id = integer(), n_cells = integer())
+    per_cell <- tibble::tibble(
+      row_idx = integer(),
+      col_idx = integer(),
+      comp_id = integer(),
+      n_cells_comp = integer()
+    )
+    return(list(matrix = comp_mat, table = per_cell, summary = component_summary))
+  }
+  idx <- which(comp_mat > 0L, arr.ind = TRUE)
+  comp_counts <- tabulate(comp_mat[comp_mat > 0L], nbins = comp_id)
+  component_summary <- tibble::tibble(
+    comp_id = seq_len(comp_id),
+    n_cells = as.integer(comp_counts)
+  )
+  per_cell <- tibble::tibble(
+    row_idx = idx[, 1],
+    col_idx = idx[, 2],
+    comp_id = comp_mat[comp_mat > 0L]
+  ) %>%
+    dplyr::left_join(component_summary, by = "comp_id") %>%
+    dplyr::rename(n_cells_comp = n_cells)
+  if (!is.null(grid_info) && "lookup" %in% names(grid_info)) {
+    lookup <- grid_info$lookup %>%
+      dplyr::select(cell_id, row_idx, col_idx, dplyr::any_of(c("river_km", "riparian", "region")))
+    per_cell <- per_cell %>%
+      dplyr::left_join(lookup, by = c("row_idx", "col_idx"))
+  }
+  list(
+    matrix = comp_mat,
+    table = per_cell,
+    summary = component_summary
+  )
+}
