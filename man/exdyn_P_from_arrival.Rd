@@ -11,7 +11,9 @@ exdyn_P_from_arrival(
   ramp_years,
   pre_leak = 0,
   scale = 1,
-  gamma = 1
+  gamma = 1,
+  delta_region = NULL,
+  region_lookup = NULL
 )
 }
 \arguments{

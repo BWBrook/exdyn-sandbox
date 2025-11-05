@@ -173,11 +173,15 @@ exdyn_tx_from_po <- function(counts_by_cell, years, cfg, normalize_by = NULL) {
 #' @param cfg Vole extirpation configuration.
 #' @param grid_info Grid lookup (from \code{exdyn_grid_lookup()}).
 #'
+#' @param mask Optional logical matrix (same dimensions as grid) specifying
+#'   cells to retain (e.g. riparian areas).
+#'
 #' @return List with \code{table} (tibble), \code{matrix} (tx_obs),
 #'   \code{last_presence} (matrix), the supplied \code{grid_info}, and the
 #'   per-cell \code{counts}.
 #' @export
-exdyn_tx_map <- function(cells_df, years, cfg, grid_info, effort_cells = NULL) {
+exdyn_tx_map <- function(cells_df, years, cfg, grid_info,
+                         effort_cells = NULL, mask = NULL) {
   stopifnot(!is.null(grid_info))
   counts <- exdyn_cell_timeseries(cells_df, years, grid_info, effort_cells)
   if (!nrow(counts)) {
@@ -208,9 +212,18 @@ exdyn_tx_map <- function(cells_df, years, cfg, grid_info, effort_cells = NULL) {
     tx_mat[matrix_index] <- per_cell$tx_obs[valid_idx]
     lp_mat[matrix_index] <- per_cell$last_presence[valid_idx]
   }
+  if (!is.null(mask)) {
+    tx_mat[!mask] <- NA_real_
+    lp_mat[!mask] <- NA_real_
+  }
+  lookup_extra <- grid_info$lookup %>%
+    dplyr::select(cell_id, dplyr::any_of(c("river_km", "riparian", "region")))
+  per_cell <- per_cell %>%
+    dplyr::left_join(lookup_extra, by = "cell_id")
 
   list(
-    table = per_cell %>% dplyr::select(cell_id, row, col, tx_obs, last_presence),
+    table = per_cell %>% dplyr::select(cell_id, row, col, tx_obs, last_presence,
+                                       dplyr::any_of(c("river_km", "riparian", "region"))),
     matrix = tx_mat,
     last_presence = lp_mat,
     grid_info = grid_info,

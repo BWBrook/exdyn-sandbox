@@ -34,6 +34,9 @@ exdyn_update_local_const <- function(N, P, pars, K0, pred_type = c("II", "III"),
 #' @param pre_leak Baseline predation prior to arrival (default 0).
 #' @param log_mem If TRUE, emits memory telemetry every 10 time steps.
 #' @param log_tag Optional label appended to memory log messages.
+#' @param mask Optional logical matrix (nx × ny). Cells with `FALSE` are treated
+#'   as outside the simulation: their abundance is fixed at zero and they do not
+#'   receive or donate dispersers.
 #'
 #' @return Matrix of first-passage times (year indices).
 #' @export
@@ -42,7 +45,8 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
                                    disp_mean_cells, pred,
                                    frac = 0.02, rel0 = 0.5,
                                    pre_leak = 0, log_mem = FALSE,
-                                   log_tag = NULL) {
+                                   log_tag = NULL,
+                                   mask = NULL) {
   nx <- grid_info$nx
   ny <- grid_info$ny
   stopifnot(length(years) >= 2)
@@ -52,6 +56,14 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
   N <- matrix(pmax(1, round(K0 * 0.1)), nrow = nx, ncol = ny)
   tau <- pmin(frac * K0, rel0 * N)
   TX <- matrix(NA_integer_, nrow = nx, ncol = ny)
+  if (!is.null(mask)) {
+    mask <- as.matrix(mask)
+    if (!all(dim(mask) == c(nx, ny))) {
+      stop("mask must have dimensions nx × ny")
+    }
+    N[!mask] <- 0
+    TX[!mask] <- NA_integer_
+  }
   conv_plan <- if (alpha > 0) {
     ker <- exdyn_kernel(mean_cells = disp_mean_cells, radius = 5L)
     exdyn_conv2_plan(nx, ny, ker)
@@ -93,11 +105,20 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
       pred_h = pred$h,
       r_eff_const = r_eff_const
     )
+    if (!is.null(mask)) {
+      local[!mask] <- 0
+    }
     N_next <- if (alpha > 0) {
       moved <- exdyn_conv2_apply(local, conv_plan)
+      if (!is.null(mask)) {
+        moved[!mask] <- 0
+      }
       (1 - alpha) * local + alpha * moved
     } else {
       local
+    }
+    if (!is.null(mask)) {
+      N_next[!mask] <- 0
     }
     crossed <- is.na(TX) & (N > tau) & (N_next <= tau)
     if (any(crossed, na.rm = TRUE)) {

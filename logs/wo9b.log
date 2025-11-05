@@ -1,0 +1,43 @@
+[2025-11-04 14:22:03] WO9b pilot start 
+[2025-11-04 14:23:26] WO9b pilot start 
+[2025-11-04 14:24:11] WO9b pilot start 
+[2025-11-04 14:25:01] WO9b pilot start 
+[2025-11-04 14:25:22] Vole TX normalisation mode=taxa taxa=4: spearman=0.860 changed_cells=0 
+[2025-11-04 14:25:24] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2025-11-04 14:25:27] Guard attempt 1 coverage=0.0000 
+[2025-11-04 14:25:29] Guard attempt 2 coverage=0.0000 (pred_scale_max=6.000 pred_c_max=4.500) 
+[2025-11-04 14:25:29] Guard coverage did not improve; retaining original bounds 
+[2025-11-04 14:28:18] WO9b summary: n_mink_cells=19 n_vole_cells=3 r2=0.017 lag=-42.18 coverage=0.158 best_draw=24 PNGs=outputs/realdata/pilot_mink_vole/TX_obs_riparian_map.png;outputs/realdata/pilot_mink_vole/TX_sim_rank01.png;outputs/realdata/pilot_mink_vole/TX_diff_rank01.png;outputs/realdata/pilot_mink_vole/TX_sim_rank02.png;outputs/realdata/pilot_mink_vole/TX_sim_rank03.png 
+[2025-11-04 14:51:13] WO9b pilot start 
+[2025-11-04 14:51:17] Guard attempt 1 coverage=0.0000 
+[2025-11-04 14:51:19] Guard attempt 2 coverage=0.0000 (pred_scale_max=6.000 pred_c_max=4.500) 
+[2025-11-04 14:51:19] Guard coverage did not improve; retaining original bounds 
+[2025-11-04 14:51:52] WO9b pilot start 
+[2025-11-04 14:52:19] WO9b pilot start 
+[2025-11-04 14:52:45] WO9b pilot start 
+[2025-11-04 14:52:46] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2025-11-04 14:52:49] Guard attempt 1 coverage=0.0000 
+[2025-11-04 14:52:51] Guard attempt 2 coverage=0.0000 (pred_scale_max=6.000 pred_c_max=4.500) 
+[2025-11-04 14:52:51] Guard coverage did not improve; retaining original bounds 
+[2025-11-04 15:16:23] WO9b pilot start 
+[2025-11-04 15:16:26] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2025-11-04 15:16:29] Guard attempt 1 coverage=0.6360 
+[2025-11-04 15:17:06] WO9b pilot start 
+[2025-11-04 15:20:49] WO9b pilot start 
+[2025-11-04 15:20:51] Vole TX normalisation mode=taxa taxa=4: spearman=0.860 changed_cells=0 
+[2025-11-04 15:20:51] WO9b summary: n_mink_cells=19 n_vole_cells=3 r2=0.145 lag=-41.02 coverage=0.158 best_draw=24 PNGs=outputs/realdata/pilot_mink_vole/TX_obs_riparian_map.png;outputs/realdata/pilot_mink_vole/TX_sim_rank01.png;outputs/realdata/pilot_mink_vole/TX_diff_rank01.png;outputs/realdata/pilot_mink_vole/TX_sim_rank02.png;outputs/realdata/pilot_mink_vole/TX_sim_rank03.png 
+[2025-11-04 15:22:04] WO9b pilot start 
+[2025-11-04 15:22:17] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2025-11-04 15:22:20] Guard attempt 1 coverage=0.9868 
+[2025-11-04 15:22:55] WO9b pilot start 
+[2025-11-04 15:25:59] WO9b pilot start 
+[2025-11-04 15:26:01] Vole TX normalisation mode=taxa taxa=4: spearman=0.860 changed_cells=0 
+[2025-11-04 15:26:02] WO9b summary: n_mink_cells=19 n_vole_cells=3 r2=0.017 lag=-12.25 coverage=0.158 best_draw=24 PNGs=outputs/realdata/pilot_mink_vole/TX_obs_riparian_map.png;outputs/realdata/pilot_mink_vole/TX_sim_rank01.png;outputs/realdata/pilot_mink_vole/TX_diff_rank01.png;outputs/realdata/pilot_mink_vole/TX_sim_rank02.png;outputs/realdata/pilot_mink_vole/TX_sim_rank03.png 
+[2025-11-04 15:27:20] WO9b pilot start 
+[2025-11-04 15:27:30] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2025-11-04 15:27:35] Guard attempt 1 coverage=1.0000 
+[2025-11-04 15:28:09] WO9b pilot start 
+[2025-11-04 15:31:16] WO9b pilot start 
+[2025-11-04 15:31:17] Vole TX normalisation mode=taxa taxa=4: spearman=0.860 changed_cells=0 
+[2025-11-04 15:31:18] WO9b summary: n_mink_cells=19 n_vole_cells=3 r2=0.017 lag=2.72 coverage=0.158 best_draw=24 PNGs=outputs/realdata/pilot_mink_vole/TX_obs_riparian_map.png;outputs/realdata/pilot_mink_vole/TX_sim_rank01.png;outputs/realdata/pilot_mink_vole/TX_diff_rank01.png;outputs/realdata/pilot_mink_vole/TX_sim_rank02.png;outputs/realdata/pilot_mink_vole/TX_sim_rank03.png 
+[2025-11-04 15:32:46] WO9b pilot start 

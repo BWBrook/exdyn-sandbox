@@ -15,9 +15,20 @@ NULL
 #' @export
 exdyn_grid_lookup <- function(grid_sf) {
   meta <- grid_sf %>%
-    sf::st_drop_geometry() %>%
-    dplyr::select(cell_id, row, col)
-  meta <- meta %>% dplyr::filter(!is.na(row), !is.na(col))
+    sf::st_drop_geometry()
+  required_cols <- c("cell_id", "row", "col")
+  if (!all(required_cols %in% names(meta))) {
+    stop("Grid must contain columns: ", paste(required_cols, collapse = ", "))
+  }
+  optional_cols <- intersect(c("river_km", "riparian", "region"), names(meta))
+  select_cols <- c(required_cols, optional_cols)
+  meta <- meta %>%
+    dplyr::select(dplyr::all_of(select_cols)) %>%
+    dplyr::mutate(
+      row = as.integer(round(.data$row)),
+      col = as.integer(round(.data$col))
+    ) %>%
+    dplyr::filter(!is.na(.data$row), !is.na(.data$col))
   row_levels <- sort(unique(meta$row))
   col_levels <- sort(unique(meta$col))
   meta$row_idx <- match(meta$row, row_levels)
@@ -27,13 +38,40 @@ exdyn_grid_lookup <- function(grid_sf) {
   } else {
     NA_real_
   }
+  extra <- meta %>%
+    dplyr::select(dplyr::all_of(c("cell_id", optional_cols)))
+  riparian_vec <- if ("riparian" %in% names(extra)) {
+    as.logical(extra$riparian)
+  } else {
+    rep(TRUE, nrow(meta))
+  }
+  river_vec <- if ("river_km" %in% names(extra)) {
+    as.numeric(extra$river_km)
+  } else {
+    rep(NA_real_, nrow(meta))
+  }
+  region_vec <- if ("region" %in% names(extra)) {
+    as.character(extra$region)
+  } else {
+    rep(NA_character_, nrow(meta))
+  }
+  riparian_matrix <- matrix(FALSE, nrow = length(row_levels), ncol = length(col_levels))
+  region_matrix <- matrix(NA_character_, nrow = length(row_levels), ncol = length(col_levels))
+  idx <- cbind(meta$row_idx, meta$col_idx)
+  riparian_matrix[idx] <- riparian_vec
+  region_matrix[idx] <- region_vec
   list(
     lookup = meta,
     row_levels = row_levels,
     col_levels = col_levels,
     nx = length(row_levels),
     ny = length(col_levels),
-    cell_km = cell_km
+    cell_km = cell_km,
+    river_km = setNames(river_vec, meta$cell_id),
+    riparian = setNames(riparian_vec, meta$cell_id),
+    riparian_matrix = riparian_matrix,
+    region = setNames(region_vec, meta$cell_id),
+    region_matrix = region_matrix
   )
 }
 
@@ -50,13 +88,19 @@ exdyn_grid_lookup <- function(grid_sf) {
 #' @return List with elements \code{P} (array), \code{T_P} (matrix).
 #' @export
 exdyn_P_from_arrival <- function(arrivals, grid_info, years, ramp_years,
-                                 pre_leak = 0, scale = 1, gamma = 1) {
+                                 pre_leak = 0, scale = 1, gamma = 1,
+                                 delta_region = NULL, region_lookup = NULL) {
   stopifnot(!is.null(grid_info))
   ramp_years <- max(1, ramp_years)
   k <- 6 / ramp_years
   T_len <- length(years)
   P_arr <- array(pre_leak, dim = c(grid_info$nx, grid_info$ny, T_len))
   T_P <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
+  region_matrix <- grid_info[["region_matrix"]] %||% matrix(NA_character_, nrow = grid_info$nx, ncol = grid_info$ny)
+  delta_lookup <- delta_region
+  if (!is.null(delta_lookup) && is.null(names(delta_lookup))) {
+    stop("delta_region must be a named numeric vector.")
+  }
 
   coalesce_cols <- intersect(
     c("arrival_year_smooth", "arrival_year_raw", "arrival_year"),
@@ -85,8 +129,21 @@ exdyn_P_from_arrival <- function(arrivals, grid_info, years, ramp_years,
       next
     }
     arr <- arr[1]
-    T_P[r, c] <- arr
-    diffs <- years - arr
+    region_id <- NA_character_
+    if (!is.null(region_lookup)) {
+      region_id <- region_lookup[[as.character(cell_id)]]
+    } else {
+      region_id <- region_matrix[r, c]
+    }
+    delta_val <- 0
+    if (!is.null(delta_lookup) && !is.na(region_id) && region_id %in% names(delta_lookup)) {
+      delta_val <- delta_lookup[[region_id]]
+    }
+    arr_adj <- arr - delta_val
+    arr_adj <- max(min(years), arr_adj)
+    arr_adj <- min(max(years), arr_adj)
+    T_P[r, c] <- arr_adj
+    diffs <- years - arr_adj
     logistic_component <- 1 / (1 + exp(-k * (diffs - ramp_years / 2)))
     ramp_vals <- 0.2 + 0.8 * logistic_component
     ramp_vals[diffs < 0] <- pre_leak
@@ -116,6 +173,7 @@ exdyn_P_from_arrival <- function(arrivals, grid_info, years, ramp_years,
   out <- list(P = P_arr, T_P = T_P, years = years, grid_info = grid_info)
   attr(out, "scale") <- scale
   attr(out, "gamma") <- gamma
+  attr(out, "delta_region") <- delta_region
   out
 }
 
@@ -132,7 +190,8 @@ exdyn_P_from_arrival <- function(arrivals, grid_info, years, ramp_years,
 #' @return List with \code{S}, \code{P}, \code{H}, \code{T_P}, \code{grid_info}, \code{years}.
 #' @export
 exdyn_fields_from_mink <- function(arrivals, grid_info, years, ramp_years,
-                                   pre_leak = 0, scale = 1, gamma = 1) {
+                                   pre_leak = 0, scale = 1, gamma = 1,
+                                   delta_region = NULL) {
   P_info <- exdyn_P_from_arrival(
     arrivals = arrivals,
     grid_info = grid_info,
@@ -140,11 +199,22 @@ exdyn_fields_from_mink <- function(arrivals, grid_info, years, ramp_years,
     ramp_years = ramp_years,
     pre_leak = pre_leak,
     scale = scale,
-    gamma = gamma
+    gamma = gamma,
+    delta_region = delta_region,
+    region_lookup = grid_info["region"][[1]]
   )
   nx <- grid_info$nx; ny <- grid_info$ny; T_len <- length(years)
   S <- array(1, dim = c(nx, ny, T_len))
   H <- array(0, dim = c(nx, ny, T_len))
+  riparian_matrix <- grid_info[["riparian_matrix"]] %||% matrix(TRUE, nrow = nx, ncol = ny)
+  if (!is.null(riparian_matrix)) {
+    for (tt in seq_len(dim(P_info$P)[3])) {
+      slice <- P_info$P[, , tt]
+      slice[!riparian_matrix] <- 0
+      P_info$P[, , tt] <- slice
+    }
+    P_info$T_P[!riparian_matrix] <- NA_real_
+  }
   list(
     S = S,
     P = P_info$P,
@@ -154,6 +224,32 @@ exdyn_fields_from_mink <- function(arrivals, grid_info, years, ramp_years,
     years = years,
     pre_leak = pre_leak,
     scale = scale,
-    gamma = gamma
+    gamma = gamma,
+    delta_region = delta_region
   )
+}
+
+#' Adjust arrival matrix by region-specific deltas
+#'
+#' @param T_P Matrix of arrival years.
+#' @param grid_info Output of [exdyn_grid_lookup()].
+#' @param delta_region Named numeric vector of delta years per region.
+#' @param years Simulation year range.
+#'
+#' @return Matrix with deltas applied (clamped to minimum year).
+#' @export
+exdyn_adjust_arrival_matrix <- function(T_P, grid_info, delta_region, years) {
+  if (is.null(delta_region)) return(T_P)
+  region_matrix <- grid_info[["region_matrix"]] %||% matrix(NA_character_, nrow = nrow(T_P), ncol = ncol(T_P))
+  delta_mat <- matrix(0, nrow = nrow(T_P), ncol = ncol(T_P))
+  idx <- !is.na(region_matrix) & region_matrix %in% names(delta_region)
+  if (any(idx)) {
+    delta_mat[idx] <- delta_region[region_matrix[idx]]
+  }
+  T_adj <- T_P - delta_mat
+  T_adj <- pmax(min(years), T_adj)
+  T_adj <- pmin(max(years), T_adj)
+  T_adj[is.na(T_P)] <- NA
+  dim(T_adj) <- dim(T_P)
+  T_adj
 }

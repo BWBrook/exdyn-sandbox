@@ -4,7 +4,7 @@
 \alias{exdyn_tx_map}
 \title{Map extirpation results across all cells}
 \usage{
-exdyn_tx_map(cells_df, years, cfg, grid_info, effort_cells = NULL)
+exdyn_tx_map(cells_df, years, cfg, grid_info, effort_cells = NULL, mask = NULL)
 }
 \arguments{
 \item{cells_df}{Tibble with columns \code{cell_id,row,col,year}.}
@@ -14,6 +14,9 @@ exdyn_tx_map(cells_df, years, cfg, grid_info, effort_cells = NULL)
 \item{cfg}{Vole extirpation configuration.}
 
 \item{grid_info}{Grid lookup (from \code{exdyn_grid_lookup()}).}
+
+\item{mask}{Optional logical matrix (same dimensions as grid) specifying
+cells to retain (e.g. riparian areas).}
 }
 \value{
 List with \code{table} (tibble), \code{matrix} (tx_obs),

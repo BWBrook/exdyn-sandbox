@@ -44,11 +44,16 @@ pilot:
         rank: "SPECIES"
     normalize_years: [1975, 2024]
     normalize_max_records: 5000
+    riparian_tau_km: 5
   mink_P:
     ramp_years: 8
     pre_arrival_leak: 0.0
     scale: 1.0
     gamma: 1.0
+    delta_region:
+      SCT: [0, 60]
+      N_ENG: [0, 45]
+      S_ENG_WAL: [0, 35]
   screen:
     n_draws: 24
     log_mem: true
@@ -63,6 +68,10 @@ pilot:
     ramp_years: [5, 12]
     pred_scale: [0.8, 3.0]
     gamma: [1.0, 2.0]
+    delta_region:
+      SCT: [0, 60]
+      N_ENG: [0, 45]
+      S_ENG_WAL: [0, 35]
   compat:
     min_r2_arrival: 0.25
     lag_range: [2, 25]

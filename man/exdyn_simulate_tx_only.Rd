@@ -18,7 +18,8 @@ exdyn_simulate_tx_only(
   rel0 = 0.5,
   pre_leak = 0,
   log_mem = FALSE,
-  log_tag = NULL
+  log_tag = NULL,
+  mask = NULL
 )
 }
 \arguments{
@@ -50,6 +51,10 @@ exdyn_simulate_tx_only(
 \item{log_mem}{If TRUE, emits memory telemetry every 10 time steps.}
 
 \item{log_tag}{Optional label appended to memory log messages.}
+
+\item{mask}{Optional logical matrix (nx × ny). Cells with \code{FALSE} are treated
+as outside the simulation: their abundance is fixed at zero and they do not
+receive or donate dispersers.}
 }
 \value{
 Matrix of first-passage times (year indices).

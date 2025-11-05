@@ -18,16 +18,20 @@ NULL
 exdyn_param_lhs <- function(cfg_screen, n = NULL, cell_km = 10, seed = 123) {
   n <- n %||% cfg_screen$n_draws %||% 100
   set.seed(seed)
+  delta_cfg <- cfg_screen$delta_region %||% list()
+  delta_names <- names(delta_cfg)
   param_names <- c(
     "alpha", "disp_mean_km", "A_over_K",
     "pred_c", "pred_h", "ramp_years",
-    "pred_scale", "gamma"
+    "pred_scale", "gamma",
+    paste0("delta_", delta_names)
   )
+  param_names <- param_names[!duplicated(param_names)]
   lhs <- lhs::randomLHS(n, length(param_names))
   scalers <- function(vals, range) {
     range[1] + vals * (range[2] - range[1])
   }
-  tibble::tibble(
+  tib <- tibble::tibble(
     draw = seq_len(n),
     alpha = scalers(lhs[, which(param_names == "alpha")], cfg_screen$alpha),
     disp_mean_km = scalers(lhs[, which(param_names == "disp_mean_km")], cfg_screen$disp_mean_km),
@@ -41,6 +45,15 @@ exdyn_param_lhs <- function(cfg_screen, n = NULL, cell_km = 10, seed = 123) {
     K0 = cfg_screen$K0,
     disp_mean_cells = disp_mean_km / cell_km
   )
+  if (length(delta_names)) {
+    for (i in seq_along(delta_names)) {
+      col_name <- paste0("delta_", delta_names[i])
+      bounds <- delta_cfg[[delta_names[i]]]
+      lhs_col <- lhs[, which(param_names == col_name)]
+      tib[[col_name]] <- scalers(lhs_col, bounds)
+    }
+  }
+  tib
 }
 
 #' Wrapper around extirpation time helper (alias)
@@ -98,7 +111,8 @@ exdyn_simulate_params <- function(theta_row, fields, K0) {
 #' @export
 exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg) {
   idx <- which(is.finite(TX_obs) & is.finite(T_P))
-  coverage <- if (length(idx)) length(idx) / length(T_P) else 0
+  denom <- sum(is.finite(T_P))
+  coverage <- if (length(idx) && denom > 0) length(idx) / denom else 0
   if (length(idx) >= 3) {
     fit <- stats::lm(TX_obs[idx] ~ T_P[idx])
     r2 <- max(0, min(1, summary(fit)$r.squared))
@@ -286,7 +300,7 @@ exdyn_write_best_maps <- function(tx_obs_mat, tx_sources = NULL, scores, grid_in
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c()
   obs_plot <- exdyn_plot_surface(tx_obs_mat, grid_info, "Observed vole extirpation (TX_obs)")
-  obs_path <- file.path(out_dir, "TX_obs_map.png")
+  obs_path <- file.path(out_dir, "TX_obs_riparian_map.png")
   ggplot2::ggsave(obs_path, obs_plot, width = 7, height = 7, dpi = 150)
   paths <- c(paths, obs_path)
   top_ids <- scores %>% dplyr::arrange(loss) %>% dplyr::slice_head(n = top_k)

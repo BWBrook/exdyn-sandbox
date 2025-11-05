@@ -43,6 +43,10 @@ pilot_c_star_summary <- tar_read(pilot_c_star_summary)
 pilot_guard_cfg <- tar_read(pilot_guard_cfg)
 pilot_vole_tx_qc <- tar_read(pilot_vole_tx_qc)
 pilot_guard_attempts <- pilot_guard_cfg$attempts
+pilot_riparian_mask <- tar_read(pilot_riparian_mask)
+pilot_riparian_table <- tar_read(pilot_riparian_table)
+pilot_effort_years <- tar_read(pilot_effort_years)
+pilot_effort_max_records <- tar_read(pilot_effort_max_records)
 compat_cfg <- pilot_cfg$pilot$compat
 
 compat_top <- pilot_scores %>% arrange(loss) %>% slice_head(n = 10)
@@ -98,6 +102,29 @@ tx_obs_plot <- exdyn_plot_surface(
   "Year"
 )
 tx_obs_plot
+```
+
+## Riparian habitat constraint
+
+```{r riparian-mask, fig.width=6.5, fig.height=6}
+riparian_plot <- ggplot() +
+  geom_sf(data = pilot_riparian_mask, aes(fill = riparian), colour = NA) +
+  scale_fill_manual(values = c("grey85", "#1f78b4"), name = "Riparian", labels = c("No", "Yes")) +
+  coord_sf() +
+  theme_minimal() +
+  labs(title = "Riparian mask (river ≥ tau km)", subtitle = sprintf("tau = %.1f km", pilot_cfg$pilot$vole$riparian_tau_km))
+riparian_plot
+```
+
+```{r riparian-summary}
+riparian_stats <- pilot_riparian_table %>%
+  summarise(
+    riparian_cells = sum(riparian, na.rm = TRUE),
+    total_cells = n(),
+    share = riparian_cells / total_cells,
+    median_river_km = median(river_km, na.rm = TRUE)
+  )
+knitr::kable(riparian_stats, caption = "Riparian coverage summary")
 ```
 
 ## Effort normalisation QA
@@ -169,11 +196,24 @@ if (nrow(guard_table)) {
     col.names = "Note"
   )
 }
+
+delta_cols <- grep("^delta_", names(pilot_scores), value = TRUE)
+delta_defaults <- attr(pilot_mink_field_default, "delta_region")
+if (length(delta_cols)) {
+  delta_table <- pilot_scores %>%
+    select(any_of(delta_cols)) %>%
+    pivot_longer(everything(), names_to = "region", values_to = "delta_years") %>%
+    mutate(region = gsub("^delta_", "", region)) %>%
+    group_by(region) %>%
+    summarise(mean_delta = mean(delta_years, na.rm = TRUE), sd_delta = sd(delta_years, na.rm = TRUE), .groups = "drop") %>%
+    mutate(default = if (!is.null(delta_defaults) && region %in% names(delta_defaults)) delta_defaults[region] else NA_real_)
+  knitr::kable(delta_table, digits = 2, caption = "Regional arrival lead (δ) in years")
+}
 ```
 
 ## Methods (summary)
 
-Water vole extirpations were inferred via a smoothed first-passage rule applied to GBIF presence-only counts after normalising by a curated list of mammal effort taxa (Mustelidae, Arvicolinae, Ondatra zibethicus; baseline window `r pilot_cfg$pilot$vole$baseline_window`, drop fraction `r pilot_cfg$pilot$vole$drop_fraction`, hold `r pilot_cfg$pilot$vole$hold_years` years). Mink arrivals were converted to a predation field with a `r pilot_cfg$pilot$mink_P$ramp_years`-year logistic ramp, scaled by tunable amplitude (`scale`) and ramp sharpness (`gamma`). We adapted the predation prior using the critical kill rate `c*`, yielding bounds `[r round(pilot_guard_cfg$cfg$pred_c[1], 3), r round(pilot_guard_cfg$cfg$pred_c[2], 3)]`, and ran early guard draws that widen `pred_scale`/`c` if simulated coverage stays <0.01. The screen sampled `r nrow(pilot_theta)` parameter sets (α, dispersal scale, A/K, `c`, `h`, `scale`, `gamma`, ramp years) at carrying capacity `K0 = ` `r pilot_cfg$pilot$screen$K0`. Compatibility scores combine r², mean lag (TX_obs − T_P), coverage, and anisotropy gap.
+Water vole extirpations were inferred via a smoothed first-passage rule applied to GBIF presence-only counts after (i) restricting the analysis to riparian cells (`river_km ≥` `r pilot_cfg$pilot$vole$riparian_tau_km` km) and (ii) normalising by a curated list of mammal effort taxa (Mustelidae, Microtus, Arvicola amphibius, Ondatra zibethicus) between `r pilot_effort_years[1]`–`r pilot_effort_years[2]` (`≤` `r pilot_effort_max_records` records per taxon). Mink arrivals were converted to a predation field with a `r pilot_cfg$pilot$mink_P$ramp_years`-year logistic ramp, scaled by tunable amplitude (`scale`) and ramp shape (`gamma`), and shifted by regional arrival leads (`δ`) relative to GBIF detections. We adapted the predation prior using the critical kill rate `c*`, yielding bounds `[r round(pilot_guard_cfg$cfg$pred_c[1], 3), r round(pilot_guard_cfg$cfg$pred_c[2], 3)]`, and ran early guard draws that widen `pred_scale`/`c` if simulated coverage stays <0.01. The screen sampled `r nrow(pilot_theta)` parameter sets (α, dispersal scale, A/K, `c`, `h`, `scale`, `gamma`, δ-region, ramp years) at carrying capacity `K0 = ` `r pilot_cfg$pilot$screen$K0`. Compatibility scores combine r², mean lag (TX_obs − T_P), coverage, and anisotropy gap within riparian cells.
 
 ```{r param-bounds}
 knitr::kable(pilot_bounds, caption = "Final predation parameter bounds used in the screen")
@@ -200,7 +240,7 @@ knitr::kable(diag_table, caption = "Summary diagnostics across screen")
 
 ```{r partial-plots, fig.width=7, fig.height=4.5}
 compat_long <- pilot_scores %>%
-  select(pred_scale, gamma, pred_c, compatible) %>%
+  select(pred_scale, gamma, pred_c, starts_with("delta_"), compatible) %>%
   tidyr::pivot_longer(-compatible, names_to = "parameter", values_to = "value") %>%
   mutate(is_compat = as.numeric(compatible))
 

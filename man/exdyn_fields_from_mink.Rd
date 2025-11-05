@@ -11,7 +11,8 @@ exdyn_fields_from_mink(
   ramp_years,
   pre_leak = 0,
   scale = 1,
-  gamma = 1
+  gamma = 1,
+  delta_region = NULL
 )
 }
 \arguments{
