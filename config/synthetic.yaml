@@ -1,0 +1,83 @@
+theta_star:
+  rmax: 0.45
+  A_over_K: 0.05
+  alpha: 0.2
+  disp_mean_km: 10
+  pred_scale: 3.0
+  pred_c: 2.4
+  pred_h: 20
+  gamma: 1.4
+  delta_region:
+    SCT: 12
+    N_ENG: 8
+    S_ENG_WAL: 6
+  ramp_years: 8
+  pred_type: "II"
+  pre_leak: 0.0
+  truth_frac: 0.12
+  truth_rel0: 1.5
+mask: "all"
+noise:
+  po_rate: 0.05
+  effort_strength: 1.4
+  missing_years_prob: 0.0
+  random_tx_dropout: 0.0
+  frac: 0.02
+  rel0: 0.5
+  adaptive_threshold: true
+screen:
+  n_draws: 150
+  seed: 1045
+  K0: 120
+  alpha: [0.05, 0.45]
+  disp_mean_km: [6, 22]
+  A_over_K: [0.02, 0.15]
+  pred_c: [1.0, 3.0]
+  pred_h: [20, 60]
+  ramp_years: [5, 12]
+  pred_scale: [1.0, 3.5]
+  gamma: [1.0, 2.0]
+  rmax: [0.3, 0.6]
+  delta_region:
+    SCT: [0, 15]
+    N_ENG: [0, 12]
+    S_ENG_WAL: [0, 10]
+compat:
+  min_r2_arrival: 0.25
+  lag_range: [2, 25]
+  min_coverage: 0.15
+abc:
+  n_sims: 2000
+  eps: 0.9
+  scale:
+    grad_mag: 0.05
+    pc_ratio: 0.25
+    coverage: 0.05
+    lag_mean: 4
+    lag_sd: 4
+    orient_R: 0.2
+    speed_cells_per_year: 0.5
+    speed_r2: 0.25
+    tx_mean: 4
+    tx_sd: 4
+  prior:
+    alpha: [0.05, 0.45]
+    disp_mean_km: [6, 22]
+    A_over_K: [0.02, 0.15]
+    pred_c: [1.0, 3.0]
+    pred_h: [20, 60]
+    ramp_years: [5, 12]
+    pred_scale: [1.0, 3.5]
+    gamma: [1.0, 2.0]
+    rmax: [0.3, 0.6]
+    delta_region:
+      SCT: [0, 15]
+      N_ENG: [0, 12]
+      S_ENG_WAL: [0, 10]
+tx_cfg:
+  smooth_window: 7
+  min_years_active: 5
+  baseline_window: 8
+  drop_fraction: 0.3
+  hold_years: 6
+  normalize_by: ~

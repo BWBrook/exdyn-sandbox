@@ -1,0 +1,184 @@
+---
+title: "Synthetic mink→vole twin"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+  pdf:
+    toc: true
+---
+
+```{r setup}
+library(targets)
+library(dplyr)
+library(ggplot2)
+truth <- tar_read(synthetic_truth)
+grid_info <- tar_read(pilot_grid_info)
+theta_star <- tar_read(synthetic_theta_star)
+screen_res <- tar_read(synthetic_screen_results)
+best_idx <- tar_read(synthetic_best_index)
+best_tx <- tar_read(synthetic_best_tx)
+summary_obs <- tar_read(synthetic_summary_obs)
+abc_res <- tar_read(synthetic_abc)
+abc_samples <- abc_res$samples
+summary_truth <- summary_obs
+S_scale <- tar_read(synthetic_abc_cfg)$scale %||% NULL
+abc_summary_tbl <- tar_read(synthetic_abc_summary)
+matrix_to_df <- function(mat, grid_info, value_name) {
+  lookup <- grid_info$lookup
+  vals <- mat[cbind(lookup$row_idx, lookup$col_idx)]
+  tibble::tibble(
+    cell_id = lookup$cell_id,
+    row = lookup$row,
+    col = lookup$col,
+    !!value_name := vals
+  )
+}
+```
+
+## Generating parameters and observation noise
+
+```{r theta-table}
+tibble::as_tibble(theta_star)
+```
+
+```{r summary-table}
+tibble::enframe(summary_obs, name = "statistic", value = "value")
+```
+
+## Truth vs synthetic observations
+
+```{r maps}
+obs_df <- matrix_to_df(truth$TX_obs, grid_info, "tx_obs")
+true_df <- matrix_to_df(truth$TX_true, grid_info, "tx_true")
+plot_tile <- function(df, value, title) {
+  ggplot(df, aes(x = col, y = row, fill = .data[[value]])) +
+    geom_tile() +
+    scale_fill_viridis_c(na.value = "grey90") +
+    coord_equal() +
+    labs(title = title, fill = "Year") +
+    theme_minimal()
+}
+patch <- patchwork::wrap_plots(
+  plot_tile(true_df, "tx_true", "True extinction year"),
+  plot_tile(obs_df, "tx_obs", "Observed (noisy) extinction year"),
+  ncol = 2
+)
+patch
+```
+
+```{r obs-lag-table}
+obs_idx <- which(is.finite(truth$TX_obs) & is.finite(truth$T_P), arr.ind = TRUE)
+true_idx <- which(is.finite(truth$TX_true) & is.finite(truth$T_P), arr.ind = TRUE)
+overlap_idx <- which(is.finite(truth$TX_obs) & is.finite(truth$TX_true), arr.ind = TRUE)
+lag_obs <- mean(truth$TX_obs[obs_idx] - truth$T_P[obs_idx])
+lag_true <- mean(truth$TX_true[true_idx] - truth$T_P[true_idx])
+lag_diff <- mean(truth$TX_obs[overlap_idx] - truth$TX_true[overlap_idx])
+tibble::tibble(
+  metric = c(
+    "coverage_obs",
+    "coverage_true",
+    "lag_obs_minus_arrival",
+    "lag_true_minus_arrival",
+    "obs_minus_true_lag"
+  ),
+  value = c(
+    mean(is.finite(truth$TX_obs)),
+    mean(is.finite(truth$TX_true)),
+    lag_obs,
+    lag_true,
+    lag_diff
+  )
+)
+```
+
+## Parameter screen
+
+```{r screen-table}
+top_screen <- screen_res %>%
+  arrange(rank) %>%
+  select(draw, rank, loss, coverage, lag_mean, r2_arrival, starts_with("pred"), alpha, disp_mean_km, A_over_K)
+head(top_screen, 10)
+```
+
+```{r screen-diff}
+if (!is.null(best_tx)) {
+  best_df <- matrix_to_df(best_tx, grid_info, "tx_best")
+  diff_df <- dplyr::left_join(best_df, true_df, by = c("cell_id", "row", "col")) %>%
+    mutate(tx_diff = tx_best - tx_true)
+  plot_tile(diff_df, "tx_diff", "Best simulation - truth (years)")
+}
+```
+
+## ABC posterior
+
+```{r abc-summary}
+if (nrow(abc_samples)) {
+  abc_samples %>% summarise(across(everything(), list(mean = mean, median = median, sd = sd)))
+} else {
+  tibble(note = "No ABC samples accepted (eps too small)")
+}
+```
+
+```{r abc-dens}
+if (nrow(abc_samples)) {
+  abc_long <- abc_samples %>%
+    dplyr::select(where(is.numeric)) %>%
+    tidyr::pivot_longer(everything())
+  truth_numeric <- unlist(theta_star[purrr::map_lgl(theta_star, is.numeric)], use.names = TRUE)
+  if (!is.null(theta_star$delta_region)) {
+    truth_numeric <- c(truth_numeric, unlist(theta_star$delta_region))
+  }
+  ggplot(abc_long, aes(x = value)) +
+    geom_density(fill = "#3182bd", alpha = 0.5) +
+    facet_wrap(~ name, scales = "free", ncol = 3) +
+    geom_vline(
+      data = tibble::enframe(truth_numeric),
+      aes(xintercept = value),
+      colour = "red", linetype = "dashed"
+    ) +
+    theme_minimal() +
+    labs(title = "ABC posterior densities", x = "Parameter value", y = "Density")
+}
+```
+
+## ABC diagnostics
+
+```{r abc-posterior-table}
+if (nrow(abc_summary_tbl)) {
+  abc_summary_tbl %>%
+    mutate(delta_median = median - truth) %>%
+    arrange(desc(abs(delta_median)))
+} else {
+  tibble::tibble(note = "No ABC samples accepted (eps too small)")
+}
+```
+
+```{r abc-bias-plot}
+if (nrow(abc_summary_tbl)) {
+  abc_summary_tbl %>%
+    filter(!is.na(truth)) %>%
+    mutate(delta = median - truth) %>%
+    ggplot(aes(x = reorder(param, delta), y = delta)) +
+    geom_col(fill = "#6baed6") +
+    geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+    coord_flip() +
+    theme_minimal() +
+    labs(title = "Posterior median bias vs truth", x = NULL, y = "Median - truth")
+}
+```
+
+## Posterior predictive summaries
+
+```{r abc-summary-stats}
+if (nrow(abc_res$summaries)) {
+  abc_res$summaries %>% summarise(across(everything(), list(mean = mean, sd = sd)))
+}
+```
+
+## Files
+
+- Output directory: `r tar_read(synthetic_output_dir)`
+- Screen results CSV: `screen_results.csv`
+- ABC posterior CSV: `abc_posterior.csv`
+- Truth parameters YAML: `theta_star.yaml`

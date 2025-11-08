@@ -40,6 +40,7 @@ source("R/utils.R", local = TRUE)
 source("R/targets_helpers.R", local = TRUE)
 source("pipelines/targets_realdata_gbif.R", local = TRUE)
 source("pipelines/targets_pilot_mink_vole.R", local = TRUE)
+source("pipelines/targets_synthetic.R", local = TRUE)
 
 c(
   list(
@@ -162,5 +163,6 @@ c(
   ))
   ),
   targets_realdata_gbif(),
-  targets_pilot_mink_vole()
+  targets_pilot_mink_vole(),
+  targets_synthetic_mink_vole()
 )

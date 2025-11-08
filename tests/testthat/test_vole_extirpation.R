@@ -50,6 +50,18 @@ test_that("extirpation requires hold period", {
   expect_equal(res$matrix[1, 1], 2004)
 })
 
+test_that("extirpation waits until final sustained decline", {
+  years_long <- c(2000L, 2015L)
+  series_years <- seq.int(years_long[1], years_long[2])
+  series <- c(rep(4, 5), rep(0, 3), rep(5, 2), rep(0, length(series_years) - 10))
+  cells <- purrr::map2_dfr(
+    series_years, series,
+    ~ if (.y > 0) tibble::tibble(cell_id = 1L, row = 1L, col = 1L, year = rep(.x, .y)) else tibble::tibble()
+  )
+  res <- exdyn_tx_map(cells, years_long, cfg_vol, grid_info_stub)
+  expect_equal(res$matrix[1, 1], 2010)
+})
+
 test_that("insufficient history returns NA", {
   years_subset <- base_years[1:3]
   counts_vec <- c(3, 0, 0)

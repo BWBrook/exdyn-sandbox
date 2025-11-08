@@ -150,6 +150,13 @@ exdyn_ts_smooth <- function(counts, k = 5) {
     if (all(is.finite(window_vals) & window_vals <= tau)) {
       prev_vals <- smooth_vals[seq_len(idx - 1)]
       if (any(is.finite(prev_vals) & prev_vals > tau)) {
+        future_start <- idx + hold
+        if (future_start <= length(years)) {
+          future_vals <- smooth_vals[future_start:length(years)]
+          if (any(is.finite(future_vals) & future_vals > tau)) {
+            next
+          }
+        }
         return(list(
           tx = years[idx],
           last_presence = last_presence,
