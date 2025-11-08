@@ -99,6 +99,7 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       }
       dplyr::bind_rows(truth_row, synthetic_theta_lhs)
     }),
+    tar_target(synthetic_theta_bounds, exdyn_param_bounds(synthetic_screen_cfg, cell_km = pilot_grid_info$cell_km %||% 10)),
     tar_target(synthetic_screen, {
       theta_tbl <- synthetic_theta_all
       mask <- synthetic_mask
@@ -182,11 +183,117 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       years = synthetic_years,
       coverage_breaks = synthetic_coverage_breaks
     )),
+    tar_target(synthetic_abc_lhs_scan, {
+      lhs_n <- synthetic_abc_cfg$lhs$n %||% 0
+      if (lhs_n <= 0) {
+        return(tibble::tibble())
+      }
+      cell_km <- pilot_grid_info$cell_km %||% 10
+      lhs_draws <- exdyn_param_lhs(
+        synthetic_screen_cfg,
+        n = lhs_n,
+        cell_km = cell_km,
+        seed = synthetic_abc_cfg$lhs$seed %||% 2026
+      )
+      mask <- synthetic_mask
+      results <- vector("list", nrow(lhs_draws))
+      scale_vec <- synthetic_abc_cfg$scale %||% NULL
+      S_obs <- synthetic_summary_obs
+      if (!is.null(scale_vec)) {
+        scale_vec <- unlist(scale_vec[names(S_obs)], use.names = FALSE)
+      } else {
+        scale_vec <- pmax(abs(S_obs), 1e-6)
+      }
+      for (i in seq_len(nrow(lhs_draws))) {
+        theta_row <- lhs_draws[i, ]
+        delta_cols <- names(theta_row)[grepl("^delta_", names(theta_row))]
+        delta_lookup <- NULL
+        if (length(delta_cols)) {
+          delta_lookup <- purrr::map_dbl(delta_cols, ~ theta_row[[.x]])
+          names(delta_lookup) <- gsub("^delta_", "", delta_cols)
+        }
+        T_P_adj <- exdyn_adjust_arrival_matrix(
+          synthetic_truth$T_P,
+          pilot_grid_info,
+          delta_lookup,
+          synthetic_years
+        )
+        if (any(!mask)) {
+          T_P_adj[!mask] <- NA_real_
+        }
+        pars <- list(
+          rmax = theta_row$rmax,
+          A_frac = theta_row$A_over_K * synthetic_screen_cfg$K0,
+          beta_H = 0,
+          d = 0.02
+        )
+        TX_idx <- exdyn_simulate_tx_only(
+          grid_info = pilot_grid_info,
+          years = synthetic_years,
+          T_P = T_P_adj,
+          ramp_years = round(theta_row$ramp_years),
+          pars = pars,
+          K0 = synthetic_screen_cfg$K0,
+          alpha = theta_row$alpha,
+          disp_mean_cells = theta_row$disp_mean_cells,
+          pred = list(
+            type = synthetic_theta_star$pred_type %||% "II",
+            c = theta_row$pred_c,
+            h = theta_row$pred_h,
+            scale = theta_row$pred_scale,
+            gamma = theta_row$gamma
+          ),
+          pre_leak = synthetic_theta_star$pre_leak %||% 0,
+          mask = mask
+        )
+        TX_years <- matrix(NA_real_, nrow = pilot_grid_info$nx, ncol = pilot_grid_info$ny)
+        idx <- is.finite(TX_idx)
+        if (any(idx)) {
+          TX_years[idx] <- synthetic_years[TX_idx[idx]]
+        }
+        TX_years[!mask] <- NA_real_
+        S_sim <- exdyn_summary_tx_response(
+          TX_years,
+          T_P_adj,
+          years = synthetic_years,
+          coverage_breaks = synthetic_coverage_breaks
+        )
+        S_sim <- S_sim[names(S_obs)]
+        dist <- sqrt(sum(((S_sim - S_obs) / scale_vec)^2))
+        results[[i]] <- dplyr::bind_cols(theta_row, tibble::tibble(distance = dist))
+      }
+      dplyr::bind_rows(results)
+    }),
+    tar_target(synthetic_abc_seed_bank, {
+      scan_tbl <- synthetic_abc_lhs_scan
+      keep <- synthetic_abc_cfg$lhs$keep %||% 0
+      if (!nrow(scan_tbl) || keep <= 0) {
+        tibble::tibble()
+      } else {
+        scan_tbl %>% dplyr::arrange(distance) %>% dplyr::slice_head(n = min(keep, nrow(scan_tbl)))
+      }
+    }),
     tar_target(synthetic_prior_sampler, {
       prior_cfg <- synthetic_abc_cfg$prior %||% list()
       delta_bounds <- prior_cfg$delta_region %||% synthetic_screen_cfg$delta_region
       scalar_bounds <- prior_cfg[setdiff(names(prior_cfg), "delta_region")]
-      exdyn_prior_sampler_syn(scalar_bounds, delta_bounds)
+      base_sampler <- exdyn_prior_sampler_syn(scalar_bounds, delta_bounds)
+      seed_bank <- synthetic_abc_seed_bank
+      bounds <- synthetic_theta_bounds
+      jitter_sd <- synthetic_abc_cfg$lhs$jitter_sd %||% 0.05
+      seed_prob <- synthetic_abc_cfg$lhs$seed_prob %||% 0.5
+      param_cols <- intersect(names(seed_bank), names(bounds))
+      function() {
+        use_seed <- nrow(seed_bank) > 0 && runif(1) < seed_prob
+        if (use_seed) {
+          row <- seed_bank[sample(nrow(seed_bank), 1), , drop = FALSE]
+          theta <- as.list(row[1, param_cols, drop = FALSE])
+          theta <- exdyn_theta_jitter(theta, bounds, jitter_sd)
+          theta
+        } else {
+          base_sampler()
+        }
+      }
     }),
     tar_target(synthetic_abc, {
       S_obs <- synthetic_summary_obs

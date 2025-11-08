@@ -56,6 +56,60 @@ exdyn_param_lhs <- function(cfg_screen, n = NULL, cell_km = 10, seed = 123) {
   tib
 }
 
+#' Parameter bounds helper for LHS and ABC samplers
+#'
+#' @param cfg_screen Screen configuration list.
+#' @param cell_km Grid cell size (km).
+#'
+#' @return Named list of parameter bounds plus \code{cell_km}.
+#' @export
+exdyn_param_bounds <- function(cfg_screen, cell_km = 10) {
+  bounds <- list(
+    alpha = cfg_screen$alpha,
+    disp_mean_km = cfg_screen$disp_mean_km,
+    A_over_K = cfg_screen$A_over_K,
+    pred_c = cfg_screen$pred_c,
+    pred_h = cfg_screen$pred_h,
+    ramp_years = cfg_screen$ramp_years,
+    pred_scale = cfg_screen$pred_scale,
+    gamma = cfg_screen$gamma,
+    rmax = cfg_screen$rmax
+  )
+  bounds$disp_mean_cells <- bounds$disp_mean_km / cell_km
+  bounds$cell_km <- cell_km
+  if (!is.null(cfg_screen$delta_region)) {
+    for (nm in names(cfg_screen$delta_region)) {
+      bounds[[paste0("delta_", nm)]] <- cfg_screen$delta_region[[nm]]
+    }
+  }
+  bounds
+}
+
+#' @keywords internal
+exdyn_theta_jitter <- function(theta, bounds, jitter_sd = 0.05) {
+  if (is.null(theta)) return(theta)
+  jitter_one <- function(value, lims) {
+    if (length(lims) < 2 || !all(is.finite(lims))) return(value)
+    range <- lims[2] - lims[1]
+    sd_val <- if (range > 0) jitter_sd * range else jitter_sd
+    proposal <- stats::rnorm(1, mean = value, sd = sd_val)
+    proposal <- min(proposal, lims[2])
+    proposal <- max(proposal, lims[1])
+    proposal
+  }
+  for (nm in names(bounds)) {
+    if (nm == "cell_km") next
+    if (!is.null(theta[[nm]])) {
+      theta[[nm]] <- jitter_one(theta[[nm]], bounds[[nm]])
+    }
+  }
+  cell_km <- bounds$cell_km %||% 10
+  if (!is.null(theta$disp_mean_km)) {
+    theta$disp_mean_cells <- theta$disp_mean_km / cell_km
+  }
+  theta
+}
+
 #' Wrapper around extirpation time helper (alias)
 #' @export
 exdyn_tx_first_passage <- function(N, K0, frac = 0.02, adaptive = TRUE, rel0 = 0.5) {

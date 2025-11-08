@@ -26,16 +26,16 @@ noise:
   rel0: 0.5
   adaptive_threshold: true
 screen:
-  n_draws: 150
+  n_draws: 400
   seed: 1045
   K0: 120
   alpha: [0.05, 0.45]
   disp_mean_km: [6, 22]
   A_over_K: [0.02, 0.15]
-  pred_c: [1.0, 3.0]
+  pred_c: [0.8, 3.2]
   pred_h: [20, 60]
   ramp_years: [5, 12]
-  pred_scale: [1.0, 3.5]
+  pred_scale: [0.8, 4.0]
   gamma: [1.0, 2.0]
   rmax: [0.3, 0.6]
   delta_region:
@@ -64,16 +64,22 @@ abc:
     alpha: [0.05, 0.45]
     disp_mean_km: [6, 22]
     A_over_K: [0.02, 0.15]
-    pred_c: [1.0, 3.0]
+    pred_c: [0.8, 3.2]
     pred_h: [20, 60]
     ramp_years: [5, 12]
-    pred_scale: [1.0, 3.5]
+    pred_scale: [0.8, 4.0]
     gamma: [1.0, 2.0]
     rmax: [0.3, 0.6]
     delta_region:
       SCT: [0, 15]
       N_ENG: [0, 12]
       S_ENG_WAL: [0, 10]
+  lhs:
+    n: 400
+    keep: 150
+    seed: 2026
+    jitter_sd: 0.05
+    seed_prob: 0.65
 tx_cfg:
   smooth_window: 7
   min_years_active: 5
