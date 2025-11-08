@@ -56,3 +56,13 @@ test_that("synthetic twin generation yields plausible outputs", {
   expect_gt(nrow(syn$po_points), 0)
   expect_type(syn$N_true, "double")
 })
+
+test_that("scoring reports coverage curve penalty", {
+  TX_obs <- matrix(c(1955, 1960, 1965, 1970), nrow = 2)
+  TX_sim <- TX_obs + 5
+  T_P <- matrix(1950, nrow = 2, ncol = 2)
+  compat <- list(min_r2_arrival = 0, lag_range = c(-Inf, Inf), min_coverage = 0)
+  res <- exdyn_score(TX_obs, T_P, TX_sim, compat, coverage_breaks = c(1960, 1970))
+  expect_true("coverage_curve_rmse" %in% names(res))
+  expect_gt(res$coverage_curve_rmse, 0)
+})

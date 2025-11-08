@@ -13,6 +13,7 @@ exdyn_screen_and_rank(
   cfg_screen,
   cfg_mink,
   compat_cfg,
+  coverage_breaks = NULL,
   log_mem = FALSE
 )
 }

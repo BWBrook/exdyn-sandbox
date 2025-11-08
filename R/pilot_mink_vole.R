@@ -106,10 +106,11 @@ exdyn_simulate_params <- function(theta_row, fields, K0) {
 #' @param T_P Predation arrival matrix.
 #' @param TX_sim Matrix of simulated extirpation times.
 #' @param compat_cfg Compatibility thresholds.
-#'
+#' @param coverage_breaks Optional numeric vector of year thresholds used
+#'   to compare cumulative coverage between observed and simulated maps.
 #' @return Tibble (one row) with metrics and loss.
 #' @export
-exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg) {
+exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL) {
   idx <- which(is.finite(TX_obs) & is.finite(T_P))
   denom <- sum(is.finite(T_P))
   coverage <- if (length(idx) && denom > 0) length(idx) / denom else 0
@@ -125,8 +126,14 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg) {
   R_obs <- orient_obs$R %||% NA_real_
   R_sim <- orient_sim$R %||% NA_real_
   anis_gap <- if (is.finite(R_obs) && is.finite(R_sim)) abs(R_obs - R_sim) else NA_real_
-
-  w1 <- 0.45; w2 <- 0.25; w3 <- 0.2; w4 <- 0.1
+  curve_obs <- exdyn_coverage_curve(TX_obs, T_P, coverage_breaks)
+  curve_sim <- exdyn_coverage_curve(TX_sim, T_P, coverage_breaks)
+  curve_rmse <- if (length(curve_obs) && length(curve_sim)) {
+    sqrt(mean((curve_obs - curve_sim)^2, na.rm = TRUE))
+  } else {
+    NA_real_
+  }
+  w1 <- 0.4; w2 <- 0.2; w3 <- 0.2; w4 <- 0.1; w5 <- 0.1
   r2_term <- ifelse(is.finite(r2), 1 - r2, 1)
   coverage_term <- 1 - coverage
   lag_range <- compat_cfg$lag_range %||% c(0, Inf)
@@ -136,7 +143,8 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg) {
     else 0
   } else 1
   anis_term <- ifelse(is.finite(anis_gap), anis_gap, 1)
-  loss <- w1 * r2_term + w2 * lag_pen + w3 * coverage_term + w4 * anis_term
+  curve_term <- ifelse(is.finite(curve_rmse), curve_rmse, 1)
+  loss <- w1 * r2_term + w2 * lag_pen + w3 * coverage_term + w4 * anis_term + w5 * curve_term
   compatible <- TRUE
   compatible <- compatible && is.finite(r2) && r2 >= (compat_cfg$min_r2_arrival %||% 0)
   compatible <- compatible && is.finite(lag_mean) &&
@@ -150,6 +158,7 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg) {
     anisotropy_obs = R_obs,
     anisotropy_sim = R_sim,
     anisotropy_gap = anis_term,
+    coverage_curve_rmse = curve_rmse,
     loss = loss,
     compatible = compatible
   )
@@ -170,6 +179,7 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg) {
 #' @export
 exdyn_screen_and_rank <- function(theta, grid_info, years, T_P,
                                   TX_obs, cfg_screen, cfg_mink, compat_cfg,
+                                  coverage_breaks = NULL,
                                   log_mem = FALSE) {
   results <- vector("list", nrow(theta))
   tx_sims <- vector("list", nrow(theta))
@@ -203,7 +213,7 @@ exdyn_screen_and_rank <- function(theta, grid_info, years, T_P,
         if ("draw" %in% names(theta)) theta$draw[i] else i
       )
     )
-    metrics <- exdyn_score(TX_obs, T_P, TX_sim, compat_cfg)
+    metrics <- exdyn_score(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = coverage_breaks)
     results[[i]] <- dplyr::bind_cols(theta[i, ], metrics)
     tx_sims[[i]] <- TX_sim
     gc()

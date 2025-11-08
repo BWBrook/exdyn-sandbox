@@ -4,7 +4,7 @@
 \alias{exdyn_score}
 \title{Score simulated extirpations against observed data}
 \usage{
-exdyn_score(TX_obs, T_P, TX_sim, compat_cfg)
+exdyn_score(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL)
 }
 \arguments{
 \item{TX_obs}{Matrix of observed extirpation times.}
@@ -14,6 +14,9 @@ exdyn_score(TX_obs, T_P, TX_sim, compat_cfg)
 \item{TX_sim}{Matrix of simulated extirpation times.}
 
 \item{compat_cfg}{Compatibility thresholds.}
+
+\item{coverage_breaks}{Optional numeric vector of year thresholds used
+to compare cumulative coverage between observed and simulated maps.}
 }
 \value{
 Tibble (one row) with metrics and loss.

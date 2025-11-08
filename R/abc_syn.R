@@ -1,3 +1,18 @@
+# Internal helper for cumulative coverage
+exdyn_coverage_curve <- function(TX, T_P, breaks) {
+  if (is.null(breaks) || !length(breaks)) {
+    return(numeric())
+  }
+  finite <- is.finite(TX) & is.finite(T_P)
+  denom <- length(finite)
+  if (!denom) {
+    return(rep(NA_real_, length(breaks)))
+  }
+  purrr::map_dbl(breaks, function(brk) {
+    sum(finite & TX <= brk) / denom
+  })
+}
+
 #' Response-only summary vector for extirpation maps
 #'
 #' Construct a compact summary of simulated extirpation times that uses
@@ -7,12 +22,17 @@
 #'
 #' @param TX Matrix of observed or simulated extirpation years.
 #' @param T_P Matrix of driver arrival years (same dimensions as `TX`).
+#' @param years Optional numeric vector of simulation years.
+#' @param coverage_breaks Optional numeric vector of year thresholds used
+#'   to derive cumulative coverage values. If NULL, evenly spaced breaks
+#'   over the provided years are used (when available).
 #'
 #' @return Named numeric vector containing gradient magnitude, principal
 #'   axis ratio, coverage, mean/SD lag, orientation concentration,
-#'   front speed, and overall extirpation statistics.
+#'   front speed, overall extirpation statistics, and (optionally) the
+#'   cumulative coverage evaluated at each requested break.
 #' @export
-exdyn_summary_tx_response <- function(TX, T_P) {
+exdyn_summary_tx_response <- function(TX, T_P, years = NULL, coverage_breaks = NULL) {
   stopifnot(length(dim(TX)) == 2L, length(dim(T_P)) == 2L)
   stopifnot(all(dim(TX) == dim(T_P)))
   plane <- exdyn_front_plane(TX)
@@ -29,6 +49,17 @@ exdyn_summary_tx_response <- function(TX, T_P) {
   tx_vals <- TX[is.finite(TX)]
   tx_mean <- if (length(tx_vals)) mean(tx_vals) else NA_real_
   tx_sd <- if (length(tx_vals)) stats::sd(tx_vals) else NA_real_
+  if (is.null(coverage_breaks)) {
+    if (!is.null(years) && length(years) >= 2) {
+      coverage_breaks <- seq(min(years), max(years), length.out = 6L)[2:5]
+    } else {
+      coverage_breaks <- numeric()
+    }
+  }
+  coverage_curve <- exdyn_coverage_curve(TX, T_P, coverage_breaks)
+  if (length(coverage_curve)) {
+    names(coverage_curve) <- paste0("cov_curve_", seq_along(coverage_curve))
+  }
   c(
     grad_mag = plane$grad_mag,
     pc_ratio = plane$pc_ratio,
@@ -39,7 +70,8 @@ exdyn_summary_tx_response <- function(TX, T_P) {
     speed_cells_per_year = speed_est$speed,
     speed_r2 = speed_est$r2,
     tx_mean = tx_mean,
-    tx_sd = tx_sd
+    tx_sd = tx_sd,
+    coverage_curve
   )
 }
 

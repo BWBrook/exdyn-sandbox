@@ -4,17 +4,24 @@
 \alias{exdyn_summary_tx_response}
 \title{Response-only summary vector for extirpation maps}
 \usage{
-exdyn_summary_tx_response(TX, T_P)
+exdyn_summary_tx_response(TX, T_P, years = NULL, coverage_breaks = NULL)
 }
 \arguments{
 \item{TX}{Matrix of observed or simulated extirpation years.}
 
 \item{T_P}{Matrix of driver arrival years (same dimensions as \code{TX}).}
+
+\item{years}{Optional numeric vector of simulation years.}
+
+\item{coverage_breaks}{Optional numeric vector of year thresholds used
+to derive cumulative coverage values. If NULL, evenly spaced breaks
+over the provided years are used (when available).}
 }
 \value{
 Named numeric vector containing gradient magnitude, principal
 axis ratio, coverage, mean/SD lag, orientation concentration,
-front speed, and overall extirpation statistics.
+front speed, overall extirpation statistics, and (optionally) the
+cumulative coverage evaluated at each requested break.
 }
 \description{
 Construct a compact summary of simulated extirpation times that uses

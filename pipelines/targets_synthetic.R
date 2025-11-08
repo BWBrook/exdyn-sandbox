@@ -30,6 +30,14 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
     tar_target(synthetic_compat_cfg, synthetic_cfg$compat),
     tar_target(synthetic_abc_cfg, synthetic_cfg$abc),
     tar_target(synthetic_years, seq.int(pilot_cfg$pilot$years[1], pilot_cfg$pilot$years[2])),
+    tar_target(synthetic_coverage_breaks, {
+      yrs <- synthetic_years
+      if (length(yrs) < 2) {
+        numeric()
+      } else {
+        seq(min(yrs), max(yrs), length.out = 6L)[2:5]
+      }
+    }),
     tar_target(synthetic_mask, {
       mask_cfg <- synthetic_cfg$mask %||% "riparian"
       if (identical(mask_cfg, "all")) {
@@ -52,7 +60,12 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
         mask = synthetic_mask
       )
     }, deployment = "main"),
-    tar_target(synthetic_summary_truth, exdyn_summary_tx_response(synthetic_truth$TX_obs, synthetic_truth$T_P)),
+    tar_target(synthetic_summary_truth, exdyn_summary_tx_response(
+      synthetic_truth$TX_obs,
+      synthetic_truth$T_P,
+      years = synthetic_years,
+      coverage_breaks = synthetic_coverage_breaks
+    )),
     tar_target(synthetic_output_dir, {
       dir <- file.path("outputs", "synthetic")
       dir.create(dir, recursive = TRUE, showWarnings = FALSE)
@@ -136,7 +149,13 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
           TX_years[idx] <- years_vec[TX_idx[idx]]
         }
         TX_years[!mask] <- NA_real_
-        metrics <- exdyn_score(synthetic_truth$TX_obs, T_P_adj, TX_years, synthetic_compat_cfg)
+        metrics <- exdyn_score(
+          synthetic_truth$TX_obs,
+          T_P_adj,
+          TX_years,
+          synthetic_compat_cfg,
+          coverage_breaks = synthetic_coverage_breaks
+        )
         coverage_sim <- if (any(mask)) mean(is.finite(TX_years[mask]), na.rm = TRUE) else NA_real_
         result_row <- dplyr::bind_cols(theta_row, metrics) %>%
           dplyr::mutate(coverage_sim = coverage_sim)
@@ -157,7 +176,12 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       idx <- synthetic_best_index
       if (length(idx) && !is.na(idx)) synthetic_screen$tx_sim[[idx]] else NULL
     }),
-    tar_target(synthetic_summary_obs, exdyn_summary_tx_response(synthetic_truth$TX_obs, synthetic_truth$T_P)),
+    tar_target(synthetic_summary_obs, exdyn_summary_tx_response(
+      synthetic_truth$TX_obs,
+      synthetic_truth$T_P,
+      years = synthetic_years,
+      coverage_breaks = synthetic_coverage_breaks
+    )),
     tar_target(synthetic_prior_sampler, {
       prior_cfg <- synthetic_abc_cfg$prior %||% list()
       delta_bounds <- prior_cfg$delta_region %||% synthetic_screen_cfg$delta_region
@@ -212,7 +236,12 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
         list(TX_sim = TX_years, T_P = T_P_adj)
       }
       summary_fn <- function(sim) {
-        exdyn_summary_tx_response(sim$TX_sim, sim$T_P)
+        exdyn_summary_tx_response(
+          sim$TX_sim,
+          sim$T_P,
+          years = synthetic_years,
+          coverage_breaks = synthetic_coverage_breaks
+        )
       }
       exdyn_abc_rejection(
         S_obs = S_obs,
