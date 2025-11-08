@@ -26,7 +26,7 @@ noise:
   rel0: 0.5
   adaptive_threshold: true
 screen:
-  n_draws: 400
+  n_draws: 1000
   seed: 1045
   K0: 120
   alpha: [0.05, 0.45]
@@ -49,6 +49,7 @@ compat:
 abc:
   n_sims: 2000
   eps: 0.9
+  eps_tight: 0.45
   scale:
     grad_mag: 0.05
     pc_ratio: 0.25
@@ -75,8 +76,8 @@ abc:
       N_ENG: [0, 12]
       S_ENG_WAL: [0, 10]
   lhs:
-    n: 400
-    keep: 150
+    n: 1000
+    keep: 200
     seed: 2026
     jitter_sd: 0.05
     seed_prob: 0.65

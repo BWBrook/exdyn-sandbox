@@ -19,7 +19,7 @@ screen_res <- tar_read(synthetic_screen_results)
 best_idx <- tar_read(synthetic_best_index)
 best_tx <- tar_read(synthetic_best_tx)
 summary_obs <- tar_read(synthetic_summary_obs)
-abc_res <- tar_read(synthetic_abc)
+abc_res <- tar_read(synthetic_abc_final)
 abc_samples <- abc_res$samples
 summary_truth <- summary_obs
 S_scale <- tar_read(synthetic_abc_cfg)$scale %||% NULL

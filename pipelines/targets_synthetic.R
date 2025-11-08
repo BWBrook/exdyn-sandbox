@@ -282,17 +282,22 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       bounds <- synthetic_theta_bounds
       jitter_sd <- synthetic_abc_cfg$lhs$jitter_sd %||% 0.05
       seed_prob <- synthetic_abc_cfg$lhs$seed_prob %||% 0.5
-      param_cols <- intersect(names(seed_bank), names(bounds))
+      param_cols <- names(bounds)
+      sampler_from_bank <- function() {
+        if (!nrow(seed_bank)) return(NULL)
+        row <- seed_bank[sample(nrow(seed_bank), 1), , drop = FALSE]
+        theta <- as.list(row[1, param_cols[param_cols %in% names(row)], drop = FALSE])
+        if (!length(theta)) return(NULL)
+        theta <- exdyn_theta_jitter(theta, bounds, jitter_sd)
+        theta
+      }
       function() {
         use_seed <- nrow(seed_bank) > 0 && runif(1) < seed_prob
         if (use_seed) {
-          row <- seed_bank[sample(nrow(seed_bank), 1), , drop = FALSE]
-          theta <- as.list(row[1, param_cols, drop = FALSE])
-          theta <- exdyn_theta_jitter(theta, bounds, jitter_sd)
-          theta
-        } else {
-          base_sampler()
+          theta <- sampler_from_bank()
+          if (!is.null(theta)) return(theta)
         }
+        base_sampler()
       }
     }),
     tar_target(synthetic_abc, {
@@ -361,8 +366,112 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
         progress = TRUE
       )
     }, deployment = "main"),
+    tar_target(synthetic_abc_refined, {
+      if (!nrow(synthetic_abc$samples)) {
+        return(list(samples = tibble::tibble(), summaries = tibble::tibble(), distances = numeric(), all = tibble::tibble(), eps = synthetic_abc_cfg$eps_tight %||% 0.5, scale = synthetic_abc$scale))
+      }
+      eps_tight <- synthetic_abc_cfg$eps_tight %||% ((synthetic_abc_cfg$eps %||% 1) * 0.5)
+      bounds <- synthetic_theta_bounds
+      jitter_sd <- synthetic_abc_cfg$lhs$jitter_sd %||% 0.05
+      mix_prob <- synthetic_abc_cfg$lhs$seed_prob %||% 0.65
+      particles <- synthetic_abc$samples
+      if (!nrow(particles)) return(synthetic_abc)
+      base_param_names <- c("alpha","disp_mean_km","A_over_K","pred_c","pred_h","ramp_years","pred_scale","gamma","rmax")
+      to_theta <- function(row) {
+        theta <- list()
+        for (nm in base_param_names) {
+          if (nm %in% names(row)) {
+            theta[[nm]] <- as.numeric(row[[nm]][1])
+          }
+        }
+        theta$K0 <- synthetic_screen_cfg$K0
+        delta_cols <- grep("^delta_", names(row), value = TRUE)
+        if (length(delta_cols)) {
+          vals <- as.numeric(unlist(row[delta_cols]))
+          names(vals) <- sub("^delta_", "", delta_cols)
+          theta$delta_region <- vals
+        }
+        theta
+      }
+      particle_list <- purrr::map(seq_len(nrow(particles)), function(i) to_theta(particles[i, , drop = FALSE]))
+      refined_sampler <- function() {
+        if (length(particle_list) && runif(1) < mix_prob) {
+          theta <- particle_list[[sample(length(particle_list), 1)]]
+          theta <- exdyn_theta_jitter(theta, bounds, jitter_sd)
+          return(theta)
+        }
+        synthetic_prior_sampler()
+      }
+      S_obs <- synthetic_summary_obs
+      scale_vec <- synthetic_abc_cfg$scale %||% NULL
+      if (!is.null(scale_vec)) {
+        scale_vec <- unlist(scale_vec[names(S_obs)], use.names = FALSE)
+      }
+      cell_km <- pilot_grid_info$cell_km %||% 10
+      simulate_once <- function(theta) {
+        delta_lookup <- theta$delta_region %||% list()
+        T_P_adj <- exdyn_adjust_arrival_matrix(synthetic_truth$T_P, pilot_grid_info, delta_lookup, synthetic_years)
+        if (any(!synthetic_mask)) {
+          T_P_adj[!synthetic_mask] <- NA_real_
+        }
+        pars <- list(
+          rmax = theta$rmax,
+          A_frac = theta$A_over_K * synthetic_screen_cfg$K0,
+          beta_H = 0,
+          d = 0.02
+        )
+        disp_cells <- theta$disp_mean_km / cell_km
+        TX_idx <- exdyn_simulate_tx_only(
+          grid_info = pilot_grid_info,
+          years = synthetic_years,
+          T_P = T_P_adj,
+          ramp_years = round(theta$ramp_years),
+          pars = pars,
+          K0 = synthetic_screen_cfg$K0,
+          alpha = theta$alpha,
+          disp_mean_cells = disp_cells,
+          pred = list(
+            type = synthetic_theta_star$pred_type %||% "II",
+            c = theta$pred_c,
+            h = theta$pred_h,
+            scale = theta$pred_scale,
+            gamma = theta$gamma
+          ),
+          pre_leak = synthetic_theta_star$pre_leak %||% 0,
+          mask = synthetic_mask
+        )
+        TX_years <- matrix(NA_real_, nrow = pilot_grid_info$nx, ncol = pilot_grid_info$ny)
+        idx <- is.finite(TX_idx)
+        if (any(idx)) {
+          TX_years[idx] <- synthetic_years[TX_idx[idx]]
+        }
+        TX_years[!synthetic_mask] <- NA_real_
+        list(TX_sim = TX_years, T_P = T_P_adj)
+      }
+      summary_fn <- function(sim) {
+        exdyn_summary_tx_response(
+          sim$TX_sim,
+          sim$T_P,
+          years = synthetic_years,
+          coverage_breaks = synthetic_coverage_breaks
+        )
+      }
+      exdyn_abc_rejection(
+        S_obs = S_obs,
+        prior_sampler = refined_sampler,
+        simulator = simulate_once,
+        summary_fn = summary_fn,
+        n_sims = synthetic_abc_cfg$n_sims %||% 2000,
+        eps = eps_tight,
+        scale = scale_vec,
+        progress = TRUE
+      )
+    }, deployment = "main"),
+    tar_target(synthetic_abc_final, {
+      if (nrow(synthetic_abc_refined$samples)) synthetic_abc_refined else synthetic_abc
+    }),
     tar_target(synthetic_abc_summary, {
-      samples <- synthetic_abc$samples
+      samples <- synthetic_abc_final$samples
       if (!nrow(samples)) {
         return(tibble::tibble())
       }
@@ -370,13 +479,13 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       stats_tbl <- purrr::imap_dfr(
         numeric_cols,
         ~ tibble::tibble(
-          param = .y,
-          median = stats::median(.x),
-          p025 = stats::quantile(.x, 0.025),
-          p975 = stats::quantile(.x, 0.975),
-          mean = mean(.x),
-          sd = stats::sd(.x)
-        )
+            param = .y,
+            median = stats::median(.x, na.rm = TRUE),
+            p025 = stats::quantile(.x, 0.025, na.rm = TRUE, names = FALSE),
+            p975 = stats::quantile(.x, 0.975, na.rm = TRUE, names = FALSE),
+            mean = mean(.x, na.rm = TRUE),
+            sd = stats::sd(.x, na.rm = TRUE)
+          )
       )
       truth_vals <- synthetic_theta_star[purrr::map_lgl(synthetic_theta_star, is.numeric)]
       truth_vals <- unlist(truth_vals, use.names = TRUE)
@@ -390,8 +499,8 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       results_path <- file.path(synthetic_output_dir, "screen_results.csv")
       readr::write_csv(synthetic_screen_results, results_path)
       abc_path <- file.path(synthetic_output_dir, "abc_posterior.csv")
-      if (nrow(synthetic_abc$samples)) {
-        readr::write_csv(synthetic_abc$samples, abc_path)
+      if (nrow(synthetic_abc_final$samples)) {
+        readr::write_csv(synthetic_abc_final$samples, abc_path)
       } else {
         readr::write_csv(tibble::tibble(), abc_path)
       }
@@ -434,11 +543,13 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
     tar_target(synthetic_report_html, {
       synthetic_tables_written
       synthetic_maps_written
+      synthetic_abc_summary
       quarto::quarto_render("reports/synthetic_mink_vole.qmd", output_format = "html")
     }, format = "file"),
     tar_target(synthetic_report_pdf, {
       synthetic_tables_written
       synthetic_maps_written
+      synthetic_abc_summary
       quarto::quarto_render("reports/synthetic_mink_vole.qmd", output_format = "pdf")
     }, format = "file")
   )

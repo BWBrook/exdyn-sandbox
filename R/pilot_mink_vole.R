@@ -75,7 +75,6 @@ exdyn_param_bounds <- function(cfg_screen, cell_km = 10) {
     gamma = cfg_screen$gamma,
     rmax = cfg_screen$rmax
   )
-  bounds$disp_mean_cells <- bounds$disp_mean_km / cell_km
   bounds$cell_km <- cell_km
   if (!is.null(cfg_screen$delta_region)) {
     for (nm in names(cfg_screen$delta_region)) {
@@ -85,9 +84,18 @@ exdyn_param_bounds <- function(cfg_screen, cell_km = 10) {
   bounds
 }
 
+#' Jitter helper for parameter draws
+#'
 #' @keywords internal
+#' @export
 exdyn_theta_jitter <- function(theta, bounds, jitter_sd = 0.05) {
   if (is.null(theta)) return(theta)
+  # expose delta_* entries for jittering
+  if (!is.null(theta$delta_region)) {
+    for (nm in names(theta$delta_region)) {
+      theta[[paste0("delta_", nm)]] <- theta$delta_region[[nm]]
+    }
+  }
   jitter_one <- function(value, lims) {
     if (length(lims) < 2 || !all(is.finite(lims))) return(value)
     range <- lims[2] - lims[1]
@@ -106,6 +114,17 @@ exdyn_theta_jitter <- function(theta, bounds, jitter_sd = 0.05) {
   cell_km <- bounds$cell_km %||% 10
   if (!is.null(theta$disp_mean_km)) {
     theta$disp_mean_cells <- theta$disp_mean_km / cell_km
+  }
+  delta_cols <- grep("^delta_", names(bounds), value = TRUE)
+  if (length(delta_cols)) {
+    delta_vals <- numeric(0)
+    for (col in delta_cols) {
+      short <- sub("^delta_", "", col)
+      if (!is.null(theta[[col]])) {
+        delta_vals[short] <- theta[[col]]
+      }
+    }
+    if (length(delta_vals)) theta$delta_region <- delta_vals
   }
   theta
 }

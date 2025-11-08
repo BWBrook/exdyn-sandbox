@@ -29,3 +29,13 @@
 [2025-11-08 19:34:41] WO10 synthetic twin start 
 [2025-11-08 19:35:43] WO10 synthetic twin start 
 2025-11-08 19:49:28 WO10 synthetic rerun: lag_obs=5.63 coverage_obs=0.246 coverage_true=0.280 best_draw=121 r2=0.831 cov_sim=0.223 curve_rmse=0.042
+[2025-11-08 20:42:08] WO10 synthetic twin start 
+[2025-11-08 21:05:43] WO10 synthetic twin start 
+[2025-11-08 21:06:41] WO10 synthetic twin start 
+[2025-11-08 21:07:46] WO10 synthetic twin start 
+[2025-11-08 21:08:21] WO10 synthetic twin start 
+[2025-11-08 21:10:32] WO10 synthetic twin start 
+[2025-11-08 21:13:18] WO10 synthetic twin start 
+[2025-11-08 21:22:24] WO10 synthetic twin start 
+[2025-11-08 21:23:25] WO10 synthetic twin start 
+2025-11-08 21:24:34 WO10 rerun refined ABC: lag_obs=5.63 coverage_obs=0.246 coverage_true=0.280 best_draw=442 r2=0.826 cov_sim=0.264 curve_rmse=0.010
