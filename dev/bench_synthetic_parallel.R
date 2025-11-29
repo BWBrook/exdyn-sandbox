@@ -1,7 +1,8 @@
 # Benchmark synthetic_screen-like workload at different parallel widths
 lib_user <- file.path("~", "R", paste0(R.version$platform, "-library"), paste0(R.version$major, ".", R.version$minor))
 .libPaths(c(normalizePath(lib_user, mustWork = FALSE), .libPaths()))
-options(future.globals.maxSize = 2e9)
+options(future.globals.maxSize = Inf)
+MAX_WORKERS <- 8L
 suppressPackageStartupMessages({
   library(pkgload)
   library(targets)
@@ -12,7 +13,7 @@ pkgload::load_all(export_all = FALSE, helpers = FALSE, attach_testthat = FALSE)
 
 # number of draws for the micro-benchmark
 n_draws_bench <- 20
-workers_set <- c(`1core` = 1, `4cores` = 4, `50cores` = 50)
+workers_set <- c(`1core` = 1, `4cores` = 4, `8cores` = 8)
 
 # Load cached objects (assumes synthetic_truth already built)
 pilot_grid_info <- tar_read(pilot_grid_info)
@@ -27,7 +28,8 @@ theta_tbl <- tar_read(synthetic_theta_all) %>%
 delta_cols <- names(theta_tbl)[grepl("^delta_", names(theta_tbl))]
 
 bench_once <- function(workers) {
-  plan(multisession, workers = workers)
+  workers <- min(as.integer(workers), MAX_WORKERS)
+  plan(multicore, workers = workers)
   t0 <- proc.time()
   res <- future_lapply(seq_len(nrow(theta_tbl)), function(i) {
     theta_row <- theta_tbl[i, ]
