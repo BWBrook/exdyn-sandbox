@@ -187,7 +187,7 @@ exdyn_ts_smooth <- function(counts, k = 5) {
 exdyn_tx_from_po <- function(counts_by_cell, years, cfg, normalize_by = NULL) {
   yrs <- seq.int(years[1], years[2])
   raw_counts <- counts_by_cell$n_obs
-  norm_mode <- if (is.null(normalize_by)) "none" else match.arg(normalize_by, c("mammal", "taxa"))
+  norm_mode <- if (is.null(normalize_by)) "none" else match.arg(normalize_by, c("none", "mammal", "taxa"))
   series <- raw_counts
   if (norm_mode %in% c("mammal", "taxa")) {
     if ("norm_mammal" %in% names(counts_by_cell)) {

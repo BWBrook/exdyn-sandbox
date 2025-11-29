@@ -8,15 +8,16 @@ NULL
 
 #' Build an equal-sized grid over a country polygon
 #'
-#' @param country_code ISO3 code (e.g. \code{"GB"}).
+#' @param country_code ISO2/ISO3 code or vector (e.g. \code{"GB"} or \code{c("GB","IE")}).
 #' @param cell_km Cell size in kilometres.
 #' @param crs_out Output CRS (default EPSG:27700 for GB).
 #'
 #' @return An \code{sf} object with columns \code{cell_id,row,col,centroid_x,centroid_y}.
 #' @export
 exdyn_make_grid <- function(country_code = "GB", cell_km = 10, crs_out = "EPSG:27700") {
+  country_code <- unique(country_code)
   cntry <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>%
-    dplyr::filter(.data$adm0_a3 == country_code | .data$iso_a2 == country_code)
+    dplyr::filter(.data$adm0_a3 %in% country_code | .data$iso_a2 %in% country_code)
   if (!nrow(cntry)) stop("No country polygon found for code: ", country_code)
 
   cntry <- sf::st_transform(cntry, crs = crs_out)
@@ -32,18 +33,17 @@ exdyn_make_grid <- function(country_code = "GB", cell_km = 10, crs_out = "EPSG:2
     cell_id = seq_along(grid_geom),
     geometry = grid_geom
   )
-
   grid_sf$cell_km <- cell_km
-
-  grid_sf$col <- match(round(coords_full[, 1], 6), x_levels)
-  row_match <- match(round(coords_full[, 2], 6), y_levels)
-  grid_sf$row <- length(y_levels) - row_match + 1
-
   grid_sf <- sf::st_filter(grid_sf, cntry)
-  grid_sf$geometry <- sf::st_intersection(grid_sf$geometry, sf::st_geometry(cntry))
+  grid_sf <- suppressMessages(sf::st_intersection(grid_sf, cntry))
   grid_sf <- grid_sf[!sf::st_is_empty(grid_sf), ]
   cent <- sf::st_centroid(grid_sf)
   coords <- sf::st_coordinates(cent)
+  x_levels <- sort(unique(round(coords[, 1], 6)))
+  y_levels <- sort(unique(round(coords[, 2], 6)))
+  grid_sf$col <- match(round(coords[, 1], 6), x_levels)
+  row_match <- match(round(coords[, 2], 6), y_levels)
+  grid_sf$row <- length(y_levels) - row_match + 1
   grid_sf$centroid_x <- coords[, 1]
   grid_sf$centroid_y <- coords[, 2]
   grid_sf

@@ -1,6 +1,6 @@
 gbif:
   years: [1950, 2024]
-  country: "GB"
+  country: ["GB", "IE"]
 grid:
   cell_km: 10
   crs_out: "EPSG:27700"
@@ -23,6 +23,7 @@ cache:
   max_records: 200000
   force_redownload: false
 pilot:
+  analysis_unit: "segment"
   years: [1950, 2024]
   grid_cell_km: 10
   crs_out: "EPSG:27700"
@@ -51,11 +52,17 @@ pilot:
     scale: 1.0
     gamma: 1.0
     delta_region:
-      SCT: [0, 60]
-      N_ENG: [0, 45]
-      S_ENG_WAL: [0, 35]
+      SCT: [0, 20]
+      N_ENG: [0, 15]
+      S_ENG_WAL: [0, 12]
+  delta_penalty:
+    lambda_mag: 0.02
+    lambda_tv: 0.05
+  pred_scale_re:
+    enable: true
+    sigma: [0.0, 0.6]
   screen:
-    n_draws: 24
+    n_draws: 200
     log_mem: true
     adapt_c: true
     K0: 120
@@ -63,16 +70,28 @@ pilot:
     alpha: [0.0, 0.4]
     disp_mean_km: [5, 25]
     A_over_K: [0.0, 0.2]
-    pred_c: [0.4, 0.9]
+    pred_c: [0.3, 1.5]
     pred_h: [15, 60]
     ramp_years: [5, 12]
-    pred_scale: [0.8, 3.0]
+    pred_scale: [0.6, 3.5]
     gamma: [1.0, 2.0]
+    pred_scale_re_sigma: [0.0, 0.6]
     delta_region:
-      SCT: [0, 60]
-      N_ENG: [0, 45]
-      S_ENG_WAL: [0, 35]
+      SCT: [0, 20]
+      N_ENG: [0, 15]
+      S_ENG_WAL: [0, 12]
   compat:
     min_r2_arrival: 0.25
     lag_range: [2, 25]
     min_coverage: 0.15
+  abc:
+    n_stage1: 2000
+    n_stage2: 2000
+    n_stage3: 0
+    eps1: 0.90
+    eps2: 0.45
+    eps3: 0.30
+    shortlist: 200
+    jitter_sd: 0.05
+    seed_prob: 0.5
+    seed_prob_refine: 0.65

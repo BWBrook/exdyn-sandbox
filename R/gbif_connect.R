@@ -40,6 +40,13 @@ exdyn_gbif_fetch <- function(key, country, year_min, year_max,
                              max_records = 200000,
                              force = FALSE) {
   stopifnot(length(key) == 1, !is.na(key))
+  country <- unique(country)
+  if (length(country) > 1) {
+    dfs <- lapply(country, function(ctry) {
+      exdyn_gbif_fetch(key, ctry, year_min, year_max, cache_dir, max_records, force)
+    })
+    return(dplyr::bind_rows(dfs))
+  }
   dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
   cache_file <- file.path(
     cache_dir,

@@ -86,6 +86,9 @@ exdyn_gbif_target_group <- function(group = "Mammalia", rank = "CLASS",
     nm <- entry$name
     rk <- entry$rank %||% rank
     key <- exdyn_gbif_usage_key(nm, rk)
+    if (is.na(key)) {
+      return(list(df = tibble::tibble(), key = NA_integer_, name = nm))
+    }
     raw <- exdyn_gbif_fetch(
       key = key,
       country = country,

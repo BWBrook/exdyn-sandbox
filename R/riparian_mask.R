@@ -40,12 +40,13 @@ exdyn_fetch_rivers_osm <- function(grid_sf, crs_out, min_length_km = 0.1) {
 
 #' Fetch river lines from Natural Earth as a fallback
 #'
-#' @param country_code ISO2/ISO3 code (default `"GB"`).
+#' @param country_code ISO2/ISO3 code or vector (default `"GB"`).
 #' @param crs_out CRS string of the desired output.
 #'
 #' @return An `sf` object of river centerlines.
 #' @export
 exdyn_fetch_rivers_ne <- function(country_code = "GB", crs_out = "EPSG:27700") {
+  country_code <- unique(country_code)
   rivers <- rnaturalearth::ne_download(
     type = "rivers_lake_centerlines",
     category = "physical",
@@ -57,7 +58,7 @@ exdyn_fetch_rivers_ne <- function(country_code = "GB", crs_out = "EPSG:27700") {
   }
   countries <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
   mask <- countries |>
-    dplyr::filter(.data$adm0_a3 == country_code | .data$iso_a2 == country_code)
+    dplyr::filter(.data$adm0_a3 %in% country_code | .data$iso_a2 %in% country_code)
   if (!nrow(mask)) {
     stop("Could not locate Natural Earth polygon for ", country_code)
   }
@@ -228,9 +229,54 @@ exdyn_riparian_components <- function(riparian_matrix, grid_info = NULL) {
     per_cell <- per_cell %>%
       dplyr::left_join(lookup, by = c("row_idx", "col_idx"))
   }
-  list(
-    matrix = comp_mat,
-    table = per_cell,
-    summary = component_summary
+list(
+  matrix = comp_mat,
+  table = per_cell,
+  summary = component_summary
+)
+}
+
+#' Build adjacency between connected components
+#'
+#' @param comp_matrix Integer matrix of component IDs.
+#'
+#' @return Tibble of undirected edges (`unit_i`, `unit_j`).
+#' @export
+exdyn_component_adjacency <- function(comp_matrix) {
+  if (is.null(comp_matrix)) {
+    return(tibble::tibble(unit_i = character(), unit_j = character()))
+  }
+  mat <- as.matrix(comp_matrix)
+  nx <- nrow(mat); ny <- ncol(mat)
+  edges <- list()
+  idx <- 0L
+  for (r in seq_len(nx)) {
+    for (c in seq_len(ny)) {
+      id <- mat[r, c]
+      if (id <= 0L) next
+      if (c < ny) {
+        id_right <- mat[r, c + 1L]
+        if (id_right > 0L && id_right != id) {
+          idx <- idx + 1L
+          edges[[idx]] <- c(min(id, id_right), max(id, id_right))
+        }
+      }
+      if (r < nx) {
+        id_down <- mat[r + 1L, c]
+        if (id_down > 0L && id_down != id) {
+          idx <- idx + 1L
+          edges[[idx]] <- c(min(id, id_down), max(id, id_down))
+        }
+      }
+    }
+  }
+  if (!length(edges)) {
+    return(tibble::tibble(unit_i = character(), unit_j = character()))
+  }
+  edge_mat <- do.call(rbind, edges)
+  edge_df <- unique(data.frame(unit_i = edge_mat[, 1], unit_j = edge_mat[, 2]))
+  tibble::tibble(
+    unit_i = as.character(edge_df$unit_i),
+    unit_j = as.character(edge_df$unit_j)
   )
 }

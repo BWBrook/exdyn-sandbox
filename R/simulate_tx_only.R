@@ -74,6 +74,16 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
   k <- 6 / ramp_years
   pred_scale <- pred$scale %||% 1
   pred_gamma <- pred$gamma %||% 1
+  scale_matrix <- pred$scale_matrix
+  if (!is.null(scale_matrix)) {
+    scale_matrix <- as.matrix(scale_matrix)
+    if (!all(dim(scale_matrix) == c(nx, ny))) {
+      stop("pred$scale_matrix must have dimensions nx × ny")
+    }
+    if (!is.null(mask)) {
+      scale_matrix[!mask] <- 1
+    }
+  }
 
   for (tt in seq_len(Tn - 1)) {
     dt <- years[tt] - T_P
@@ -84,10 +94,13 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
         val <- 0.2 + 0.8 / (1 + exp(-k * (dt - ramp_years / 2)))
         val[dt < 0] <- pre_leak
         val <- pmax(pre_leak, pmin(1, val))
-        if (!isTRUE(all.equal(pred_gamma, 1)) || !isTRUE(all.equal(pred_scale, 1))) {
+        if (!isTRUE(all.equal(pred_gamma, 1)) || !isTRUE(all.equal(pred_scale, 1)) || !is.null(scale_matrix)) {
           idx <- dt >= 0 & !is.na(dt)
           if (any(idx)) {
             scaled <- (val[idx] ^ pred_gamma) * pred_scale
+            if (!is.null(scale_matrix)) {
+              scaled <- scaled * scale_matrix[idx]
+            }
             val[idx] <- scaled
           }
         }

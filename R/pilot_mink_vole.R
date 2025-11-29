@@ -26,6 +26,9 @@ exdyn_param_lhs <- function(cfg_screen, n = NULL, cell_km = 10, seed = 123) {
     "pred_scale", "gamma",
     paste0("delta_", delta_names)
   )
+  if (!is.null(cfg_screen$pred_scale_re_sigma)) {
+    param_names <- c(param_names, "pred_scale_re_sigma")
+  }
   param_names <- param_names[!duplicated(param_names)]
   lhs <- lhs::randomLHS(n, length(param_names))
   scalers <- function(vals, range) {
@@ -45,6 +48,9 @@ exdyn_param_lhs <- function(cfg_screen, n = NULL, cell_km = 10, seed = 123) {
     K0 = cfg_screen$K0,
     disp_mean_cells = disp_mean_km / cell_km
   )
+  if (!is.null(cfg_screen$pred_scale_re_sigma)) {
+    tib$pred_scale_re_sigma <- scalers(lhs[, which(param_names == "pred_scale_re_sigma")], cfg_screen$pred_scale_re_sigma)
+  }
   if (length(delta_names)) {
     for (i in seq_along(delta_names)) {
       col_name <- paste0("delta_", delta_names[i])
