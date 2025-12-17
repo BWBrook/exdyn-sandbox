@@ -1,4 +1,4 @@
-.PHONY: init test run report report-leak report-qa exp report-id report-sens pilot pilot-future
+.PHONY: init test run report report-leak report-qa exp report-id report-sens pilot pilot-future synthetic
 
 init:
 	R --vanilla -e 'renv::restore(); devtools::document(); renv::snapshot(prompt=FALSE)'
@@ -7,14 +7,14 @@ test:
 	R --vanilla -e 'source("renv/activate.R"); devtools::test()'
 
 run:
-	R --vanilla -e 'targets::tar_make()'
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make()'
 
 report:
 	R --vanilla -e 'source("renv/activate.R"); targets::tar_load(c(default_N,default_po,default_foss,default_summs,cfg), store="_targets"); quarto::quarto_render("reports/sandbox.qmd", output_format="html")'
 	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/sandbox.qmd", output_format="pdf")'
 
 exp:
-	R --vanilla -e 'targets::tar_make()'
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make()'
 
 report-id:
 	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/identifiability.qmd", output_format="html")'
@@ -37,3 +37,6 @@ pilot:
 
 pilot-future:
 	R --vanilla -e 'source("renv/activate.R"); targets::tar_make_future(names=c("pilot_screen","pilot_report_html","pilot_report_pdf","pilot_summary"), workers=6)'
+
+synthetic:
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("synthetic_screen","synthetic_abc_final","synthetic_report_html","synthetic_report_pdf"))'

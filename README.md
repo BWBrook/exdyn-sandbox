@@ -3,12 +3,22 @@ Synthetic extinction-dynamics sandbox that couples a lattice-based population si
 
 ## Quick Start
 - `make init` — restore the `renv` library, regenerate documentation, and snapshot the lockfile.
-- `make run` — execute the baseline pipeline (`config/default.yaml`) and materialise the default outputs in `outputs/`.
-- `make exp` — build the branched experiment grid (≥54 runs) and train both driver-aware and response-only classifiers.
 - `make test` — run the `testthat` suite under `tests/testthat`.
+- `make run` — execute the full `targets` pipeline defined in `_targets.R` (can be expensive).
+- `make exp` — build the branched experiment grid (≥54 runs) and train both driver-aware and response-only classifiers.
+- `make pilot` — run the real-data mink → water vole pilot (build TX surfaces + screen/ABC + report).
+- `make synthetic` — run the synthetic mink → vole twin (screen + ABC + report).
 - `make report` — render `reports/sandbox.qmd` after the baseline targets exist.
 - `make report-id` — render the identifiability report (`reports/identifiability.qmd`).
 - `make report-leak` — render the leakage/ablation report (`reports/leakage_and_ablation.qmd`).
+
+### Mink → water vole (GB): quick commands
+The repo now includes two case-study pipelines alongside the legacy sandbox experiments:
+
+- **Real-data pilot (mink → water vole):** `make pilot`  
+  Produces mink arrival `T_P(x)` and observed vole extirpation timing `T_X_obs(x)` (first-passage), then runs a constrained screen/ABC and renders the pilot report.
+- **Synthetic twin (mink → water vole):** `make synthetic`  
+  Generates `T_X_true(x)` and `T_X_obs(x)` under a known truth, then runs the same screen/ABC + renders the synthetic report for recovery benchmarking.
 
 ## Repository Layout
 - `R/` — package sources grouped by responsibility:
@@ -24,8 +34,13 @@ Synthetic extinction-dynamics sandbox that couples a lattice-based population si
 - `config/` — YAML configuration:
   - `default.yaml` single-run settings (50×50 grid, 150 years, predation front).
   - `experiments.yaml` grid + Latin hypercube ranges covering archetypes, scenarios, predation types, dispersal, habitat erosion, climate drift, observation bias, and replicate counts.
+- Mink → vole case-study configs:
+  - `realdata.yaml` real-data pilot knobs (analysis units, effort normalisation, TX estimator controls, screening/ABC settings).
+  - `synthetic.yaml` synthetic twin truth + noise settings and recovery run controls.
 - `tests/testthat/` — suite safeguarding simulator fidelity (`test_sim.R`), grid expansion and summaries (`test_experiments.R`), driver isolation/front metrics (`test_front_signatures.R`), and leakage/response-only guards (`test_leakage_and_front.R`).
-- `reports/` — Quarto sources (`sandbox.qmd`, `identifiability.qmd`, `leakage_and_ablation.qmd`).
+- `reports/` — Quarto sources:
+  - legacy sandbox reports (`sandbox.qmd`, `identifiability.qmd`, `leakage_and_ablation.qmd`),
+  - mink → vole reports (`pilot_mink_vole.qmd`, `synthetic_mink_vole.qmd`).
 - `outputs/` — tar targets persist CSV/RDS bundles, confusion matrices, feature importances, diagnostic rasters/PNGs, and design guidance text.
 - `logs/bootstrap.log` — action log from the initial bootstrap.
 
@@ -45,6 +60,7 @@ The pipeline (see `_targets.R`) includes:
 - Diagnostics (`diagnostic_rasters`, `front_scatter`, `design_guidance`) saving PNGs and summaries to `outputs/diagnostics/`.
 - Power experiment / ablations (`power_grid`, `power_results`, `power_curve`) quantifying response-only macro-F1 as observation bias and dispersal vary.
 - Report helpers (`report_inputs_*`) cached for Quarto rendering.
+- Mink → vole case-study targets (real + synthetic), sourced via `pipelines/targets_pilot_mink_vole.R` and `pipelines/targets_synthetic.R`.
 
 ## Configuring Experiments
 Edit `config/default.yaml` for single-run adjustments (grid size, years, threat scenario, observation settings). Broader sweeps live in `config/experiments.yaml`; key fields include `grid` (factorial combos of species, scenario, predation type), `defaults` (baseline lattice, dispersal, predation, habitat, observation controls), and `replicates`. Latin hypercube ranges feed `exdyn_experiment_grid()`; tweak ranges/rep counts and rerun `make exp`.
@@ -62,6 +78,9 @@ After `tar_make()`:
 - `reports/sandbox.html` — baseline abundance trajectory and sample counts.
 - `reports/identifiability.html` — scenario recoverability, feature importance, diagnostic rasters.
 - `reports/leakage_and_ablation.html` — driver-aware vs response-only confusion matrices, front metric diagnostics, power curves.
+For the mink → vole pipelines:
+- `reports/pilot_mink_vole.html` — real-data pilot (arrival + TX_obs reconstruction + constrained screen/ABC diagnostics).
+- `reports/synthetic_mink_vole.html` — synthetic twin (truth vs observed TX + recovery diagnostics).
 Outputs land in `outputs/`: baseline bundles (`N.rds`, `presence_only.csv`, `fossils.csv`, `total_abundance.csv`), experiment summaries (`experiment_results.csv`), confusion matrices (`confusion_driver_aware_*`, `confusion_response_only_*`), feature importances, design guidance (`design_guidance.txt`), diagnostic PNGs (`outputs/diagnostics/*.png`), and power experiment artefacts (`power_curve_response_only.csv`, `power_curve.png`).
 
 ## Development Workflow
