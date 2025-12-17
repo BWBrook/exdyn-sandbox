@@ -116,3 +116,31 @@
 [2025-11-08 21:13:18] WO9b pilot start 
 [2025-11-08 21:22:25] WO9b pilot start 
 [2025-11-08 21:23:26] WO9b pilot start 
+[2025-11-29 16:04:19] WO9d pilot start 
+[2025-11-29 16:06:06] WO9d pilot start 
+[2025-11-29 16:06:54] WO9d pilot start 
+[2025-11-29 16:07:20] WO9d pilot start 
+[2025-11-29 16:07:47] WO9d pilot start 
+[2025-11-29 16:08:19] WO9d pilot start 
+[2025-11-29 16:09:46] WO9d pilot start 
+[2025-11-29 16:10:30] WO9d pilot start 
+[2025-11-29 16:11:09] WO9d pilot start 
+[2025-11-29 16:11:38] WO9d pilot start 
+[2025-11-29 16:11:39] Analysis units=segment n_units=8 n_tx_obs=1 threshold_met=FALSE 
+[2025-11-29 16:11:58] WO9d pilot start 
+[2025-11-29 16:11:59] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2025-11-29 16:12:03] Guard attempt 1 coverage=0.7895 
+[2025-11-29 16:12:35] WO9d pilot start 
+[2025-11-29 16:14:51] WO9d pilot start 
+[2025-11-29 16:55:00] WO9d pilot start 
+[2025-11-29 16:55:40] WO9d pilot start 
+[2025-11-29 16:56:25] WO9d pilot start 
+[2025-11-29 16:58:32] WO9d pilot start 
+[2025-11-29 17:00:41] WO9d pilot start 
+[2025-11-29 17:03:03] WO9d pilot start 
+[2025-11-29 17:05:11] WO9d pilot start 
+[2025-11-29 17:27:58] WO9d pilot start 
+[2025-11-29 17:43:28] WO9d pilot start 
+[2025-11-29 18:14:04] WO9d pilot start 
+[2025-11-29 18:41:48] WO9d pilot start 
+[2025-11-29 18:51:57] WO9d pilot start 
