@@ -83,3 +83,21 @@ Format for entries:
 ## Pending decisions (must be resolved during Phase 020)
 - Final choice of analysis units for real mink→vole (coarse grid vs segments) based on “enough TX_obs units” gate.
 - Whether to add an explicit habitat field H(x,t) for real mink→vole if predation-only cannot pass gates.
+
+---
+
+## Performance budgets (Phase 020)
+
+- **Date:** 2025-12-19  
+- **Decision:** Establish explicit runtime/memory budgets for synthetic‑twin smoke/medium/full profiles and enforce toy‑profile usage for WP‑0.3.1/0.3.2.  
+- **Rationale:**  
+  - Smoke runs should validate plumbing in minutes, not hours.  
+  - ABC recovery is only defensible if per‑simulation cost is known and bounded.  
+  - Profiling shows observation/TX estimation dominates toy runtime; budgets must account for that.  
+- **Implications:**  
+  - **Toy smoke**: <10 min end‑to‑end on standard workstation.  
+  - **Medium**: <1 hr per end‑to‑end run; not used in CI.  
+  - **Full GB**: labelled **overnight/HPC**; per‑simulation budget to be reported before WP‑0.3.5.  
+  - WP‑0.3.1/0.3.2 must run **toy or medium** only.  
+- **Alternatives considered:**  
+  - Proceeding with full GB smoke (rejected: unbounded runtime).

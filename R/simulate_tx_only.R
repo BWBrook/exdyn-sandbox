@@ -34,6 +34,8 @@ exdyn_update_local_const <- function(N, P, pars, K0, pred_type = c("II", "III"),
 #' @param pre_leak Baseline predation prior to arrival (default 0).
 #' @param log_mem If TRUE, emits memory telemetry every 10 time steps.
 #' @param log_tag Optional label appended to memory log messages.
+#' @param profile If TRUE, attaches timing diagnostics as an attribute.
+#' @param conv_reuse If TRUE, reuse convolution buffers to reduce allocations.
 #' @param mask Optional logical matrix (nx × ny). Cells with `FALSE` are treated
 #'   as outside the simulation: their abundance is fixed at zero and they do not
 #'   receive or donate dispersers.
@@ -46,7 +48,9 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
                                    frac = 0.02, rel0 = 0.5,
                                    pre_leak = 0, log_mem = FALSE,
                                    log_tag = NULL,
-                                   mask = NULL) {
+                                   mask = NULL,
+                                   profile = FALSE,
+                                   conv_reuse = TRUE) {
   nx <- grid_info$nx
   ny <- grid_info$ny
   stopifnot(length(years) >= 2)
@@ -66,7 +70,7 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
   }
   conv_plan <- if (alpha > 0) {
     ker <- exdyn_kernel(mean_cells = disp_mean_cells, radius = 5L)
-    exdyn_conv2_plan(nx, ny, ker)
+    exdyn_conv2_plan(nx, ny, ker, reuse_buffer = conv_reuse)
   } else {
     NULL
   }
@@ -85,7 +89,26 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
     }
   }
 
+  prof <- NULL
+  if (isTRUE(profile)) {
+    prof <- list(
+      pred_field = 0,
+      local_update = 0,
+      dispersal = 0,
+      threshold = 0,
+      total = 0,
+      n_steps = Tn - 1
+    )
+    elapsed <- function() base::proc.time()[["elapsed"]]
+  }
+
   for (tt in seq_len(Tn - 1)) {
+    if (isTRUE(profile)) {
+      step_start <- elapsed()
+    }
+    if (isTRUE(profile)) {
+      t0 <- elapsed()
+    }
     dt <- years[tt] - T_P
     P_t <- ifelse(
       is.na(T_P),
@@ -108,6 +131,10 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
         val
       }
     )
+    if (isTRUE(profile)) {
+      prof$pred_field <- prof$pred_field + (elapsed() - t0)
+      t0 <- elapsed()
+    }
     local <- exdyn_update_local_const(
       N = N,
       P = P_t,
@@ -118,6 +145,10 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
       pred_h = pred$h,
       r_eff_const = r_eff_const
     )
+    if (isTRUE(profile)) {
+      prof$local_update <- prof$local_update + (elapsed() - t0)
+      t0 <- elapsed()
+    }
     if (!is.null(mask)) {
       local[!mask] <- 0
     }
@@ -130,6 +161,10 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
     } else {
       local
     }
+    if (isTRUE(profile)) {
+      prof$dispersal <- prof$dispersal + (elapsed() - t0)
+      t0 <- elapsed()
+    }
     if (!is.null(mask)) {
       N_next[!mask] <- 0
     }
@@ -138,10 +173,17 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
       TX[crossed] <- tt + 1
     }
     N <- pmax(N_next, 0)
+    if (isTRUE(profile)) {
+      prof$threshold <- prof$threshold + (elapsed() - t0)
+      prof$total <- prof$total + (elapsed() - step_start)
+    }
     if (log_mem && tt %% 10L == 0L) {
       msg <- if (is.null(log_tag)) sprintf("t=%d", tt) else sprintf("%s t=%d", log_tag, tt)
       exdyn_mem_log(msg)
     }
+  }
+  if (isTRUE(profile)) {
+    attr(TX, "profile") <- prof
   }
   TX
 }

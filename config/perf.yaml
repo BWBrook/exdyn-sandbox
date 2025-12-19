@@ -1,0 +1,96 @@
+profiles:
+  smoke:
+    grid:
+      type: "toy"
+      nx: 25
+      ny: 25
+      cell_km: 5
+      riparian_frac: 0.65
+      region_n: 3
+    years: [1980, 2005]
+    replicates: 1
+    dispersal: true
+    include_observation: true
+    mask: "riparian"
+    seed: 101
+    arrival:
+      pattern: "gradient"
+      noise_sd: 1.5
+      span_frac: 0.75
+  medium:
+    grid:
+      type: "toy"
+      nx: 70
+      ny: 70
+      cell_km: 10
+      riparian_frac: 0.6
+      region_n: 4
+    years: [1950, 2020]
+    replicates: 1
+    dispersal: true
+    include_observation: false
+    mask: "riparian"
+    seed: 202
+    arrival:
+      pattern: "gradient"
+      noise_sd: 2.0
+      span_frac: 0.8
+  full:
+    grid:
+      type: "pilot"
+    years: "pilot"
+    replicates: 1
+    dispersal: true
+    include_observation: false
+    mask: "riparian"
+    seed: 303
+sim:
+  K0: 120
+  rmax: 0.4
+  A_over_K: 0.1
+  alpha: 0.2
+  disp_mean_km: 10
+  pred_c: 1.2
+  pred_h: 30
+  pred_scale: 2.0
+  gamma: 1.0
+  ramp_years: 8
+  pred_type: "II"
+  pre_leak: 0.0
+  truth_frac: 0.08
+  truth_rel0: 1.0
+obs:
+  po_rate: 0.02
+  effort_strength: 1.0
+  missing_years_prob: 0.0
+  random_tx_dropout: 0.0
+# Used only when include_observation is true.
+tx_cfg:
+  smooth_window: 5
+  min_years_active: 3
+  baseline_window: 5
+  drop_fraction: 0.2
+  hold_years: 3
+  normalize_by: ~
+compat:
+  min_r2_arrival: 0.1
+  lag_range: [0, 30]
+  min_coverage: 0.05
+sweep:
+  grid_sizes: [25, 50, 100]
+  years: [30, 80, 150]
+  replicates: [1, 5]
+  dispersal: [true, false]
+  cell_km: 10
+  riparian_frac: 0.6
+  region_n: 4
+  arrival:
+    pattern: "gradient"
+    noise_sd: 1.5
+    span_frac: 0.75
+  seed: 4242
+optimisation:
+  profile: "smoke"
+  reps: 3
+  seed: 702
+  target: "tx_map_fast"

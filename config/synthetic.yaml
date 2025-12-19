@@ -16,6 +16,13 @@ theta_star:
   pre_leak: 0.0
   truth_frac: 0.12
   truth_rel0: 1.5
+modes:
+  - realistic
+  - ideal
+recovery:
+  n_reps: 3
+  seed: 2026
+  reference_rep: 1
 mask: "all"
 noise:
   po_rate: 0.05
@@ -53,14 +60,19 @@ abc:
   scale:
     grad_mag: 0.05
     pc_ratio: 0.25
-    coverage: 0.05
-    lag_mean: 4
-    lag_sd: 4
-    orient_R: 0.2
-    speed_cells_per_year: 0.5
-    speed_r2: 0.25
-    tx_mean: 4
-    tx_sd: 4
+  coverage: 0.05
+  lag_mean: 4
+  lag_sd: 4
+  r2_arrival: 0.25
+  orient_R: 0.2
+  speed_cells_per_year: 0.5
+  speed_r2: 0.25
+  tx_mean: 4
+  tx_sd: 4
+  cov_curve_1: 0.1
+  cov_curve_2: 0.1
+  cov_curve_3: 0.1
+  cov_curve_4: 0.1
   prior:
     alpha: [0.05, 0.45]
     disp_mean_km: [6, 22]
@@ -88,3 +100,11 @@ tx_cfg:
   drop_fraction: 0.3
   hold_years: 6
   normalize_by: ~
+canonical:
+  enabled: false
+  root: "outputs/canonical"
+  milestone: "0.3"
+  wp_id: "WP-0.3.1"
+  run_id: ~
+  commands:
+    - "make synthetic"

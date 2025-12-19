@@ -4,7 +4,7 @@ exdyn_coverage_curve <- function(TX, T_P, breaks) {
     return(numeric())
   }
   finite <- is.finite(TX) & is.finite(T_P)
-  denom <- length(finite)
+  denom <- sum(is.finite(T_P))
   if (!denom) {
     return(rep(NA_real_, length(breaks)))
   }
@@ -39,19 +39,25 @@ exdyn_summary_tx_response <- function(TX, T_P, years = NULL, coverage_breaks = N
   orient <- exdyn_orientation_metrics(TX)
   speed_est <- exdyn_front_speed_estimate(TX, orient$dominant)
   finite <- is.finite(TX) & is.finite(T_P)
-  coverage <- if (any(finite)) mean(finite) else 0
+  denom <- sum(is.finite(T_P))
+  coverage <- if (denom > 0) sum(finite) / denom else 0
   lag_mean <- lag_sd <- NA_real_
   if (coverage > 0) {
     lag_vals <- TX[finite] - T_P[finite]
     lag_mean <- mean(lag_vals)
     lag_sd <- stats::sd(lag_vals)
   }
+  r2_arrival <- NA_real_
+  if (sum(finite) >= 3) {
+    fit <- stats::lm(TX[finite] ~ T_P[finite])
+    r2_arrival <- max(0, min(1, summary(fit)$r.squared))
+  }
   tx_vals <- TX[is.finite(TX)]
   tx_mean <- if (length(tx_vals)) mean(tx_vals) else NA_real_
   tx_sd <- if (length(tx_vals)) stats::sd(tx_vals) else NA_real_
   if (is.null(coverage_breaks)) {
     if (!is.null(years) && length(years) >= 2) {
-      coverage_breaks <- seq(min(years), max(years), length.out = 6L)[2:5]
+      coverage_breaks <- exdyn_coverage_breaks(years)
     } else {
       coverage_breaks <- numeric()
     }
@@ -61,14 +67,15 @@ exdyn_summary_tx_response <- function(TX, T_P, years = NULL, coverage_breaks = N
     names(coverage_curve) <- paste0("cov_curve_", seq_along(coverage_curve))
   }
   c(
-    grad_mag = plane$grad_mag,
-    pc_ratio = plane$pc_ratio,
+    grad_mag = unname(plane$grad_mag),
+    pc_ratio = unname(plane$pc_ratio),
     coverage = coverage,
     lag_mean = lag_mean,
     lag_sd = lag_sd,
-    orient_R = orient$R,
-    speed_cells_per_year = speed_est$speed,
-    speed_r2 = speed_est$r2,
+    r2_arrival = r2_arrival,
+    orient_R = unname(orient$R),
+    speed_cells_per_year = unname(speed_est$speed),
+    speed_r2 = unname(speed_est$r2),
     tx_mean = tx_mean,
     tx_sd = tx_sd,
     coverage_curve

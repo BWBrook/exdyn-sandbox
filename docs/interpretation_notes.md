@@ -27,6 +27,14 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - δ offsets flattening structure if too flexible.
 - Summary vector scaling choices dominating ABC distance (must be justified).
 
+### Performance & scaling notes (Phase 020)
+- Perf smoke: TX_true shows a clean gradient front on the toy grid; TX_obs preserves that ordering while thinning coverage (observation/first‑passage noise behaves as expected).
+- Perf smoke: observation/TX estimator is the dominant wall‑time cost at toy scale; core TX‑only simulation is comparatively cheap.
+- Scaling sweep: wall time grows with years and grid size; dispersal adds overhead but does not dominate at toy scales.
+- Scaling sweep: peak RSS appears unrealistically low in this environment; treat memory numbers as lower bounds only.
+- Optimisation: fast TX mapping reduces observation-stage runtime by ~4.2× (7.07 s → 1.67 s in toy bench); fast/slow paths match outputs in tests.
+- Toy perf params were strengthened after an early degenerate TX_true map; current smoke artefacts show coherent fronts.
+
 ---
 
 ## B) Real mink→vole (Phase 020 target)

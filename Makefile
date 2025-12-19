@@ -39,4 +39,4 @@ pilot-future:
 	R --vanilla -e 'source("renv/activate.R"); targets::tar_make_future(names=c("pilot_screen","pilot_report_html","pilot_report_pdf","pilot_summary"), workers=6)'
 
 synthetic:
-	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("synthetic_screen","synthetic_abc_final","synthetic_report_html","synthetic_report_pdf"))'
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("synthetic_report_html","synthetic_report_pdf","synthetic_recovery_written"))'

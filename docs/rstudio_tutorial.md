@@ -44,8 +44,8 @@ future::plan(multicore, workers = 4)         # shared memory; safe on Linux
 options(future.globals.maxSize = Inf)
 
 targets::tar_make_future(
-  names = c("synthetic_screen","synthetic_abc",
-            "synthetic_report_html","synthetic_report_pdf"),
+  names = c("synthetic_report_html","synthetic_report_pdf",
+            "synthetic_recovery_written"),
   workers = 4,
   callr_function = NULL
 )
@@ -54,7 +54,9 @@ targets::tar_make_future(
 Explore the outputs:
 
 ```r
-tar_read(synthetic_screen) |> dplyr::arrange(loss) |> dplyr::slice_head(n = 5)
+tar_read(synthetic_reference_runs)[[1]]$screen_results |>
+  dplyr::arrange(loss) |>
+  dplyr::slice_head(n = 5)
 browseURL(tar_read(synthetic_report_html))   # opens the report in your browser
 ```
 

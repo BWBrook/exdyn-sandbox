@@ -17,13 +17,14 @@ exdyn_update_local <- function(N, S, H, P, pars, K0, pred_type=c("II","III"), pr
   N * exp(growth)
 }
 #' Full simulation with dispersal
+#' @param conv_reuse If TRUE, reuse convolution buffers to reduce allocations.
 #' @export
 exdyn_simulate <- function(nx, ny, years, fields, pars, K0=100, alpha=0.2, disp_mean_cells=1.0,
-                           pred=list(type="II",c=0.6,h=30)) {
+                           pred=list(type="II",c=0.6,h=30), conv_reuse = TRUE) {
   N <- array(0, c(nx,ny,years))
   N[,,1] <- pmax(1, round(K0 * fields$S[,,1] * 0.1))
   ker <- exdyn_kernel(mean_cells=disp_mean_cells, radius=5L)
-  conv_plan <- if (alpha > 0) exdyn_conv2_plan(nx, ny, ker) else NULL
+  conv_plan <- if (alpha > 0) exdyn_conv2_plan(nx, ny, ker, reuse_buffer = conv_reuse) else NULL
   for (t in 1:(years-1)) {
     local <- exdyn_update_local(
       N = N[,,t], S = fields$S[,,t], H = fields$H[,,t], P = fields$P[,,t],

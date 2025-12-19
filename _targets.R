@@ -38,9 +38,18 @@ if (requireNamespace("pkgload", quietly = TRUE)) {
 
 source("R/utils.R", local = TRUE)
 source("R/targets_helpers.R", local = TRUE)
+source("R/mem_utils.R", local = TRUE)
+source("R/schema.R", local = TRUE)
+source("R/canonical.R", local = TRUE)
+source("R/synthetic_cfg.R", local = TRUE)
+source("R/synthetic_recovery.R", local = TRUE)
+source("R/coverage_utils.R", local = TRUE)
+source("R/synthetic_twin.R", local = TRUE)
+source("R/perf_utils.R", local = TRUE)
 source("pipelines/targets_realdata_gbif.R", local = TRUE)
 source("pipelines/targets_pilot_mink_vole.R", local = TRUE)
 source("pipelines/targets_synthetic.R", local = TRUE)
+source("pipelines/targets_perf.R", local = TRUE)
 
 c(
   list(
@@ -164,5 +173,6 @@ c(
   ),
   targets_realdata_gbif(),
   targets_pilot_mink_vole(),
-  targets_synthetic_mink_vole()
+  targets_synthetic_mink_vole(),
+  targets_perf()
 )

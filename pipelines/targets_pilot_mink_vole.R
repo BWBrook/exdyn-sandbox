@@ -566,12 +566,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     tar_target(pilot_unit_structure, {
       preferred <- pilot_cfg$pilot$analysis_unit %||% "segment"
       years_vec <- pilot_years
-      coverage_breaks <- if (length(years_vec) >= 2) {
-        brks <- seq(min(years_vec), max(years_vec), length.out = 6L)
-        brks[2:5]
-      } else {
-        numeric()
-      }
+      coverage_breaks <- exdyn_coverage_breaks(years_vec)
       make_mask <- function(lookup) {
         mask <- matrix(FALSE, nrow = pilot_grid_info$nx, ncol = pilot_grid_info$ny)
         if (nrow(lookup)) {

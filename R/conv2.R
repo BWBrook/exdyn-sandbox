@@ -1,21 +1,36 @@
 #' Precompute FFT plan for 2D convolution
 #' @export
-exdyn_conv2_plan <- function(nx, ny, kernel) {
+exdyn_conv2_plan <- function(nx, ny, kernel, reuse_buffer = FALSE) {
   stopifnot(all(dim(kernel) %% 2L == 1L))
   pad <- (dim(kernel) - 1L) / 2L
   big_dim <- c(nx + 2L * pad[1], ny + 2L * pad[2])
+  buffer_env <- NULL
+  if (isTRUE(reuse_buffer)) {
+    buffer_env <- new.env(parent = emptyenv())
+    buffer_env$big <- matrix(0, nrow = big_dim[1], ncol = big_dim[2])
+    buffer_env$fa <- complex(length = length(buffer_env$big))
+    dim(buffer_env$fa) <- dim(buffer_env$big)
+  }
   list(
     pad = pad,
     big_dim = big_dim,
     fb = stats::fft(kern_pad(kernel, big_dim)),
     x_idx = (pad[1] + 1L):(pad[1] + nx),
-    y_idx = (pad[2] + 1L):(pad[2] + ny)
+    y_idx = (pad[2] + 1L):(pad[2] + ny),
+    buffer_env = buffer_env
   )
 }
 
 #' Apply cached FFT plan
 #' @export
 exdyn_conv2_apply <- function(mat, plan) {
+  if (!is.null(plan$buffer_env)) {
+    plan$buffer_env$big[] <- 0
+    plan$buffer_env$big[plan$x_idx, plan$y_idx] <- mat
+    fa <- stats::fft(plan$buffer_env$big)
+    plan$buffer_env$fa[] <- fa * plan$fb
+    return(Re(stats::fft(plan$buffer_env$fa, inverse = TRUE) / length(plan$buffer_env$fa))[plan$x_idx, plan$y_idx])
+  }
   big <- matrix(0, nrow = plan$big_dim[1], ncol = plan$big_dim[2])
   big[plan$x_idx, plan$y_idx] <- mat
   fa <- stats::fft(big)

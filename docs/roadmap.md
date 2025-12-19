@@ -94,6 +94,14 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 
 ## 3) Priority Queue (strict order)
 
+### Milestone 0.2.x — Performance & scaling ground truth
+- [x] **WP‑0.2.1 — Toy benchmark scenario + explicit smoke profiles**
+- [x] **WP‑0.2.2 — Timing & memory instrumentation harness**
+- [x] **WP‑0.2.3 — Scaling sweep: (grid × years × replicates) performance map**
+- [x] **WP‑0.2.4 — Performance budgets + gating thresholds (contract for later WPs)**
+- [x] **WP‑0.2.5 — Targeted optimisation of the dominant bottleneck (only one)**
+- [x] **WP‑0.2.6 — CI-safe performance guardrails (lightweight)**
+
 ### Milestone 0.3.x — Synthetic twin benchmark locked (must pass before any real-data claims)
 - [ ] **WP‑0.3.1 — Synthetic outputs schema + canonical artefact manifest standard**
 - [ ] **WP‑0.3.2 — Synthetic: ideal vs realistic modes (TX_true vs TX_obs) wired end‑to‑end**
@@ -118,6 +126,203 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 ---
 
 ## 4) Detailed WP specifications
+
+### WP‑0.2.1 — Toy benchmark scenario + explicit smoke profiles
+
+**Outcome:** A deliberately tiny “toy” scenario exists (small grid, short time span) plus a controlled ramp-up set, so smoke tests are *fast by definition* and scaling can be explored deliberately.
+
+**Scope (in/out):**
+
+* In: create toy configs; define “smoke”, “medium”, “full” run profiles (years, grid size, replicates); document.
+* Out: algorithmic optimisation.
+
+**Acceptance criteria:**
+
+* There is a documented **toy** config and it is the default for smoke tests.
+* Smoke run completes end-to-end (sim + summaries + minimal outputs) in **<10 minutes** on the usual machine (CI can be smaller).
+* Medium profile exists and is runnable (but not used by CI).
+* Full profile corresponds to the British Isles synthetic twin settings (explicitly labelled “overnight/HPC”).
+
+**Artefact evidence:**
+
+* `outputs/perf/toy_smoke/` (or canonical folder) with:
+
+  * manifest (commit, seeds, config snapshot),
+  * a runtime + memory record,
+  * at least one TX map + one key summary table.
+
+**Stop condition:** Smoke and medium profiles exist, are documented, and smoke completes fast.
+
+**Status:** Complete — see `config/perf.yaml` and `outputs/perf/toy_smoke/` (2025‑12‑19).
+
+---
+
+### WP‑0.2.2 — Timing & memory instrumentation harness
+
+**Outcome:** We can produce a table that says, unambiguously, where time and RAM go (sim loop vs dispersal vs summary vs observation vs I/O).
+
+**Scope:**
+
+* In: instrumentation wrapper(s) that measure wall time and peak memory for named stages.
+* Out: speeding anything up yet.
+
+**Acceptance criteria:**
+
+* A single run emits a **stage-level profiling table** with at least:
+
+  * setup time,
+  * per-year sim time (aggregated),
+  * dispersal time,
+  * predation-field regeneration time,
+  * summary computation time,
+  * observation model time (if invoked),
+  * save/serialization time,
+  * peak memory estimate.
+* Results are saved as a CSV in `outputs/perf/`.
+
+**Artefact evidence:**
+
+* `outputs/perf/stage_profile_smoke.csv`
+* One short narrative sanity note in `docs/log/` explaining what dominates and what surprised us.
+
+**Stop condition:** Stage profile exists and is repeatable.
+
+**Status:** Complete — `outputs/perf/stage_profile_smoke.csv` produced (2025‑12‑19).
+
+---
+
+### WP‑0.2.3 — Scaling sweep: (grid × years × replicates) performance map
+
+**Outcome:** A small, systematic scaling experiment exists that shows empirical scaling (time + RAM) as a function of grid size, years, and replicate count.
+
+**Scope:**
+
+* In: run a small factorial grid (not huge) across:
+
+  * grid sizes (e.g., 25×25, 50×50, 100×100 or equivalent cell counts),
+  * years (e.g., 30, 80, 150),
+  * replicates (e.g., 1, 10),
+  * with dispersal on/off as a separate switch.
+* Out: tuning ABC.
+
+**Acceptance criteria:**
+
+* The scaling sweep produces a tidy table:
+
+  * `n_cells`, `n_years`, `n_reps`, `dispersal_on`,
+  * `wall_time`, `peak_mem`, plus stage breakdown if available.
+* At least one plot/summary exists that makes scaling behaviour obvious (even just a simple log-log plot).
+
+**Artefact evidence:**
+
+* `outputs/perf/scaling_sweep.csv`
+* `outputs/perf/scaling_plots/` containing at least one figure.
+
+**Stop condition:** We can point to the table and say “doubling cells roughly does X”.
+
+**Status:** Complete — `outputs/perf/scaling_sweep.csv` and plots in `outputs/perf/scaling_plots/` (2025‑12‑19).
+
+---
+
+### WP‑0.2.4 — Performance budgets + gating thresholds (contract for later WPs)
+
+**Outcome:** We write down explicit runtime budgets that later WPs must respect (so no one accidentally turns “smoke” into “inferno”).
+
+**Scope:**
+
+* In: define performance budgets for:
+
+  * toy smoke,
+  * medium profile,
+  * full GB synthetic twin *per simulation*,
+  * and rough projected costs for screens/ABC.
+* Out: code optimisation.
+
+**Acceptance criteria:**
+
+* `docs/decisions.md` includes a **Performance Budget** decision:
+
+  * per-simulation time budgets,
+  * memory ceiling guidance,
+  * what counts as “large run”.
+* Roadmap WPs 0.3.x are updated so that:
+
+  * WP‑0.3.1 and WP‑0.3.2 must use the **toy** or **medium** profile only,
+  * the first allowed “overnight/full GB” run is WP‑0.3.5 (already marked LARGE).
+
+**Artefact evidence:**
+
+* A budget table in docs (and referenced in roadmap).
+* A log entry noting the budgets were derived from WP‑0.2.3 evidence.
+
+**Stop condition:** Budgets exist and are enforceable.
+
+**Status:** Complete — budgets recorded in `docs/decisions.md` (2025‑12‑19).
+
+---
+
+### WP‑0.2.5 — Targeted optimisation of the dominant bottleneck (only one)
+
+**Outcome:** Implement *one* performance improvement that targets the actual hotspot, and demonstrate a measured speed/memory improvement **without changing scientific meaning**.
+
+**Scope:**
+
+* In: one optimisation only (e.g., caching FFT plans, preallocation, reducing copies, avoiding per-year allocations, or making mask operations cheaper).
+* Out: refactoring everything.
+
+**Acceptance criteria:**
+
+* A before/after benchmark exists (same configuration, same seed) showing:
+
+  * ≥2× speed improvement **or** ≥30% memory reduction in the dominant stage.
+* Regression/sanity tests confirm that:
+
+  * TX outputs are identical (or within documented tolerance if stochastic), and
+  * summaries are unchanged except for expected stochastic noise.
+
+**Artefact evidence:**
+
+* `outputs/perf/optimisation_before_after.csv`
+* Log note describing what changed and why it’s safe.
+
+**Stop condition:** Measured improvement delivered and validated.
+
+**Status:** Complete — fast TX map path implemented; comparison recorded in `outputs/perf/optimisation_before_after.csv` (2025-12-19).
+
+---
+
+### WP‑0.2.6 — CI-safe performance guardrails (lightweight)
+
+**Outcome:** CI stops silently-increasing runtime/memory regressions from creeping back in.
+
+**Scope:**
+
+* In: CI smoke run uses toy profile and enforces basic constraints.
+* Out: strict microsecond-level performance tests (too brittle).
+
+**Acceptance criteria:**
+
+* At least one automated test fails if:
+
+  * smoke runtime exceeds a generous threshold on CI hardware, or
+  * memory exceeds an agreed ceiling, or
+  * output schema changes without bumping schema_version.
+* These guardrails are documented (so people don’t “fix” them by removing them).
+
+**Artefact evidence:**
+
+* CI/test log showing guardrail running.
+* A doc note explaining thresholds and why they’re not overly strict.
+
+**Stop condition:** Guardrails exist and won’t be casually deleted.
+
+**Status:** Complete — guardrail test in `tests/testthat/test_perf_guardrails.R` (2025‑12‑19).
+
+---
+
+### Note on WP-0.3.1 to 0.3.4 
+* Re-scope WP‑0.3.1 so its smoke artefact is built on the toy/medium profile only.
+* Only run British Isles 10‑km full synthetic in **WP‑0.3.5 (LARGE)** when the engine is proven and budgeted.
 
 ### WP‑0.3.1 — Synthetic outputs schema + canonical artefact manifest standard
 
@@ -691,4 +896,3 @@ Codex must stop and request a PI review ZIP in any of the following cases:
 
 5. **At most every 3 WPs completed (to prevent drift):**
    - If three WPs are completed without a PI review gate being triggered, Codex must stop and request a PI review ZIP anyway.
-
