@@ -12,13 +12,18 @@ format:
 library(targets)
 library(dplyr)
 library(ggplot2)
+if (requireNamespace("pkgload", quietly = TRUE)) {
+  pkgload::load_all(export_all = FALSE, helpers = FALSE)
+} else if (requireNamespace("devtools", quietly = TRUE)) {
+  devtools::load_all(export_all = FALSE)
+}
 truth <- tar_read(synthetic_reference_truth)
 mode_runs <- tar_read(synthetic_reference_runs)
 theta_star <- tar_read(synthetic_theta_star)
 recovery <- tar_read(synthetic_recovery_tables)
 rep_metrics <- recovery$replicate_metrics
 param_recovery <- recovery$parameter_recovery
-grid_info <- tar_read(pilot_grid_info)
+grid_info <- tar_read(synthetic_grid_info)
 recovery_cfg <- tar_read(synthetic_recovery_cfg)
 plot_surface <- function(mat, title) exdyn_plot_surface(mat, grid_info, title)
 ```
@@ -55,19 +60,25 @@ rep_metrics %>%
 ```
 
 ```{r recovery-table}
-param_recovery %>%
-  arrange(mode, desc(abs_bias)) %>%
-  select(mode, param, truth, bias, abs_bias, coverage_80, coverage_95, shrinkage_ratio)
+if (nrow(param_recovery) && all(c("mode", "abs_bias") %in% names(param_recovery))) {
+  param_recovery %>%
+    arrange(.data$mode, desc(.data$abs_bias)) %>%
+    select(.data$mode, .data$param, .data$truth, .data$bias, .data$abs_bias, .data$coverage_80, .data$coverage_95, .data$shrinkage_ratio)
+} else {
+  tibble::tibble(note = "No parameter recovery table available (empty or missing columns).")
+}
 ```
 
 ```{r recovery-plot}
-param_recovery %>%
-  filter(!is.na(abs_bias)) %>%
-  ggplot(aes(x = abs_bias, y = coverage_80, color = mode)) +
-  geom_point() +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "grey70") +
-  theme_minimal() +
-  labs(title = "Recovery tradeoff (abs bias vs 80% coverage)", x = "Absolute bias", y = "Coverage (80%)")
+if (nrow(param_recovery) && all(c("abs_bias", "coverage_80", "mode") %in% names(param_recovery))) {
+  param_recovery %>%
+    filter(!is.na(.data$abs_bias)) %>%
+    ggplot(aes(x = .data$abs_bias, y = .data$coverage_80, color = .data$mode)) +
+    geom_point() +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "grey70") +
+    theme_minimal() +
+    labs(title = "Recovery tradeoff (abs bias vs 80% coverage)", x = "Absolute bias", y = "Coverage (80%)")
+}
 ```
 
 ## Reference maps (replicate `r recovery_cfg$reference_rep %||% 1`)

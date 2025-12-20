@@ -34,6 +34,13 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - Scaling sweep: peak RSS appears unrealistically low in this environment; treat memory numbers as lower bounds only.
 - Optimisation: fast TX mapping reduces observation-stage runtime by ~4.2× (7.07 s → 1.67 s in toy bench); fast/slow paths match outputs in tests.
 - Toy perf params were strengthened after an early degenerate TX_true map; current smoke artefacts show coherent fronts.
+- GB preflight (realistic, 1 rep) is heavy: ~43.5 min wall time and ~42 GB RSS; observation pipeline is the practical bottleneck at scale.
+
+### Synthetic benchmark notes (Phase 030)
+- Toy canonical runs show coherent TX_true fronts and noisy TX_obs maps; spatial ordering preserved across modes.
+- Replicated recovery (R=10) required a much larger ABC eps in toy mode; current scale settings are too tight for toy summaries.
+- Parameter recovery tables populate as expected once acceptance exists; shrinkage ratios highlight weakly identified deltas even on toy.
+- Realistic-mode acceptance tends to produce near‑full coverage in toy runs; watch for scale‑dependent saturation.
 
 ---
 

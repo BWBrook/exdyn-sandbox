@@ -16,6 +16,20 @@ theta_star:
   pre_leak: 0.0
   truth_frac: 0.12
   truth_rel0: 1.5
+grid:
+  type: "toy"
+  nx: 25
+  ny: 25
+  cell_km: 10
+  riparian_frac: 0.65
+  region_n: 3
+  region_labels: ["SCT", "N_ENG", "S_ENG_WAL"]
+  seed: 101
+  arrival:
+    pattern: "gradient"
+    noise_sd: 1.5
+    span_frac: 0.75
+years: [1980, 2005]
 modes:
   - realistic
   - ideal

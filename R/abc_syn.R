@@ -119,8 +119,15 @@ exdyn_abc_rejection <- function(S_obs,
   if (is.null(scale)) {
     scale <- pmax(abs(S_obs), 1e-6)
   }
-  S_obs <- as.numeric(S_obs)
   names_obs <- names(S_obs)
+  S_obs <- as.numeric(S_obs)
+  if (!is.null(names_obs)) {
+    names(S_obs) <- names_obs
+  }
+  scale <- as.numeric(scale)
+  if (!is.null(names_obs)) {
+    names(scale) <- names_obs
+  }
   theta_list <- vector("list", n_sims)
   summary_list <- vector("list", n_sims)
   dist_vec <- rep(NA_real_, n_sims)
@@ -130,10 +137,11 @@ exdyn_abc_rejection <- function(S_obs,
     sim <- simulator(theta)
     S_sim <- summary_fn(sim)
     S_sim <- S_sim[names_obs]
-    if (any(!is.finite(S_sim))) {
+    valid <- is.finite(S_sim) & is.finite(S_obs) & is.finite(scale)
+    if (!any(valid)) {
       dist <- Inf
     } else {
-      dist <- sqrt(sum(((S_sim - S_obs) / scale)^2))
+      dist <- sqrt(sum(((S_sim[valid] - S_obs[valid]) / scale[valid])^2))
     }
     theta_list[[i]] <- theta
     summary_list[[i]] <- S_sim

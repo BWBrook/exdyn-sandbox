@@ -22,6 +22,8 @@ test_that("ABC rejection recovers simple lag parameter", {
     progress = FALSE
   )
   expect_gt(nrow(abc$samples), 0)
+  expect_true(nrow(abc$summaries) == nrow(abc$samples))
+  expect_identical(names(abc$summaries), names(S_obs))
   expect_true(abs(mean(abc$samples$lag) - lag_true) < 1.5)
 })
 

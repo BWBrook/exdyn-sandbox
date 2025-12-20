@@ -596,16 +596,23 @@ exdyn_write_synthetic_recovery_tables <- function(recovery_tables, output_root) 
   if (!nrow(rep_tbl) && !nrow(param_tbl)) {
     return(character())
   }
-  modes <- sort(unique(c(rep_tbl$mode, param_tbl$mode)))
+  rep_modes <- if ("mode" %in% names(rep_tbl)) rep_tbl$mode else character()
+  param_modes <- if ("mode" %in% names(param_tbl)) param_tbl$mode else character()
+  modes <- sort(unique(c(rep_modes, param_modes)))
   out_paths <- character()
   for (mode in modes) {
     mode_dir <- file.path(output_root, "recovery", mode)
     dir.create(mode_dir, recursive = TRUE, showWarnings = FALSE)
     rep_path <- file.path(mode_dir, "replicate_metrics.csv")
     param_path <- file.path(mode_dir, "parameter_recovery.csv")
-    readr::write_csv(rep_tbl %>% dplyr::filter(.data$mode == mode), rep_path)
-    readr::write_csv(param_tbl %>% dplyr::filter(.data$mode == mode), param_path)
-    out_paths <- c(out_paths, rep_path, param_path)
+    if (nrow(rep_tbl)) {
+      readr::write_csv(rep_tbl %>% dplyr::filter(.data$mode == mode), rep_path)
+      out_paths <- c(out_paths, rep_path)
+    }
+    if (nrow(param_tbl) && "mode" %in% names(param_tbl)) {
+      readr::write_csv(param_tbl %>% dplyr::filter(.data$mode == mode), param_path)
+      out_paths <- c(out_paths, param_path)
+    }
   }
   out_paths
 }

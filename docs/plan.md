@@ -86,12 +86,13 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 ## 7) Current status and next steps (to be maintained by Codex)
 
 ### Current phase
-- Phase 020 — Performance & scaling ground truth (WP‑0.2.x)
+- Phase 030 — Synthetic benchmark lock‑down (WP‑0.3.x)
 
 ### Recently completed
 - Phase 000 — Takeover + harness (docs + README + Makefile refresh).
 - Completed perf profiling + scaling + guardrails + optimisation (WP‑0.2.x).
+- Completed WP‑0.3.1 → WP‑0.3.4b (canonical schema, modes, replicated recovery, alignment tests, GB preflight budgets).
 
 ### Next steps (short queue)
-- Review scaling plots for any unexpected nonlinearities (quick check before 0.3.x).
-- Resume WP‑0.3.x synthetic benchmark work (WP‑0.3.1 → WP‑0.3.4) using toy/medium profiles only.
+- Review recovery outputs for summary scaling issues (toy eps currently large).
+- Proceed to WP‑0.3.5 only after PI confirms budgets and expected runtime.

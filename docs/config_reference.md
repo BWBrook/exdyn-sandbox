@@ -14,6 +14,22 @@ Fields include: `rmax`, `A_over_K`, `alpha`, `disp_mean_km`, `pred_scale`,
 `pred_c`, `pred_h`, `gamma`, `delta_region`, `ramp_years`, `pred_type`,
 `pre_leak`, and (optionally) `truth_frac`, `truth_rel0`.
 
+### `grid`
+Controls the spatial grid used for synthetic runs.
+- `type`: `"pilot"` (use GB grid) or `"toy"` (synthetic grid).
+- For `type: "toy"`:
+  - `nx`, `ny`: grid dimensions.
+  - `cell_km`: cell size in km.
+  - `riparian_frac`: fraction of cells flagged as riparian.
+  - `region_n`: number of banded regions.
+  - `region_labels`: optional labels for regions (e.g., `SCT`, `N_ENG`).
+  - `seed`: RNG seed.
+  - `arrival`: `pattern` (`gradient`, `row`, `col`), `noise_sd`, `span_frac`.
+
+### `years`
+Simulation years for synthetic runs. Either `[start, end]` or `"pilot"` to
+use the pilot year range.
+
 ### `modes`
 Vector of synthetic inference modes:
 - `ideal`: inference on `TX_true` (algorithmic identifiability).
@@ -67,10 +83,19 @@ Environment overrides (optional, for reproducible smoke/canonical runs):
 - `EXDYN_CANONICAL_ENABLED`, `EXDYN_CANONICAL_WP`,
   `EXDYN_CANONICAL_RUN_ID`, `EXDYN_CANONICAL_MILESTONE`,
   `EXDYN_CANONICAL_ROOT`
+- `EXDYN_SYNTHETIC_MODES` (comma-separated, e.g. `ideal,realistic`).
+- `EXDYN_SYNTHETIC_YEARS` (`"pilot"` or `start,end`).
+- `EXDYN_SYNTHETIC_GRID_TYPE` (`pilot` or `toy`).
+- `EXDYN_SYNTHETIC_GRID_NX`, `EXDYN_SYNTHETIC_GRID_NY`,
+  `EXDYN_SYNTHETIC_GRID_CELL_KM`, `EXDYN_SYNTHETIC_GRID_RIPARIAN_FRAC`,
+  `EXDYN_SYNTHETIC_GRID_REGION_N`,
+  `EXDYN_SYNTHETIC_GRID_REGION_LABELS` (comma-separated).
 - `EXDYN_SYNTHETIC_SMOKE=1` caps draw counts and simulation sizes.
 - `EXDYN_SYNTHETIC_REPS=<int>` overrides `recovery.n_reps`.
 - `EXDYN_SYNTHETIC_SCREEN_DRAWS=<int>` overrides `screen.n_draws`.
 - `EXDYN_SYNTHETIC_ABC_N=<int>` overrides `abc.n_sims`.
+- `EXDYN_SYNTHETIC_ABC_EPS=<num>` overrides `abc.eps`.
+- `EXDYN_SYNTHETIC_ABC_EPS_TIGHT=<num>` overrides `abc.eps_tight`.
 - `EXDYN_SYNTHETIC_ABC_LHS_N=<int>` and `EXDYN_SYNTHETIC_ABC_LHS_KEEP=<int>` override LHS scan sizes.
 - `EXDYN_SYNTHETIC_ABC_REFINE=0/1` toggles the refined ABC stage.
 

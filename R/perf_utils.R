@@ -2,7 +2,8 @@
 
 #' Build a toy grid for performance benchmarks
 #' @keywords internal
-exdyn_perf_make_grid <- function(nx, ny, cell_km = 10, riparian_frac = 0.6, region_n = 3, seed = NULL) {
+exdyn_perf_make_grid <- function(nx, ny, cell_km = 10, riparian_frac = 0.6,
+                                 region_n = 3, region_labels = NULL, seed = NULL) {
   if (!is.null(seed)) set.seed(seed)
   grid <- tidyr::expand_grid(
     row = seq_len(nx),
@@ -13,10 +14,20 @@ exdyn_perf_make_grid <- function(nx, ny, cell_km = 10, riparian_frac = 0.6, regi
       cell_km = cell_km
     )
 
-  bands <- cut(grid$row,
-               breaks = seq(0, nx, length.out = region_n + 1),
-               include.lowest = TRUE, labels = FALSE)
-  grid$region <- paste0("R", bands)
+  bands <- cut(
+    grid$row,
+    breaks = seq(0, nx, length.out = region_n + 1),
+    include.lowest = TRUE,
+    labels = FALSE
+  )
+  if (!is.null(region_labels)) {
+    if (length(region_labels) != region_n) {
+      stop("region_labels must have length region_n")
+    }
+    grid$region <- region_labels[bands]
+  } else {
+    grid$region <- paste0("R", bands)
+  }
 
   center <- (ny + 1) / 2
   score <- abs(grid$col - center) + stats::rnorm(nrow(grid), sd = 0.25)

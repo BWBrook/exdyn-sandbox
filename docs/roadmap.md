@@ -103,10 +103,11 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 - [x] **WP‑0.2.6 — CI-safe performance guardrails (lightweight)**
 
 ### Milestone 0.3.x — Synthetic twin benchmark locked (must pass before any real-data claims)
-- [ ] **WP‑0.3.1 — Synthetic outputs schema + canonical artefact manifest standard**
-- [ ] **WP‑0.3.2 — Synthetic: ideal vs realistic modes (TX_true vs TX_obs) wired end‑to‑end**
-- [ ] **WP‑0.3.3 — Synthetic: replicated recovery harness + parameter recovery metrics**
-- [ ] **WP‑0.3.4 — Synthetic: summary/loss alignment + regression tests**
+- [x] **WP‑0.3.1 — Synthetic outputs schema + canonical artefact manifest standard**
+- [x] **WP‑0.3.2 — Synthetic: ideal vs realistic modes (TX_true vs TX_obs) wired end‑to‑end**
+- [x] **WP‑0.3.3 — Synthetic: replicated recovery harness + parameter recovery metrics**
+- [x] **WP‑0.3.4 — Synthetic: summary/loss alignment + regression tests**
+- [x] **WP‑0.3.4b — GB‑scale preflight budget check (single‑replicate, realistic mode, real RSS)**
 - [ ] **WP‑0.3.5 (LARGE) — Synthetic: canonical recovery run (R≥20) + benchmark gates**
 - [ ] **WP‑0.3.6 — Synthetic: identifiability stress mini‑sweep + failure regime artefacts**
 
@@ -355,10 +356,10 @@ The synthetic twin becomes a benchmarkable “instrument”: outputs are version
 - Acceptance criteria met; Artefact Review Cycle logged; WP checkbox checked; completion record appended below.
 
 **Completion record (append on completion):**
-- Completed: YYYY-MM-DD
+- Completed: 2025-12-20
 - Commit: <sha>
-- Canonical: outputs/canonical/0.3/WP-0.3.1/<run_id>/
-- Notes: <1 paragraph>
+- Canonical: outputs/canonical/0.3/WP-0.3.1/syn_20251220_180615_0099/
+- Notes: Toy-grid canonical smoke run with schema/manifest checks and report output.
 
 ---
 
@@ -396,10 +397,10 @@ Both modes produce comparable outputs (posteriors, best-fit TX, summary diagnost
 - Both modes produce outputs; sanity checks logged; WP marked complete with canonical folder path.
 
 **Completion record (append on completion):**
-- Completed: YYYY-MM-DD
+- Completed: 2025-12-20
 - Commit: <sha>
-- Canonical: outputs/canonical/0.3/WP-0.3.2/<run_id>/
-- Notes: <1 paragraph>
+- Canonical: outputs/canonical/0.3/WP-0.3.2/syn_20251220_181135_0099/
+- Notes: Ideal vs realistic modes wired end-to-end on toy grid with report section.
 
 ---
 
@@ -436,10 +437,10 @@ Synthetic recovery is quantified across replicated synthetic datasets (not a one
 - Replicated recovery tables exist for both modes; tests pass; review notes logged.
 
 **Completion record (append on completion):**
-- Completed: YYYY-MM-DD
+- Completed: 2025-12-20
 - Commit: <sha>
-- Canonical: outputs/canonical/0.3/WP-0.3.3/<run_id>/
-- Notes: <1 paragraph>
+- Canonical: outputs/canonical/0.3/WP-0.3.3/syn_20251220_182102_0099/
+- Notes: Replicated recovery tables (R=10) with accepted draws and summary plots.
 
 ---
 
@@ -470,10 +471,39 @@ The synthetic inference summaries and the real-data loss components are aligned 
 - Alignment achieved, tests in place, and logged sanity inspection notes confirm no unintended flips/drift.
 
 **Completion record (append on completion):**
-- Completed: YYYY-MM-DD
+- Completed: 2025-12-20
 - Commit: <sha>
-- Canonical: outputs/canonical/0.3/WP-0.3.4/<run_id>/
-- Notes: <1 paragraph>
+- Canonical: outputs/canonical/0.3/WP-0.3.4/syn_20251220_181700_0099/
+- Notes: Summary/loss alignment enforced with regression tests and schema doc update.
+
+---
+
+### **WP‑0.3.4b — GB‑scale preflight budget check (single‑replicate, realistic mode, real RSS)**
+
+**Acceptance criteria (black‑and‑white):**
+
+Before Codex is allowed to run WP‑0.3.5 on the British Isles grid:
+
+1. **Run one medium “realistic-mode” synthetic build** (includes observation generation + TX estimator) under `/usr/bin/time -v` (or equivalent) and record *peak RSS* and wall time in a **perf log (not canonical)**.
+2. **Prove we are not saving explosive objects** in canonical artefacts:
+
+   * No per-cell-year “counts tables” saved for full runs unless explicitly requested.
+   * No full 3‑D `N[x,y,t]` arrays written to disk in canonical output.
+3. **Budget sanity:** declare the projected runtime for the full GB run *before* starting it (based on measured medium + cell/year scaling). If the projection is ugly, you don’t run—period.
+
+4. Run **one** GB‑geometry synthetic replicate in **realistic** mode (sim + obs + TX estimator), with canonical output enabled, and measure via `/usr/bin/time -v` (or equivalent):
+
+  * wall clock time,
+  * **true peak RSS** (use “Maximum resident set size (KB)”).
+  Record these numbers in the **canonical manifest** (e.g., `wall_sec`, `max_rss_kb`).
+5. Write the measured budgets into `docs/decisions.md` (Performance Budget) and link the canonical folder.
+6. If the single‑replicate runtime implies WP‑0.3.5 will exceed your acceptable walltime (given planned replicates and ABC sims), the roadmap halts and you do *targeted* optimisation (not hand‑waving).
+
+**Completion record (append on completion):**
+- Completed: 2025-12-20
+- Commit: <sha>
+- Canonical: outputs/canonical/0.3/WP-0.3.4b/syn_20251220_164636_0099/
+- Notes: GB realistic preflight timed with `/usr/bin/time -v`; budgets logged in decisions.
 
 ---
 

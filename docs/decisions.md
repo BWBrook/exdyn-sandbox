@@ -101,3 +101,17 @@ Format for entries:
   - WP‑0.3.1/0.3.2 must run **toy or medium** only.  
 - **Alternatives considered:**  
   - Proceeding with full GB smoke (rejected: unbounded runtime).
+
+- **Date:** 2025-12-20  
+- **Decision:** Record measured preflight budgets for medium and GB‑scale realistic runs (WP‑0.3.4b).  
+- **Rationale:**  
+  - Preflight runs expose true wall‑clock and RSS costs before WP‑0.3.5.  
+  - GB realistic mode includes the expensive observation pipeline and must be budgeted explicitly.  
+- **Implications:**  
+  - **Medium preflight (toy 70×70, 1950–2020, realistic, 1 rep)**:  
+    - wall time ≈ **62.2 s**, max RSS ≈ **834,156 kB** (~0.8 GB).  
+  - **GB preflight (pilot grid, realistic, 1 rep, minimal ABC)**:  
+    - wall time ≈ **43:30** (≈2610.6 s), max RSS ≈ **43,677,192 kB** (~41.7 GB).  
+  - WP‑0.3.5 must assume **≥43 min per replicate** at current settings unless optimised.  
+- **Alternatives considered:**  
+  - Proceeding without a GB preflight (rejected: unacceptable risk of runaway runtime/memory).

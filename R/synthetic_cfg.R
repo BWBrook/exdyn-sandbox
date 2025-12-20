@@ -13,9 +13,20 @@ exdyn_synthetic_env_snapshot <- function() {
     canonical_milestone = Sys.getenv("EXDYN_CANONICAL_MILESTONE", unset = ""),
     canonical_root = Sys.getenv("EXDYN_CANONICAL_ROOT", unset = ""),
     smoke = Sys.getenv("EXDYN_SYNTHETIC_SMOKE", unset = ""),
+    modes = Sys.getenv("EXDYN_SYNTHETIC_MODES", unset = ""),
+    years = Sys.getenv("EXDYN_SYNTHETIC_YEARS", unset = ""),
+    grid_type = Sys.getenv("EXDYN_SYNTHETIC_GRID_TYPE", unset = ""),
+    grid_nx = Sys.getenv("EXDYN_SYNTHETIC_GRID_NX", unset = ""),
+    grid_ny = Sys.getenv("EXDYN_SYNTHETIC_GRID_NY", unset = ""),
+    grid_cell_km = Sys.getenv("EXDYN_SYNTHETIC_GRID_CELL_KM", unset = ""),
+    grid_riparian_frac = Sys.getenv("EXDYN_SYNTHETIC_GRID_RIPARIAN_FRAC", unset = ""),
+    grid_region_n = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_N", unset = ""),
+    grid_region_labels = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_LABELS", unset = ""),
     reps = Sys.getenv("EXDYN_SYNTHETIC_REPS", unset = ""),
     screen_draws = Sys.getenv("EXDYN_SYNTHETIC_SCREEN_DRAWS", unset = ""),
     abc_n_sims = Sys.getenv("EXDYN_SYNTHETIC_ABC_N", unset = ""),
+    abc_eps = Sys.getenv("EXDYN_SYNTHETIC_ABC_EPS", unset = ""),
+    abc_eps_tight = Sys.getenv("EXDYN_SYNTHETIC_ABC_EPS_TIGHT", unset = ""),
     abc_lhs_n = Sys.getenv("EXDYN_SYNTHETIC_ABC_LHS_N", unset = ""),
     abc_lhs_keep = Sys.getenv("EXDYN_SYNTHETIC_ABC_LHS_KEEP", unset = ""),
     abc_refine = Sys.getenv("EXDYN_SYNTHETIC_ABC_REFINE", unset = "")
@@ -26,6 +37,7 @@ exdyn_synthetic_cfg_apply_overrides <- function(cfg, env = NULL) {
   cfg <- cfg %||% list()
   env <- env %||% exdyn_synthetic_env_snapshot()
   cfg$canonical <- cfg$canonical %||% list()
+  cfg$grid <- cfg$grid %||% list()
   if (nzchar(env$canonical_enabled)) {
     cfg$canonical$enabled <- exdyn_env_flag(env$canonical_enabled, default = FALSE)
   }
@@ -33,6 +45,48 @@ exdyn_synthetic_cfg_apply_overrides <- function(cfg, env = NULL) {
   if (nzchar(env$canonical_run_id)) cfg$canonical$run_id <- env$canonical_run_id
   if (nzchar(env$canonical_milestone)) cfg$canonical$milestone <- env$canonical_milestone
   if (nzchar(env$canonical_root)) cfg$canonical$root <- env$canonical_root
+  if (nzchar(env$modes)) {
+    cfg$modes <- strsplit(env$modes, ",")[[1]]
+    cfg$modes <- trimws(cfg$modes)
+  }
+  if (nzchar(env$years)) {
+    if (tolower(env$years) == "pilot") {
+      cfg$years <- "pilot"
+    } else {
+      parts <- strsplit(env$years, ",")[[1]]
+      vals <- suppressWarnings(as.integer(trimws(parts)))
+      vals <- vals[is.finite(vals)]
+      if (length(vals)) {
+        cfg$years <- vals
+      }
+    }
+  }
+  if (nzchar(env$grid_type)) cfg$grid$type <- env$grid_type
+  if (nzchar(env$grid_nx)) {
+    nx <- suppressWarnings(as.integer(env$grid_nx))
+    if (is.finite(nx)) cfg$grid$nx <- nx
+  }
+  if (nzchar(env$grid_ny)) {
+    ny <- suppressWarnings(as.integer(env$grid_ny))
+    if (is.finite(ny)) cfg$grid$ny <- ny
+  }
+  if (nzchar(env$grid_cell_km)) {
+    cell_km <- suppressWarnings(as.numeric(env$grid_cell_km))
+    if (is.finite(cell_km)) cfg$grid$cell_km <- cell_km
+  }
+  if (nzchar(env$grid_riparian_frac)) {
+    rip <- suppressWarnings(as.numeric(env$grid_riparian_frac))
+    if (is.finite(rip)) cfg$grid$riparian_frac <- rip
+  }
+  if (nzchar(env$grid_region_n)) {
+    region_n <- suppressWarnings(as.integer(env$grid_region_n))
+    if (is.finite(region_n)) cfg$grid$region_n <- region_n
+  }
+  if (nzchar(env$grid_region_labels)) {
+    labels <- strsplit(env$grid_region_labels, ",")[[1]]
+    labels <- trimws(labels)
+    if (length(labels)) cfg$grid$region_labels <- labels
+  }
 
   if (exdyn_env_flag(env$smoke, default = FALSE)) {
     if (!is.null(cfg$screen$n_draws)) {
@@ -67,6 +121,18 @@ exdyn_synthetic_cfg_apply_overrides <- function(cfg, env = NULL) {
     n_sims <- suppressWarnings(as.integer(env$abc_n_sims))
     if (is.finite(n_sims) && n_sims > 0) {
       cfg$abc$n_sims <- n_sims
+    }
+  }
+  if (nzchar(env$abc_eps)) {
+    eps <- suppressWarnings(as.numeric(env$abc_eps))
+    if (is.finite(eps) && eps > 0) {
+      cfg$abc$eps <- eps
+    }
+  }
+  if (nzchar(env$abc_eps_tight)) {
+    eps_tight <- suppressWarnings(as.numeric(env$abc_eps_tight))
+    if (is.finite(eps_tight) && eps_tight > 0) {
+      cfg$abc$eps_tight <- eps_tight
     }
   }
   if (nzchar(env$abc_lhs_n)) {
