@@ -25,6 +25,22 @@ Date: 2025-12-20
   - `outputs/perf/preflight_gb_summary.csv`
   - Metrics recorded in the canonical manifest for WP‑0.3.4b.
 
+## Observation mode comparison (counts vs points)
+Re-ran single‑replicate realistic preflights using **direct synthetic generation** (sim + observation + TX estimator, no screen/ABC/report) to isolate observation pipeline costs.
+
+- Medium (`70×70`, 1950–2020):
+  - **counts:** wall ≈ **29.03 s**, max RSS ≈ **601,056 kB**
+  - **points:** wall ≈ **34.11 s**, max RSS ≈ **1,098,548 kB**
+  - `outputs/perf/preflight_medium_counts_time.txt`
+  - `outputs/perf/preflight_medium_points_time.txt`
+  - `outputs/perf/preflight_medium_comparison.csv`
+- GB (pilot grid, pilot years):
+  - **counts:** wall ≈ **311.97 s**, max RSS ≈ **6,660,760 kB**
+  - **points:** wall ≈ **769.60 s**, max RSS ≈ **44,523,724 kB**
+  - `outputs/perf/preflight_gb_counts_time.txt`
+  - `outputs/perf/preflight_gb_points_time.txt`
+  - `outputs/perf/preflight_gb_comparison.csv`
+
 ## Sanity checks (artefact review)
 - Reviewed TX_true/TX_obs/TX_best maps (toy canonical runs): coherent front gradients, non‑blank, spatial ordering preserved.
 - Recovery tables present for WP‑0.3.3 with non‑zero acceptance and parameter summaries.
