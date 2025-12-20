@@ -11,8 +11,8 @@
 #'   `pred_c`, `pred_h`, `gamma`, `delta_region`, `ramp_years`,
 #'   `pred_type`, `pre_leak`.
 #' @param noise_cfg Named list describing observation noise with entries
-#'   `po_rate`, `effort_strength`, `missing_years_prob`, and
-#'   `random_tx_dropout`.
+#'   `po_rate`, `effort_strength`, `missing_years_prob`,
+#'   `random_tx_dropout`, and `obs_mode` (`counts` or `points`).
 #' @param arrivals Tibble with at least `cell_id` and arrival year column(s).
 #' @param grid_info Lookup list from [exdyn_grid_lookup()].
 #' @param years Integer vector of length 2 (start/end) or full sequence of
@@ -60,7 +60,9 @@ exdyn_make_synthetic <- function(theta_star,
     po_rate = 0.001,
     effort_strength = 1,
     missing_years_prob = 0,
-    random_tx_dropout = 0
+    random_tx_dropout = 0,
+    obs_mode = "counts",
+    keep_counts = FALSE
   )
   noise <- utils::modifyList(base_noise, noise_cfg)
   if (length(years) == 2L) {
@@ -158,27 +160,60 @@ exdyn_make_synthetic <- function(theta_star,
   mask_mat <- mask
   TX_true[!mask_mat] <- NA_real_
 
-  po_points <- exdyn_synthetic_po_points(
-    N_true,
-    years_seq,
-    grid_info,
-    rate = noise$po_rate,
-    effort_strength = noise$effort_strength
-  )
-  if (noise$missing_years_prob > 0 && nrow(po_points)) {
-    year_keep <- stats::runif(length(unique(po_points$year))) >= noise$missing_years_prob
-    keep_years <- unique(po_points$year)[year_keep]
-    po_points <- dplyr::filter(po_points, .data$year %in% keep_years)
+  obs_mode <- noise$obs_mode %||% "counts"
+  obs_mode <- tolower(obs_mode)
+  po_points <- NULL
+  effort_points <- NULL
+  counts_mat <- NULL
+  if (identical(obs_mode, "points")) {
+    po_points <- exdyn_synthetic_po_points(
+      N_true,
+      years_seq,
+      grid_info,
+      rate = noise$po_rate,
+      effort_strength = noise$effort_strength
+    )
+    if (noise$missing_years_prob > 0 && nrow(po_points)) {
+      year_keep <- stats::runif(length(unique(po_points$year))) >= noise$missing_years_prob
+      keep_years <- unique(po_points$year)[year_keep]
+      po_points <- dplyr::filter(po_points, .data$year %in% keep_years)
+    }
+    effort_points <- po_points
+    tx_map <- exdyn_tx_map(
+      cells_df = dplyr::select(po_points, cell_id, row, col, year),
+      years = range(years_seq),
+      cfg = tx_cfg,
+      grid_info = grid_info,
+      effort_cells = dplyr::select(effort_points, cell_id, row, col, year),
+      mask = mask_mat
+    )
+  } else {
+    counts_out <- exdyn_presence_only_counts(
+      N_true,
+      years_seq,
+      grid_info,
+      rate = noise$po_rate,
+      effort_strength = noise$effort_strength,
+      mask = mask_mat
+    )
+    counts_mat <- counts_out$counts_mat
+    effort_mat <- counts_out$effort_mat
+    if (noise$missing_years_prob > 0) {
+      year_keep <- stats::runif(length(years_seq)) >= noise$missing_years_prob
+      counts_mat[, !year_keep] <- 0
+      effort_mat[, !year_keep] <- 0
+    }
+    tx_map <- exdyn_tx_map_counts(
+      counts_mat = counts_mat,
+      years = range(years_seq),
+      cfg = tx_cfg,
+      grid_info = grid_info,
+      effort_mat = effort_mat,
+      mask = mask_mat,
+      cells_dt = counts_out$cells,
+      return_counts = isTRUE(noise$keep_counts)
+    )
   }
-  effort_points <- po_points
-  tx_map <- exdyn_tx_map(
-    cells_df = dplyr::select(po_points, cell_id, row, col, year),
-    years = range(years_seq),
-    cfg = tx_cfg,
-    grid_info = grid_info,
-    effort_cells = dplyr::select(effort_points, cell_id, row, col, year),
-    mask = mask_mat
-  )
   if (noise$random_tx_dropout > 0 && nrow(tx_map$table)) {
     drop_mask <- stats::runif(nrow(tx_map$table)) < noise$random_tx_dropout
     if (any(drop_mask)) {

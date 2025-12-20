@@ -94,5 +94,6 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - Completed WP‑0.3.1 → WP‑0.3.4b (canonical schema, modes, replicated recovery, alignment tests, GB preflight budgets).
 
 ### Next steps (short queue)
-- Review recovery outputs for summary scaling issues (toy eps currently large).
-- Proceed to WP‑0.3.5 only after PI confirms budgets and expected runtime.
+- Confirm new ABC scaling defaults yield acceptance without extreme eps on toy/medium runs.
+- Plan batching/HPC execution for WP‑0.3.5 given GB preflight budgets (≥43 min per replicate).
+- If GB budgets remain prohibitive, evaluate domain cropping or segment/graph representation as targeted optimisations.

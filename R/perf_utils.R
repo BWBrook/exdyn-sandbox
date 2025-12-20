@@ -285,28 +285,59 @@ exdyn_perf_run_profile <- function(profile, perf_cfg, label = "smoke",
     stage_records <- c(stage_records, list(obs_sim_stage$record))
 
     obs_stage <- exdyn_perf_stage("observation_tx_map", {
-      po_points <- exdyn_synthetic_po_points(
-        N_true,
-        years_vec,
-        grid_info,
-        rate = obs_cfg$po_rate %||% 0.02,
-        effort_strength = obs_cfg$effort_strength %||% 1
-      )
-      if ((obs_cfg$missing_years_prob %||% 0) > 0 && nrow(po_points)) {
-        year_keep <- stats::runif(length(unique(po_points$year))) >= (obs_cfg$missing_years_prob %||% 0)
-        keep_years <- unique(po_points$year)[year_keep]
-        po_points <- dplyr::filter(po_points, .data$year %in% keep_years)
+      obs_mode <- tolower(obs_cfg$obs_mode %||% "counts")
+      po_points <- NULL
+      effort_points <- NULL
+      if (identical(obs_mode, "points")) {
+        po_points <- exdyn_synthetic_po_points(
+          N_true,
+          years_vec,
+          grid_info,
+          rate = obs_cfg$po_rate %||% 0.02,
+          effort_strength = obs_cfg$effort_strength %||% 1
+        )
+        if ((obs_cfg$missing_years_prob %||% 0) > 0 && nrow(po_points)) {
+          year_keep <- stats::runif(length(unique(po_points$year))) >= (obs_cfg$missing_years_prob %||% 0)
+          keep_years <- unique(po_points$year)[year_keep]
+          po_points <- dplyr::filter(po_points, .data$year %in% keep_years)
+        }
+        effort_points <- po_points
+        tx_map <- exdyn_tx_map(
+          cells_df = dplyr::select(po_points, cell_id, row, col, year),
+          years = range(years_vec),
+          cfg = tx_cfg,
+          grid_info = grid_info,
+          effort_cells = dplyr::select(effort_points, cell_id, row, col, year),
+          mask = mask,
+          fast = tx_map_fast
+        )
+      } else {
+        counts_out <- exdyn_presence_only_counts(
+          N_true,
+          years_vec,
+          grid_info,
+          rate = obs_cfg$po_rate %||% 0.02,
+          effort_strength = obs_cfg$effort_strength %||% 1,
+          mask = mask
+        )
+        counts_mat <- counts_out$counts_mat
+        effort_mat <- counts_out$effort_mat
+        if ((obs_cfg$missing_years_prob %||% 0) > 0) {
+          year_keep <- stats::runif(length(years_vec)) >= (obs_cfg$missing_years_prob %||% 0)
+          counts_mat[, !year_keep] <- 0
+          effort_mat[, !year_keep] <- 0
+        }
+        tx_map <- exdyn_tx_map_counts(
+          counts_mat = counts_mat,
+          years = range(years_vec),
+          cfg = tx_cfg,
+          grid_info = grid_info,
+          effort_mat = effort_mat,
+          mask = mask,
+          cells_dt = counts_out$cells,
+          return_counts = FALSE
+        )
       }
-      effort_points <- po_points
-      tx_map <- exdyn_tx_map(
-        cells_df = dplyr::select(po_points, cell_id, row, col, year),
-        years = range(years_vec),
-        cfg = tx_cfg,
-        grid_info = grid_info,
-        effort_cells = dplyr::select(effort_points, cell_id, row, col, year),
-        mask = mask,
-        fast = tx_map_fast
-      )
       if ((obs_cfg$random_tx_dropout %||% 0) > 0 && nrow(tx_map$table)) {
         drop_mask <- stats::runif(nrow(tx_map$table)) < (obs_cfg$random_tx_dropout %||% 0)
         if (any(drop_mask)) {

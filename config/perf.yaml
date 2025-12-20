@@ -64,6 +64,7 @@ obs:
   effort_strength: 1.0
   missing_years_prob: 0.0
   random_tx_dropout: 0.0
+  obs_mode: "counts"
 # Used only when include_observation is true.
 tx_cfg:
   smooth_window: 5

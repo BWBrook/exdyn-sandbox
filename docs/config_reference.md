@@ -44,7 +44,8 @@ Replicated recovery harness settings:
 ### `noise`
 Observation noise and TX estimator distortion controls.
 Fields include: `po_rate`, `effort_strength`, `missing_years_prob`,
-`random_tx_dropout`.
+`random_tx_dropout`, `obs_mode` (`counts` or `points`), and
+`keep_counts` (retain count tables in memory).
 
 ### `mask`
 Spatial mask for synthetic runs: `"all"` or `"riparian"`.
@@ -90,6 +91,7 @@ Environment overrides (optional, for reproducible smoke/canonical runs):
   `EXDYN_SYNTHETIC_GRID_CELL_KM`, `EXDYN_SYNTHETIC_GRID_RIPARIAN_FRAC`,
   `EXDYN_SYNTHETIC_GRID_REGION_N`,
   `EXDYN_SYNTHETIC_GRID_REGION_LABELS` (comma-separated).
+- `EXDYN_SYNTHETIC_OBS_MODE` (`counts` or `points`).
 - `EXDYN_SYNTHETIC_SMOKE=1` caps draw counts and simulation sizes.
 - `EXDYN_SYNTHETIC_REPS=<int>` overrides `recovery.n_reps`.
 - `EXDYN_SYNTHETIC_SCREEN_DRAWS=<int>` overrides `screen.n_draws`.
@@ -126,7 +128,8 @@ Simulation defaults for perf runs: `K0`, `rmax`, `A_over_K`, `alpha`,
 
 ### `obs`
 Observation noise settings when `include_observation` is true:
-`po_rate`, `effort_strength`, `missing_years_prob`, `random_tx_dropout`.
+`po_rate`, `effort_strength`, `missing_years_prob`, `random_tx_dropout`,
+`obs_mode` (`counts` or `points`).
 
 ### `tx_cfg`
 First-passage TX estimator settings for perf observation runs.

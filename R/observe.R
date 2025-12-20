@@ -20,6 +20,43 @@ exdyn_presence_only <- function(N, rate=0.002, effort_strength = 1) {
   }
   pts
 }
+
+#' Presence-only sampling with effort surface (cell-year counts)
+#' @export
+exdyn_presence_only_counts <- function(N, years_seq, grid_info, rate = 0.002, effort_strength = 1, mask = NULL) {
+  stopifnot(length(dim(N)) == 3L)
+  yrs <- dim(N)[3]
+  if (is.null(years_seq)) {
+    years_seq <- seq_len(yrs)
+  }
+  nx <- dim(N)[1]
+  ny <- dim(N)[2]
+  access <- outer(seq(0, 1, length.out = nx), seq(0, 1, length.out = ny),
+                  function(i, j) 1 - pmin(i, 1 - i, j, 1 - j))
+  access <- access^effort_strength
+  access <- access / mean(access)
+  lookup <- grid_info$lookup
+  cell_idx <- cbind(lookup$row_idx, lookup$col_idx)
+  n_cells <- nrow(lookup)
+  counts_mat <- matrix(0L, nrow = n_cells, ncol = yrs)
+  for (t in seq_len(yrs)) {
+    lam <- N[, , t] * access * rate
+    lam[!is.finite(lam)] <- 0
+    lam <- pmax(lam, 0)
+    if (!is.null(mask)) {
+      lam[!mask] <- 0
+    }
+    counts <- stats::rpois(length(lam), lam)
+    counts <- matrix(counts, nrow = nx, ncol = ny)
+    counts_mat[, t] <- counts[cell_idx]
+  }
+  list(
+    counts_mat = counts_mat,
+    effort_mat = counts_mat,
+    years = years_seq,
+    cells = lookup
+  )
+}
 #' Fossil-like samples with dating uncertainty
 #' @export
 exdyn_fossils <- function(N, n_sites=40, date_sd=30) {

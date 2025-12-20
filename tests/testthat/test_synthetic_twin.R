@@ -29,7 +29,9 @@ test_that("synthetic twin generation yields plausible outputs", {
     po_rate = 0.01,
     effort_strength = 1.2,
     missing_years_prob = 0,
-    random_tx_dropout = 0.1
+    random_tx_dropout = 0.1,
+    obs_mode = "counts",
+    keep_counts = TRUE
   )
   tx_cfg <- list(
     smooth_window = 3,
@@ -52,8 +54,9 @@ test_that("synthetic twin generation yields plausible outputs", {
   )
   expect_true(any(is.finite(syn$TX_true)))
   expect_true(all(dim(syn$TX_obs) == c(grid_info$nx, grid_info$ny)))
-  expect_s3_class(syn$po_points, "tbl_df")
-  expect_gt(nrow(syn$po_points), 0)
+  expect_true(is.null(syn$po_points))
+  expect_true(is.null(syn$effort_points))
+  expect_true(nrow(syn$tx_counts) > 0)
   expect_type(syn$N_true, "double")
 })
 

@@ -115,3 +115,16 @@ Format for entries:
   - WP‑0.3.5 must assume **≥43 min per replicate** at current settings unless optimised.  
 - **Alternatives considered:**  
   - Proceeding without a GB preflight (rejected: unacceptable risk of runaway runtime/memory).
+
+---
+
+- **Date:** 2025-12-20  
+- **Decision:** Default synthetic observation generation to **cell‑year counts** (no point‑level PO samples) and treat GB preflight budgets as hard gates for any full‑scale recovery runs.  
+- **Rationale:**  
+  - Point‑level synthetic observations add heavy overhead without changing the grid‑scale inference target.  
+  - Preflight budgets imply full GB benchmarks require batching/HPC planning before WP‑0.3.5.  
+- **Implications:**  
+  - `noise.obs_mode` defaults to `counts` in synthetic/perf configs; points are debug‑only.  
+  - Full GB recovery runs must be scheduled with batching/HPC assumptions; no un‑budgeted “overnight” runs.  
+- **Alternatives considered:**  
+  - Continuing point‑level PO for synthetic benchmarks (rejected: unnecessary overhead).  

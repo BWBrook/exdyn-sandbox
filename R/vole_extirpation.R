@@ -281,6 +281,128 @@ exdyn_tx_map <- function(cells_df, years, cfg, grid_info,
   )
 }
 
+#' Map extirpation results from pre-aggregated count matrices
+#'
+#' @param counts_mat Matrix of counts with dimensions n_cells x n_years,
+#'   aligned to \code{grid_info$lookup} row order.
+#' @param years Integer range for the time series.
+#' @param cfg Vole extirpation configuration.
+#' @param grid_info Grid lookup (from \code{exdyn_grid_lookup()}).
+#' @param effort_mat Optional matrix of effort counts, same dimensions as
+#'   \code{counts_mat}.
+#' @param mask Optional logical matrix specifying cells to retain.
+#' @param cells_dt Optional lookup table aligned with \code{counts_mat}
+#'   containing \code{cell_id,row,col,row_idx,col_idx}.
+#' @param return_counts If TRUE, returns a long counts table; otherwise
+#'   returns an empty tibble to avoid heavy I/O.
+#'
+#' @return List with \code{table}, \code{matrix}, \code{last_presence},
+#'   \code{grid_info}, \code{years}, and \code{counts}.
+#' @export
+exdyn_tx_map_counts <- function(counts_mat, years, cfg, grid_info,
+                                effort_mat = NULL, mask = NULL,
+                                cells_dt = NULL, return_counts = TRUE) {
+  stopifnot(!is.null(grid_info), is.matrix(counts_mat))
+  years_vec <- seq.int(years[1], years[2])
+  n_years <- length(years_vec)
+  if (ncol(counts_mat) != n_years) {
+    stop("counts_mat columns must match length of years.")
+  }
+  if (is.null(cells_dt)) {
+    cells_dt <- grid_info$lookup %>%
+      dplyr::select(cell_id, row, col, row_idx, col_idx)
+  }
+  n_cells <- nrow(cells_dt)
+  cells_dt <- cells_dt %>%
+    dplyr::mutate(cell_idx = seq_len(n_cells))
+  if (nrow(counts_mat) != n_cells) {
+    stop("counts_mat rows must match grid lookup size.")
+  }
+  series_mat <- counts_mat
+  norm_mode <- cfg$normalize_by %||% NULL
+  if (!is.null(norm_mode) && norm_mode %in% c("mammal", "taxa") && !is.null(effort_mat)) {
+    denom <- pmax(1, effort_mat)
+    series_mat <- counts_mat / denom
+  }
+  tx_obs <- rep(NA_integer_, n_cells)
+  last_presence <- rep(NA_integer_, n_cells)
+  baseline <- rep(NA_real_, n_cells)
+  tau <- rep(NA_real_, n_cells)
+  reason <- rep(NA_character_, n_cells)
+  for (i in seq_len(n_cells)) {
+    series <- series_mat[i, ]
+    raw_counts <- counts_mat[i, ]
+    series[!is.finite(series)] <- 0
+    smooth_vals <- exdyn_ts_smooth(series, cfg$smooth_window %||% 5)
+    if (!any(is.finite(smooth_vals))) smooth_vals <- series
+    res <- .exdyn_first_passage_hold(smooth_vals, years_vec, cfg)
+    tx_obs[i] <- res$tx %||% NA_integer_
+    last_presence[i] <- res$last_presence %||% NA_integer_
+    baseline[i] <- res$baseline %||% NA_real_
+    tau[i] <- res$tau %||% NA_real_
+    reason[i] <- res$reason %||% NA_character_
+  }
+  per_cell <- tibble::tibble(
+    cell_id = cells_dt$cell_id,
+    row = cells_dt$row,
+    col = cells_dt$col,
+    row_idx = cells_dt$row_idx,
+    col_idx = cells_dt$col_idx,
+    tx_obs = tx_obs,
+    last_presence = last_presence,
+    baseline = baseline,
+    tau = tau,
+    reason = reason
+  )
+  tx_mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
+  lp_mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
+  valid_idx <- stats::complete.cases(per_cell$row_idx, per_cell$col_idx)
+  if (any(valid_idx)) {
+    matrix_index <- cbind(per_cell$row_idx[valid_idx], per_cell$col_idx[valid_idx])
+    tx_mat[matrix_index] <- per_cell$tx_obs[valid_idx]
+    lp_mat[matrix_index] <- per_cell$last_presence[valid_idx]
+  }
+  if (!is.null(mask)) {
+    tx_mat[!mask] <- NA_real_
+    lp_mat[!mask] <- NA_real_
+  }
+  lookup_extra <- grid_info$lookup %>%
+    dplyr::select(cell_id, dplyr::any_of(c("river_km", "riparian", "region")))
+  per_cell <- per_cell %>%
+    dplyr::left_join(lookup_extra, by = "cell_id")
+  counts_tbl <- tibble::tibble()
+  if (isTRUE(return_counts)) {
+    counts_tbl <- data.table::CJ(cell_idx = seq_len(n_cells), year_idx = seq_len(n_years))
+    counts_tbl$n_obs <- as.integer(counts_mat[cbind(counts_tbl$cell_idx, counts_tbl$year_idx)])
+    if (!is.null(effort_mat)) {
+      counts_tbl$n_mammal <- as.integer(effort_mat[cbind(counts_tbl$cell_idx, counts_tbl$year_idx)])
+      counts_tbl$norm_mammal <- ifelse(counts_tbl$n_mammal > 0L,
+                                       counts_tbl$n_obs / pmax(1, counts_tbl$n_mammal),
+                                       as.numeric(counts_tbl$n_obs))
+    } else {
+      counts_tbl$n_mammal <- 0L
+      counts_tbl$norm_mammal <- as.numeric(counts_tbl$n_obs)
+    }
+    counts_tbl$year <- years_vec[counts_tbl$year_idx]
+    counts_tbl <- merge(counts_tbl, cells_dt[, c("cell_idx", "cell_id", "row", "col")], by = "cell_idx", all.x = TRUE)
+    counts_tbl <- counts_tbl %>%
+      dplyr::mutate(
+        row_idx = match(.data$row, grid_info$row_levels),
+        col_idx = match(.data$col, grid_info$col_levels)
+      )
+    counts_tbl <- tibble::as_tibble(counts_tbl)
+  }
+  list(
+    table = per_cell %>% dplyr::select(cell_id, row, col, tx_obs, last_presence,
+                                       dplyr::any_of(c("river_km", "riparian", "region"))),
+    matrix = tx_mat,
+    last_presence = lp_mat,
+    grid_info = grid_info,
+    years = years,
+    counts = counts_tbl
+  )
+}
+
 #' Fast extirpation map using matrix-based counts
 #' @keywords internal
 exdyn_tx_map_fast <- function(cells_df, years, cfg, grid_info,

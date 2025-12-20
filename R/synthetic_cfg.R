@@ -22,6 +22,7 @@ exdyn_synthetic_env_snapshot <- function() {
     grid_riparian_frac = Sys.getenv("EXDYN_SYNTHETIC_GRID_RIPARIAN_FRAC", unset = ""),
     grid_region_n = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_N", unset = ""),
     grid_region_labels = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_LABELS", unset = ""),
+    obs_mode = Sys.getenv("EXDYN_SYNTHETIC_OBS_MODE", unset = ""),
     reps = Sys.getenv("EXDYN_SYNTHETIC_REPS", unset = ""),
     screen_draws = Sys.getenv("EXDYN_SYNTHETIC_SCREEN_DRAWS", unset = ""),
     abc_n_sims = Sys.getenv("EXDYN_SYNTHETIC_ABC_N", unset = ""),
@@ -86,6 +87,10 @@ exdyn_synthetic_cfg_apply_overrides <- function(cfg, env = NULL) {
     labels <- strsplit(env$grid_region_labels, ",")[[1]]
     labels <- trimws(labels)
     if (length(labels)) cfg$grid$region_labels <- labels
+  }
+  if (nzchar(env$obs_mode)) {
+    cfg$noise <- cfg$noise %||% list()
+    cfg$noise$obs_mode <- env$obs_mode
   }
 
   if (exdyn_env_flag(env$smoke, default = FALSE)) {

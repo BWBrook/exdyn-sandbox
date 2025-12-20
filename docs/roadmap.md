@@ -357,7 +357,7 @@ The synthetic twin becomes a benchmarkable “instrument”: outputs are version
 
 **Completion record (append on completion):**
 - Completed: 2025-12-20
-- Commit: <sha>
+- Commit: f6c16ae
 - Canonical: outputs/canonical/0.3/WP-0.3.1/syn_20251220_180615_0099/
 - Notes: Toy-grid canonical smoke run with schema/manifest checks and report output.
 
@@ -398,7 +398,7 @@ Both modes produce comparable outputs (posteriors, best-fit TX, summary diagnost
 
 **Completion record (append on completion):**
 - Completed: 2025-12-20
-- Commit: <sha>
+- Commit: f6c16ae
 - Canonical: outputs/canonical/0.3/WP-0.3.2/syn_20251220_181135_0099/
 - Notes: Ideal vs realistic modes wired end-to-end on toy grid with report section.
 
@@ -438,7 +438,7 @@ Synthetic recovery is quantified across replicated synthetic datasets (not a one
 
 **Completion record (append on completion):**
 - Completed: 2025-12-20
-- Commit: <sha>
+- Commit: f6c16ae
 - Canonical: outputs/canonical/0.3/WP-0.3.3/syn_20251220_182102_0099/
 - Notes: Replicated recovery tables (R=10) with accepted draws and summary plots.
 
@@ -472,7 +472,7 @@ The synthetic inference summaries and the real-data loss components are aligned 
 
 **Completion record (append on completion):**
 - Completed: 2025-12-20
-- Commit: <sha>
+- Commit: f6c16ae
 - Canonical: outputs/canonical/0.3/WP-0.3.4/syn_20251220_181700_0099/
 - Notes: Summary/loss alignment enforced with regression tests and schema doc update.
 
@@ -501,7 +501,7 @@ Before Codex is allowed to run WP‑0.3.5 on the British Isles grid:
 
 **Completion record (append on completion):**
 - Completed: 2025-12-20
-- Commit: <sha>
+- Commit: f6c16ae
 - Canonical: outputs/canonical/0.3/WP-0.3.4b/syn_20251220_164636_0099/
 - Notes: GB realistic preflight timed with `/usr/bin/time -v`; budgets logged in decisions.
 

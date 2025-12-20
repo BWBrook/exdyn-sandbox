@@ -33,7 +33,9 @@ Date: 2025-12-20
 ## Notes & issues
 - ABC acceptance was initially zero with tight scaling; raised `ABC_EPS` for toy recovery to produce accepted draws (see WP‑0.3.3 manifest). This is a toy‑run scaling issue to revisit for full benchmark.
 - ABC distance now ignores non-finite summary components (e.g., orientation on tiny grids) to avoid zero-acceptance in small smoke tests.
+- Synthetic observation generation now defaults to **cell‑year counts** (no point-level PO), eliminating the heavy points→counts mapping step for synthetic pipelines.
 - GB preflight confirms observation pipeline dominates runtime/memory; WP‑0.3.5 needs batching/HPC or further optimisation.
+- Larger structural optimisations (domain cropping, graph/segment representation) are deferred unless GB budgets remain prohibitive.
 
 ## Next steps
 - Use WP‑0.3.4b budgets to gate WP‑0.3.5.

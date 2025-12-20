@@ -43,6 +43,8 @@ noise:
   effort_strength: 1.4
   missing_years_prob: 0.0
   random_tx_dropout: 0.0
+  obs_mode: "counts"
+  keep_counts: false
   frac: 0.02
   rel0: 0.5
   adaptive_threshold: true
@@ -74,19 +76,19 @@ abc:
   scale:
     grad_mag: 0.05
     pc_ratio: 0.25
-  coverage: 0.05
-  lag_mean: 4
-  lag_sd: 4
-  r2_arrival: 0.25
-  orient_R: 0.2
-  speed_cells_per_year: 0.5
-  speed_r2: 0.25
-  tx_mean: 4
-  tx_sd: 4
-  cov_curve_1: 0.1
-  cov_curve_2: 0.1
-  cov_curve_3: 0.1
-  cov_curve_4: 0.1
+    coverage: 0.05
+    lag_mean: 4
+    lag_sd: 4
+    r2_arrival: 0.25
+    orient_R: 0.2
+    speed_cells_per_year: 0.5
+    speed_r2: 0.25
+    tx_mean: 4
+    tx_sd: 4
+    cov_curve_1: 0.1
+    cov_curve_2: 0.1
+    cov_curve_3: 0.1
+    cov_curve_4: 0.1
   prior:
     alpha: [0.05, 0.45]
     disp_mean_km: [6, 22]

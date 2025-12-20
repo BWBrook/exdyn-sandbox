@@ -155,11 +155,14 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
                                        coverage_breaks) {
   lhs_n <- abc_cfg$lhs$n %||% 0
   cell_km <- grid_info$cell_km %||% 10
-  scale_vec <- abc_cfg$scale %||% NULL
-  if (!is.null(scale_vec)) {
-    scale_vec <- unlist(scale_vec[names(summary_obs)], use.names = FALSE)
-  } else {
-    scale_vec <- pmax(abs(summary_obs), 1e-6)
+  scale_default <- pmax(abs(summary_obs), 1e-6)
+  scale_vec <- scale_default
+  if (!is.null(abc_cfg$scale)) {
+    scale_cfg <- unlist(abc_cfg$scale, use.names = TRUE)
+    if (length(scale_cfg)) {
+      valid_names <- intersect(names(scale_cfg), names(scale_vec))
+      scale_vec[valid_names] <- scale_cfg[valid_names]
+    }
   }
 
   simulate_once <- function(theta) {
