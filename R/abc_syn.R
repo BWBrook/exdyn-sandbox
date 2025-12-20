@@ -49,8 +49,16 @@ exdyn_summary_tx_response <- function(TX, T_P, years = NULL, coverage_breaks = N
   }
   r2_arrival <- NA_real_
   if (sum(finite) >= 3) {
-    fit <- stats::lm(TX[finite] ~ T_P[finite])
-    r2_arrival <- max(0, min(1, summary(fit)$r.squared))
+    tx_vals <- TX[finite]
+    tp_vals <- T_P[finite]
+    var_tp <- stats::var(tp_vals)
+    var_tx <- stats::var(tx_vals)
+    if (!is.finite(var_tp) || var_tp <= 0 || !is.finite(var_tx) || var_tx <= 0) {
+      r2_arrival <- 0
+    } else {
+      r <- suppressWarnings(stats::cor(tx_vals, tp_vals, use = "complete.obs"))
+      r2_arrival <- if (is.finite(r)) max(0, min(1, r^2)) else NA_real_
+    }
   }
   tx_vals <- TX[is.finite(TX)]
   tx_mean <- if (length(tx_vals)) mean(tx_vals) else NA_real_

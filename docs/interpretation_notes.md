@@ -41,6 +41,11 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - Replicated recovery (R=10) required a much larger ABC eps in toy mode; current scale settings are too tight for toy summaries.
 - Parameter recovery tables populate as expected once acceptance exists; shrinkage ratios highlight weakly identified deltas even on toy.
 - Realistic-mode acceptance tends to produce near‑full coverage in toy runs; watch for scale‑dependent saturation.
+- Streaming counts‑mode truth generation removes 3‑D N/P arrays without changing TX_obs; this is a safe win.
+- GB counts preflight fell from ~5.2 min / 6.35 GB to ~42.5 s / 1.0 GB; the observation pipeline is no longer the dominant sink.
+- Summary/score hot‑path changes (vectorised orientation, analytic r²) did not alter outputs on toy tests; these should be treated as performance‑only edits.
+- Remaining runtime risk now sits in full pipeline stages (screen/ABC/report), not the core sim or counts observation.
+- New preflight numbers imply WP‑0.3.5 is feasible only if screen/ABC costs are managed; we still need a full‑pipeline counts preflight.
 
 ---
 

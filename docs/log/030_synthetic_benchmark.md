@@ -41,6 +41,16 @@ Re-ran single‑replicate realistic preflights using **direct synthetic generati
   - `outputs/perf/preflight_gb_points_time.txt`
   - `outputs/perf/preflight_gb_comparison.csv`
 
+### Post‑hardening counts preflight (streaming counts)
+Re-ran the GB counts preflight using the new streaming counts path
+(`exdyn_simulate_counts_stream`, no 3‑D N/P arrays).
+
+- GB counts (pilot grid, pilot years):
+  - wall time ≈ **42.5 s**, max RSS ≈ **1,049,268 kB**
+  - `outputs/perf/preflight_gb_counts_time.txt`
+  - `outputs/perf/preflight_gb_counts_summary.csv`
+  - `outputs/perf/preflight_gb_counts_runtime.csv`
+
 ## Sanity checks (artefact review)
 - Reviewed TX_true/TX_obs/TX_best maps (toy canonical runs): coherent front gradients, non‑blank, spatial ordering preserved.
 - Recovery tables present for WP‑0.3.3 with non‑zero acceptance and parameter summaries.

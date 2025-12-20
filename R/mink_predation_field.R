@@ -75,6 +75,45 @@ exdyn_grid_lookup <- function(grid_sf) {
   )
 }
 
+#' Arrival-year matrix from arrivals table
+#' @keywords internal
+exdyn_arrival_matrix <- function(arrivals, grid_info, years, delta_region = NULL) {
+  stopifnot(!is.null(grid_info))
+  coalesce_cols <- intersect(
+    c("arrival_year_smooth", "arrival_year_raw", "arrival_year", "arrival"),
+    names(arrivals)
+  )
+  if (!length(coalesce_cols)) {
+    return(matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny))
+  }
+  arrivals_tbl <- arrivals %>%
+    dplyr::select(cell_id, dplyr::all_of(coalesce_cols)) %>%
+    dplyr::mutate(
+      arrival_year = dplyr::coalesce(!!!rlang::syms(coalesce_cols), NA_real_)
+    ) %>%
+    dplyr::select(cell_id, arrival_year)
+  lookup <- grid_info$lookup
+  mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
+  idx <- match(lookup$cell_id, arrivals_tbl$cell_id)
+  vals <- arrivals_tbl$arrival_year[idx]
+  mat[cbind(lookup$row_idx, lookup$col_idx)] <- vals
+  if (!is.null(delta_region)) {
+    delta_region <- unlist(delta_region)
+    if (!length(delta_region)) {
+      delta_region <- NULL
+    }
+  }
+  if (!is.null(delta_region)) {
+    mat <- exdyn_adjust_arrival_matrix(mat, grid_info, delta_region, years)
+  } else {
+    min_year <- min(years)
+    max_year <- max(years)
+    mat <- pmax(min_year, pmin(max_year, mat))
+  }
+  dim(mat) <- c(grid_info$nx, grid_info$ny)
+  mat
+}
+
 #' Predation array from arrival years
 #'
 #' @param arrivals Tibble with \code{cell_id} and arrival year column (raw/smooth).

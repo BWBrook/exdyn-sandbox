@@ -194,8 +194,16 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL)
   denom <- sum(is.finite(T_P))
   coverage <- if (length(idx) && denom > 0) length(idx) / denom else 0
   if (length(idx) >= 3) {
-    fit <- stats::lm(TX_obs[idx] ~ T_P[idx])
-    r2 <- max(0, min(1, summary(fit)$r.squared))
+    tx_vals <- TX_obs[idx]
+    tp_vals <- T_P[idx]
+    var_tp <- stats::var(tp_vals)
+    var_tx <- stats::var(tx_vals)
+    if (!is.finite(var_tp) || var_tp <= 0 || !is.finite(var_tx) || var_tx <= 0) {
+      r2 <- 0
+    } else {
+      r <- suppressWarnings(stats::cor(tx_vals, tp_vals, use = "complete.obs"))
+      r2 <- if (is.finite(r)) max(0, min(1, r^2)) else NA_real_
+    }
   } else {
     r2 <- NA_real_
   }

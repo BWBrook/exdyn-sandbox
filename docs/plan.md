@@ -92,8 +92,10 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - Phase 000 — Takeover + harness (docs + README + Makefile refresh).
 - Completed perf profiling + scaling + guardrails + optimisation (WP‑0.2.x).
 - Completed WP‑0.3.1 → WP‑0.3.4b (canonical schema, modes, replicated recovery, alignment tests, GB preflight budgets).
+- Performance hardening: vectorised orientation metrics, analytic r²/slope, streaming counts‑mode truth generation.
+- Re‑measured GB counts preflight (streaming counts): ~42.5 s wall, ~1.0 GB RSS (pilot grid, direct sim+obs+TX).
 
 ### Next steps (short queue)
 - Confirm new ABC scaling defaults yield acceptance without extreme eps on toy/medium runs.
-- Plan batching/HPC execution for WP‑0.3.5 given GB preflight budgets (≥43 min per replicate).
+- Run a **full‑pipeline** counts‑mode GB preflight (screen/ABC/report) to update WP‑0.3.5 budget.
 - If GB budgets remain prohibitive, evaluate domain cropping or segment/graph representation as targeted optimisations.

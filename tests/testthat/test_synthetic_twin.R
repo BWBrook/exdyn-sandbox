@@ -57,7 +57,7 @@ test_that("synthetic twin generation yields plausible outputs", {
   expect_true(is.null(syn$po_points))
   expect_true(is.null(syn$effort_points))
   expect_true(nrow(syn$tx_counts) > 0)
-  expect_type(syn$N_true, "double")
+  expect_true(is.null(syn$N_true))
 })
 
 test_that("scoring reports coverage curve penalty", {

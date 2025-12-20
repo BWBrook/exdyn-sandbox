@@ -43,9 +43,10 @@ certain cells (e.g. riparian subset).}
 List containing the generating parameters (\code{theta_star}),
 applied noise configuration (\code{noise_cfg}), yearly sequence (\code{years}),
 adjusted arrival matrix (\code{T_P}), full simulated abundance array
-(\code{N_true}), true extirpation matrix (\code{TX_true}), noisy observed
-extirpations (\code{TX_obs}), per-cell table (\code{tx_table}), occurrence
-counts (\code{tx_counts}), presence-only samples (\code{po_points}), effort
+(\code{N_true}, \code{NULL} when counts-only streaming is used), true
+extirpation matrix (\code{TX_true}), noisy observed extirpations
+(\code{TX_obs}), per-cell table (\code{tx_table}), occurrence counts
+(\code{tx_counts}), presence-only samples (\code{po_points}), effort
 samples (\code{effort_points}), and the mask used.
 }
 \description{

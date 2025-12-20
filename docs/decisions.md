@@ -127,4 +127,25 @@ Format for entries:
   - `noise.obs_mode` defaults to `counts` in synthetic/perf configs; points are debug‑only.  
   - Full GB recovery runs must be scheduled with batching/HPC assumptions; no un‑budgeted “overnight” runs.  
 - **Alternatives considered:**  
-  - Continuing point‑level PO for synthetic benchmarks (rejected: unnecessary overhead).  
+  - Continuing point‑level PO for synthetic benchmarks (rejected: unnecessary overhead).
+
+---
+
+- **Date:** 2025-12-20  
+- **Decision:** Hard‑enforce performance hygiene in synthetic runs: vectorised
+  orientation metrics, analytic r²/slope formulas, and **streaming counts‑mode
+  truth generation** (no 3‑D N/P arrays).  
+- **Rationale:**  
+  - Profiling showed summary statistics and 3‑D arrays dominate GB‑scale cost.  
+  - Replacing per‑cell loops and `lm()` calls removes avoidable overhead while
+    preserving statistical meaning.  
+  - Streaming counts eliminates the biggest memory sink in counts‑mode truth
+    generation.  
+- **Implications:**  
+  - Counts‑mode synthetic truth no longer constructs `N[x,y,t]` or `P[x,y,t]`
+    arrays.  
+  - Summary/score hot paths no longer call `lm()` per draw.  
+  - GB counts preflight budgets must be re‑measured against the new path.  
+- **Alternatives considered:**  
+  - Keeping the existing loop/`lm()` implementations (rejected: unnecessary
+    compute tax at GB scale).

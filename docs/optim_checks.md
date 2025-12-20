@@ -53,6 +53,16 @@ These comparisons are recorded in:
 Heavy artefacts are limited to reference outputs in synthetic runs. Per‑rep
 heavy outputs are skipped where not scientifically useful.
 
+### 4) Summary hot‑path trimming
+- `exdyn_orientation_metrics()` now uses a fully vectorised Sobel gradient.
+- `lm()` calls in summary/score hot paths replaced with analytic r² and slope.
+- Behaviour verified against the previous implementations on toy tests.
+
+### 5) Streaming counts‑mode truth generation
+- Counts‑mode synthetic truth generation now streams N and counts per year.
+- No `N[x,y,t]` or `P[x,y,t]` arrays are constructed in counts mode.
+- Explicit check: **No 3‑D P/N arrays are created in counts‑mode synthetic truth generation.**
+
 ---
 
 ## Current budgets (for WP‑0.3.5 gate)
@@ -69,6 +79,17 @@ Counts‑only observation removes a major source of cost, but the full synthetic
 pipeline (screen/ABC/report) still needs a **new full‑pipeline preflight**
 before WP‑0.3.5. We expect a large improvement versus the previous 43:30, but
 we have not yet re‑measured it end‑to‑end.
+
+**Post‑hardening counts‑mode preflight (streaming counts, no 3‑D arrays):**
+- GB counts: **~42.5 s**, **~1.00 GB RSS** (pilot grid, pilot years)
+- Files:
+  - `outputs/perf/preflight_gb_counts_time.txt`
+  - `outputs/perf/preflight_gb_counts_summary.csv`
+  - `outputs/perf/preflight_gb_counts_runtime.csv`
+
+**Before/after (counts mode, direct preflight):**
+- **5.2 min → 42.5 s** (~**7.3×** faster)
+- **6.35 GB → 1.00 GB** (~**6×** lower RSS)
 
 ---
 
@@ -88,7 +109,8 @@ preflight is still too slow for WP‑0.3.5:
 1) **Domain cropping** (tight bounding box of active cells) to avoid FFT over
    ocean/NA grid cells.
 2) **Graph/segment representation** for riparian systems (structural speedup).
-3) **Avoid storing full 3‑D N[x,y,t] arrays** where not required downstream.
+3) **Points‑mode truth generation still uses 3‑D N[x,y,t] arrays** (acceptable
+   for toy runs; should stay off for GB runs).
 4) **Selective output saving** for screen/ABC stages (already partially done).
 
 ---
@@ -112,6 +134,8 @@ preflight is still too slow for WP‑0.3.5:
 - Comparison tables:
   - `outputs/perf/preflight_medium_comparison.csv`
   - `outputs/perf/preflight_gb_comparison.csv`
+- Streaming preflight summaries:
+  - `outputs/perf/preflight_gb_counts_summary.csv`
+  - `outputs/perf/preflight_gb_counts_runtime.csv`
 - Canonical GB preflight manifest:
   - `outputs/canonical/0.3/WP-0.3.4b/syn_20251220_164636_0099/manifest.yaml`
-

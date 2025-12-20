@@ -252,43 +252,43 @@ exdyn_perf_run_profile <- function(profile, perf_cfg, label = "smoke",
 
   obs_out <- NULL
   if (isTRUE(profile$include_observation)) {
-    fields_stage <- exdyn_perf_stage("observation_fields", {
-      exdyn_fields_from_mink(
-        arrivals = arrivals,
-        grid_info = grid_info,
-        years = years_vec,
-        ramp_years = sim_cfg$ramp_years %||% 8,
-        pre_leak = sim_cfg$pre_leak %||% 0,
-        scale = sim_cfg$pred_scale %||% 1,
-        gamma = sim_cfg$gamma %||% 1,
-        delta_region = sim_cfg$delta_region %||% NULL
-      )
-    })
-    fields <- fields_stage$value
-    stage_records <- c(stage_records, list(fields_stage$record))
+    obs_mode <- tolower(obs_cfg$obs_mode %||% "counts")
+    po_points <- NULL
+    effort_points <- NULL
+    if (identical(obs_mode, "points")) {
+      fields_stage <- exdyn_perf_stage("observation_fields", {
+        exdyn_fields_from_mink(
+          arrivals = arrivals,
+          grid_info = grid_info,
+          years = years_vec,
+          ramp_years = sim_cfg$ramp_years %||% 8,
+          pre_leak = sim_cfg$pre_leak %||% 0,
+          scale = sim_cfg$pred_scale %||% 1,
+          gamma = sim_cfg$gamma %||% 1,
+          delta_region = sim_cfg$delta_region %||% NULL
+        )
+      })
+      fields <- fields_stage$value
+      stage_records <- c(stage_records, list(fields_stage$record))
 
-    obs_sim_stage <- exdyn_perf_stage("observation_sim", {
-      exdyn_simulate(
-        nx = grid_info$nx,
-        ny = grid_info$ny,
-        years = length(years_vec),
-        fields = fields,
-        pars = pars,
-        K0 = sim_cfg$K0 %||% 120,
-        alpha = if (isTRUE(profile$dispersal)) sim_cfg$alpha %||% 0.2 else 0,
-        disp_mean_cells = disp_mean_cells,
-        pred = pred,
-        conv_reuse = sim_cfg$conv_reuse %||% TRUE
-      )
-    })
-    N_true <- obs_sim_stage$value
-    stage_records <- c(stage_records, list(obs_sim_stage$record))
+      obs_sim_stage <- exdyn_perf_stage("observation_sim", {
+        exdyn_simulate(
+          nx = grid_info$nx,
+          ny = grid_info$ny,
+          years = length(years_vec),
+          fields = fields,
+          pars = pars,
+          K0 = sim_cfg$K0 %||% 120,
+          alpha = if (isTRUE(profile$dispersal)) sim_cfg$alpha %||% 0.2 else 0,
+          disp_mean_cells = disp_mean_cells,
+          pred = pred,
+          conv_reuse = sim_cfg$conv_reuse %||% TRUE
+        )
+      })
+      N_true <- obs_sim_stage$value
+      stage_records <- c(stage_records, list(obs_sim_stage$record))
 
-    obs_stage <- exdyn_perf_stage("observation_tx_map", {
-      obs_mode <- tolower(obs_cfg$obs_mode %||% "counts")
-      po_points <- NULL
-      effort_points <- NULL
-      if (identical(obs_mode, "points")) {
+      obs_stage <- exdyn_perf_stage("observation_tx_map", {
         po_points <- exdyn_synthetic_po_points(
           N_true,
           years_vec,
@@ -311,15 +311,47 @@ exdyn_perf_run_profile <- function(profile, perf_cfg, label = "smoke",
           mask = mask,
           fast = tx_map_fast
         )
-      } else {
-        counts_out <- exdyn_presence_only_counts(
-          N_true,
-          years_vec,
-          grid_info,
+        if ((obs_cfg$random_tx_dropout %||% 0) > 0 && nrow(tx_map$table)) {
+          drop_mask <- stats::runif(nrow(tx_map$table)) < (obs_cfg$random_tx_dropout %||% 0)
+          if (any(drop_mask)) {
+            drop_cells <- tx_map$table$cell_id[drop_mask]
+            lookup <- grid_info$lookup
+            pos <- lookup[match(drop_cells, lookup$cell_id), c("row_idx", "col_idx")]
+            pos <- pos[stats::complete.cases(pos), , drop = FALSE]
+            if (nrow(pos)) {
+              tx_map$matrix[cbind(pos$row_idx, pos$col_idx)] <- NA_real_
+              tx_map$last_presence[cbind(pos$row_idx, pos$col_idx)] <- tx_map$last_presence[cbind(pos$row_idx, pos$col_idx)]
+            }
+            tx_map$table$tx_obs[drop_mask] <- NA_integer_
+          }
+        }
+        list(po_points = po_points, effort_points = effort_points, tx_map = tx_map)
+      })
+      obs_out <- obs_stage$value
+      stage_records <- c(stage_records, list(obs_stage$record))
+    } else {
+      obs_sim_stage <- exdyn_perf_stage("observation_sim", {
+        exdyn_simulate_counts_stream(
+          grid_info = grid_info,
+          years = years_vec,
+          T_P = T_P,
+          ramp_years = sim_cfg$ramp_years %||% 8,
+          pars = pars,
+          K0 = sim_cfg$K0 %||% 120,
+          alpha = if (isTRUE(profile$dispersal)) sim_cfg$alpha %||% 0.2 else 0,
+          disp_mean_cells = disp_mean_cells,
+          pred = pred,
           rate = obs_cfg$po_rate %||% 0.02,
           effort_strength = obs_cfg$effort_strength %||% 1,
-          mask = mask
+          pre_leak = sim_cfg$pre_leak %||% 0,
+          mask = mask,
+          conv_reuse = sim_cfg$conv_reuse %||% TRUE
         )
+      })
+      counts_out <- obs_sim_stage$value
+      stage_records <- c(stage_records, list(obs_sim_stage$record))
+
+      obs_stage <- exdyn_perf_stage("observation_tx_map", {
         counts_mat <- counts_out$counts_mat
         effort_mat <- counts_out$effort_mat
         if ((obs_cfg$missing_years_prob %||% 0) > 0) {
@@ -337,25 +369,25 @@ exdyn_perf_run_profile <- function(profile, perf_cfg, label = "smoke",
           cells_dt = counts_out$cells,
           return_counts = FALSE
         )
-      }
-      if ((obs_cfg$random_tx_dropout %||% 0) > 0 && nrow(tx_map$table)) {
-        drop_mask <- stats::runif(nrow(tx_map$table)) < (obs_cfg$random_tx_dropout %||% 0)
-        if (any(drop_mask)) {
-          drop_cells <- tx_map$table$cell_id[drop_mask]
-          lookup <- grid_info$lookup
-          pos <- lookup[match(drop_cells, lookup$cell_id), c("row_idx", "col_idx")]
-          pos <- pos[stats::complete.cases(pos), , drop = FALSE]
-          if (nrow(pos)) {
-            tx_map$matrix[cbind(pos$row_idx, pos$col_idx)] <- NA_real_
-            tx_map$last_presence[cbind(pos$row_idx, pos$col_idx)] <- tx_map$last_presence[cbind(pos$row_idx, pos$col_idx)]
+        if ((obs_cfg$random_tx_dropout %||% 0) > 0 && nrow(tx_map$table)) {
+          drop_mask <- stats::runif(nrow(tx_map$table)) < (obs_cfg$random_tx_dropout %||% 0)
+          if (any(drop_mask)) {
+            drop_cells <- tx_map$table$cell_id[drop_mask]
+            lookup <- grid_info$lookup
+            pos <- lookup[match(drop_cells, lookup$cell_id), c("row_idx", "col_idx")]
+            pos <- pos[stats::complete.cases(pos), , drop = FALSE]
+            if (nrow(pos)) {
+              tx_map$matrix[cbind(pos$row_idx, pos$col_idx)] <- NA_real_
+              tx_map$last_presence[cbind(pos$row_idx, pos$col_idx)] <- tx_map$last_presence[cbind(pos$row_idx, pos$col_idx)]
+            }
+            tx_map$table$tx_obs[drop_mask] <- NA_integer_
           }
-          tx_map$table$tx_obs[drop_mask] <- NA_integer_
         }
-      }
-      list(po_points = po_points, effort_points = effort_points, tx_map = tx_map)
-    })
-    obs_out <- obs_stage$value
-    stage_records <- c(stage_records, list(obs_stage$record))
+        list(po_points = NULL, effort_points = NULL, tx_map = tx_map)
+      })
+      obs_out <- obs_stage$value
+      stage_records <- c(stage_records, list(obs_stage$record))
+    }
 
     summary_obs_stage <- exdyn_perf_stage("summary_obs", {
       exdyn_summary_tx_response(obs_out$tx_map$matrix, T_P, years = years_vec, coverage_breaks = coverage_breaks)

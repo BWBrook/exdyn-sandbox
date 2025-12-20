@@ -187,3 +187,114 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
   }
   TX
 }
+
+#' Streamed simulation for counts-only observations
+#' @keywords internal
+exdyn_simulate_counts_stream <- function(grid_info, years, T_P, ramp_years,
+                                         pars, K0, alpha,
+                                         disp_mean_cells, pred,
+                                         rate, effort_strength = 1,
+                                         pre_leak = 0,
+                                         mask = NULL,
+                                         conv_reuse = TRUE) {
+  nx <- grid_info$nx
+  ny <- grid_info$ny
+  stopifnot(length(years) >= 2)
+  Tn <- length(years)
+  ramp_years <- max(1, ramp_years)
+  if (!is.null(mask)) {
+    mask <- as.matrix(mask)
+    if (!all(dim(mask) == c(nx, ny))) {
+      stop("mask must have dimensions nx × ny")
+    }
+  }
+  N <- matrix(pmax(1, round(K0 * 0.1)), nrow = nx, ncol = ny)
+  conv_plan <- if (alpha > 0) {
+    ker <- exdyn_kernel(mean_cells = disp_mean_cells, radius = 5L)
+    exdyn_conv2_plan(nx, ny, ker, reuse_buffer = conv_reuse)
+  } else {
+    NULL
+  }
+  r_eff_const <- pars$rmax * exdyn_fS(1)
+  k <- 6 / ramp_years
+  pred_scale <- pred$scale %||% 1
+  pred_gamma <- pred$gamma %||% 1
+  scale_matrix <- pred$scale_matrix
+  if (!is.null(scale_matrix)) {
+    scale_matrix <- as.matrix(scale_matrix)
+    if (!all(dim(scale_matrix) == c(nx, ny))) {
+      stop("pred$scale_matrix must have dimensions nx × ny")
+    }
+  }
+
+  access <- outer(seq(0, 1, length.out = nx), seq(0, 1, length.out = ny),
+                  function(i, j) 1 - pmin(i, 1 - i, j, 1 - j))
+  access <- access^effort_strength
+  access <- access / mean(access)
+  lookup <- grid_info$lookup
+  cell_idx <- cbind(lookup$row_idx, lookup$col_idx)
+  n_cells <- nrow(lookup)
+  counts_mat <- matrix(0L, nrow = n_cells, ncol = Tn)
+
+  record_counts <- function(year_idx) {
+    lam <- N * access * rate
+    lam[!is.finite(lam)] <- 0
+    lam <- pmax(lam, 0)
+    if (!is.null(mask)) {
+      lam[!mask] <- 0
+    }
+    counts <- stats::rpois(length(lam), lam)
+    counts <- matrix(counts, nrow = nx, ncol = ny)
+    counts_mat[, year_idx] <<- counts[cell_idx]
+  }
+
+  for (tt in seq_len(Tn - 1)) {
+    record_counts(tt)
+    dt <- years[tt] - T_P
+    P_t <- ifelse(
+      is.na(T_P),
+      pre_leak,
+      {
+        val <- 0.2 + 0.8 / (1 + exp(-k * (dt - ramp_years / 2)))
+        val[dt < 0] <- pre_leak
+        val <- pmax(pre_leak, pmin(1, val))
+        if (!isTRUE(all.equal(pred_gamma, 1)) || !isTRUE(all.equal(pred_scale, 1)) || !is.null(scale_matrix)) {
+          idx <- dt >= 0 & !is.na(dt)
+          if (any(idx)) {
+            scaled <- (val[idx] ^ pred_gamma) * pred_scale
+            if (!is.null(scale_matrix)) {
+              scaled <- scaled * scale_matrix[idx]
+            }
+            val[idx] <- scaled
+          }
+        }
+        val[val < 0] <- 0
+        val
+      }
+    )
+    local <- exdyn_update_local_const(
+      N = N,
+      P = P_t,
+      pars = pars,
+      K0 = K0,
+      pred_type = pred$type,
+      pred_c = pred$c,
+      pred_h = pred$h,
+      r_eff_const = r_eff_const
+    )
+    N_next <- if (alpha > 0) {
+      moved <- exdyn_conv2_apply(local, conv_plan)
+      (1 - alpha) * local + alpha * moved
+    } else {
+      local
+    }
+    N <- pmax(N_next, 0)
+  }
+  record_counts(Tn)
+  list(
+    counts_mat = counts_mat,
+    effort_mat = counts_mat,
+    years = years,
+    cells = lookup
+  )
+}

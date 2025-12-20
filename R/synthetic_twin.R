@@ -25,10 +25,11 @@
 #' @return List containing the generating parameters (`theta_star`),
 #'   applied noise configuration (`noise_cfg`), yearly sequence (`years`),
 #'   adjusted arrival matrix (`T_P`), full simulated abundance array
-#'   (`N_true`), true extirpation matrix (`TX_true`), noisy observed
-#'   extirpations (`TX_obs`), per-cell table (`tx_table`), occurrence
-#'   counts (`tx_counts`), presence-only samples (`po_points`), effort
-#'   samples (`effort_points`), and the mask used.
+#'   (`N_true`, `NULL` when counts-only streaming is used), true
+#'   extirpation matrix (`TX_true`), noisy observed extirpations (`TX_obs`),
+#'   per-cell table (`tx_table`), occurrence counts (`tx_counts`),
+#'   presence-only samples (`po_points`), effort samples
+#'   (`effort_points`), and the mask used.
 #' @export
 exdyn_make_synthetic <- function(theta_star,
                                  noise_cfg,
@@ -65,6 +66,8 @@ exdyn_make_synthetic <- function(theta_star,
     keep_counts = FALSE
   )
   noise <- utils::modifyList(base_noise, noise_cfg)
+  obs_mode <- noise$obs_mode %||% "counts"
+  obs_mode <- tolower(obs_mode)
   if (length(years) == 2L) {
     years_seq <- seq.int(years[1], years[2])
   } else {
@@ -81,18 +84,6 @@ exdyn_make_synthetic <- function(theta_star,
   disp_mean_cells <- theta$disp_mean_km / cell_km
 
   arrivals_tbl <- exdyn_prepare_arrivals(arrivals)
-  grid_for_fields <- grid_info
-  grid_for_fields$riparian_matrix <- matrix(TRUE, nrow = grid_info$nx, ncol = grid_info$ny)
-  fields <- exdyn_fields_from_mink(
-    arrivals = arrivals_tbl,
-    grid_info = grid_for_fields,
-    years = years_seq,
-    ramp_years = ramp_years,
-    pre_leak = theta$pre_leak %||% 0,
-    scale = theta$pred_scale,
-    gamma = theta$gamma,
-    delta_region = delta_region
-  )
   if (!is.null(mask)) {
     mask <- as.matrix(mask)
   } else {
@@ -111,30 +102,54 @@ exdyn_make_synthetic <- function(theta_star,
     scale = theta$pred_scale,
     gamma = theta$gamma
   )
-  N_true <- exdyn_simulate(
-    nx = grid_info$nx,
-    ny = grid_info$ny,
-    years = length(years_seq),
-    fields = fields,
-    pars = pars,
-    K0 = K0,
-    alpha = theta$alpha,
-    disp_mean_cells = disp_mean_cells,
-    pred = pred
-  )
-  if (any(!mask)) {
-    for (tt in seq_len(dim(N_true)[3])) {
-      slice <- N_true[,,tt]
-      slice[!mask] <- 0
-      N_true[,,tt] <- slice
+  if (identical(obs_mode, "points")) {
+    grid_for_fields <- grid_info
+    grid_for_fields$riparian_matrix <- matrix(TRUE, nrow = grid_info$nx, ncol = grid_info$ny)
+    fields <- exdyn_fields_from_mink(
+      arrivals = arrivals_tbl,
+      grid_info = grid_for_fields,
+      years = years_seq,
+      ramp_years = ramp_years,
+      pre_leak = theta$pre_leak %||% 0,
+      scale = theta$pred_scale,
+      gamma = theta$gamma,
+      delta_region = delta_region
+    )
+    T_P <- fields$T_P
+    N_true <- exdyn_simulate(
+      nx = grid_info$nx,
+      ny = grid_info$ny,
+      years = length(years_seq),
+      fields = fields,
+      pars = pars,
+      K0 = K0,
+      alpha = theta$alpha,
+      disp_mean_cells = disp_mean_cells,
+      pred = pred
+    )
+    if (any(!mask)) {
+      for (tt in seq_len(dim(N_true)[3])) {
+        slice <- N_true[,,tt]
+        slice[!mask] <- 0
+        N_true[,,tt] <- slice
+      }
     }
+  } else {
+    fields <- NULL
+    T_P <- exdyn_arrival_matrix(
+      arrivals = arrivals_tbl,
+      grid_info = grid_info,
+      years = years_seq,
+      delta_region = delta_region
+    )
+    N_true <- NULL
   }
   truth_frac <- theta$truth_frac %||% 0.02
   truth_rel0 <- theta$truth_rel0 %||% 0.5
   TX_idx_stream <- exdyn_simulate_tx_only(
     grid_info = grid_info,
     years = years_seq,
-    T_P = fields$T_P,
+    T_P = T_P,
     ramp_years = theta$ramp_years,
     pars = pars,
     K0 = K0,
@@ -160,8 +175,6 @@ exdyn_make_synthetic <- function(theta_star,
   mask_mat <- mask
   TX_true[!mask_mat] <- NA_real_
 
-  obs_mode <- noise$obs_mode %||% "counts"
-  obs_mode <- tolower(obs_mode)
   po_points <- NULL
   effort_points <- NULL
   counts_mat <- NULL
@@ -188,12 +201,19 @@ exdyn_make_synthetic <- function(theta_star,
       mask = mask_mat
     )
   } else {
-    counts_out <- exdyn_presence_only_counts(
-      N_true,
-      years_seq,
-      grid_info,
+    counts_out <- exdyn_simulate_counts_stream(
+      grid_info = grid_info,
+      years = years_seq,
+      T_P = T_P,
+      ramp_years = theta$ramp_years,
+      pars = pars,
+      K0 = K0,
+      alpha = theta$alpha,
+      disp_mean_cells = disp_mean_cells,
+      pred = pred,
       rate = noise$po_rate,
       effort_strength = noise$effort_strength,
+      pre_leak = theta$pre_leak %||% 0,
       mask = mask_mat
     )
     counts_mat <- counts_out$counts_mat
@@ -210,9 +230,9 @@ exdyn_make_synthetic <- function(theta_star,
       grid_info = grid_info,
       effort_mat = effort_mat,
       mask = mask_mat,
-      cells_dt = counts_out$cells,
-      return_counts = isTRUE(noise$keep_counts)
-    )
+    cells_dt = counts_out$cells,
+    return_counts = isTRUE(noise$keep_counts)
+  )
   }
   if (noise$random_tx_dropout > 0 && nrow(tx_map$table)) {
     drop_mask <- stats::runif(nrow(tx_map$table)) < noise$random_tx_dropout
@@ -232,7 +252,7 @@ exdyn_make_synthetic <- function(theta_star,
     theta_star = theta,
     noise_cfg = noise,
     years = years_seq,
-    T_P = fields$T_P,
+    T_P = T_P,
     N_true = N_true,
     TX_true = TX_true,
     TX_obs = tx_map$matrix,
@@ -246,7 +266,7 @@ exdyn_make_synthetic <- function(theta_star,
 
 #' @keywords internal
 exdyn_prepare_arrivals <- function(arrivals) {
-  cols <- intersect(c("arrival_year_smooth", "arrival_year", "arrival"), names(arrivals))
+  cols <- intersect(c("arrival_year_smooth", "arrival_year_raw", "arrival_year", "arrival"), names(arrivals))
   if (!length(cols)) {
     return(dplyr::tibble(cell_id = arrivals$cell_id, arrival_year_smooth = NA_real_))
   }

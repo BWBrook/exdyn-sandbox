@@ -250,33 +250,40 @@ exdyn_orientation_metrics <- function(T_X) {
   if (nx < 3 || ny < 3) {
     return(list(R = NA_real_, dominant = c(NA_real_, NA_real_), count = 0))
   }
-  sobel_x <- matrix(c(1, 0, -1, 2, 0, -2, 1, 0, -1), nrow = 3, byrow = TRUE)
-  sobel_y <- matrix(c(1, 2, 1, 0, 0, 0, -1, -2, -1), nrow = 3, byrow = TRUE)
-  grads <- matrix(NA_real_, nrow = nx * ny, ncol = 2)
-  idx <- 0L
-  for (i in 2:(nx - 1)) {
-    for (j in 2:(ny - 1)) {
-      window <- T_X[(i - 1):(i + 1), (j - 1):(j + 1)]
-      if (anyNA(window)) next
-      gx <- sum(window * sobel_x)
-      gy <- sum(window * sobel_y)
-      idx <- idx + 1L
-      grads[idx, ] <- c(gx, gy)
-    }
-  }
-  if (idx == 0L) {
+  a11 <- T_X[1:(nx - 2), 1:(ny - 2)]
+  a12 <- T_X[1:(nx - 2), 2:(ny - 1)]
+  a13 <- T_X[1:(nx - 2), 3:ny]
+  a21 <- T_X[2:(nx - 1), 1:(ny - 2)]
+  a22 <- T_X[2:(nx - 1), 2:(ny - 1)]
+  a23 <- T_X[2:(nx - 1), 3:ny]
+  a31 <- T_X[3:nx, 1:(ny - 2)]
+  a32 <- T_X[3:nx, 2:(ny - 1)]
+  a33 <- T_X[3:nx, 3:ny]
+  valid <- !is.na(a11) & !is.na(a12) & !is.na(a13) &
+    !is.na(a21) & !is.na(a22) & !is.na(a23) &
+    !is.na(a31) & !is.na(a32) & !is.na(a33)
+  n_valid <- sum(valid)
+  if (!n_valid) {
     return(list(R = NA_real_, dominant = c(NA_real_, NA_real_), count = 0))
   }
-  grads <- grads[seq_len(idx), , drop = FALSE]
-  mags <- sqrt(grads[, 1]^2 + grads[, 2]^2)
+  gx <- (a11 + 2 * a21 + a31) - (a13 + 2 * a23 + a33)
+  gy <- (a11 + 2 * a12 + a13) - (a31 + 2 * a32 + a33)
+  gx_vec <- gx[valid]
+  gy_vec <- gy[valid]
+  mags <- sqrt(gx_vec^2 + gy_vec^2)
   positive <- mags > 0
   if (!any(positive)) {
-    return(list(R = NA_real_, dominant = c(NA_real_, NA_real_), count = idx))
+    return(list(R = NA_real_, dominant = c(NA_real_, NA_real_), count = n_valid))
   }
-  unit_vecs <- grads[positive, , drop = FALSE] / mags[positive]
-  sum_unit <- colSums(unit_vecs)
-  R <- sqrt(sum_unit[1]^2 + sum_unit[2]^2) / nrow(unit_vecs)
-  dominant <- colSums(grads)
+  gx_pos <- gx_vec[positive]
+  gy_pos <- gy_vec[positive]
+  mags_pos <- mags[positive]
+  unit_x <- gx_pos / mags_pos
+  unit_y <- gy_pos / mags_pos
+  sum_unit <- c(sum(unit_x), sum(unit_y))
+  n_pos <- length(unit_x)
+  R <- sqrt(sum_unit[1]^2 + sum_unit[2]^2) / n_pos
+  dominant <- c(sum(gx_vec), sum(gy_vec))
   dom_mag <- sqrt(sum(dominant^2))
   if (dom_mag > 0) {
     dominant <- dominant / dom_mag
@@ -285,7 +292,7 @@ exdyn_orientation_metrics <- function(T_X) {
   } else {
     dominant <- c(NA_real_, NA_real_)
   }
-  list(R = R, dominant = dominant, count = nrow(unit_vecs))
+  list(R = R, dominant = dominant, count = n_pos)
 }
 
 #' Response-only front speed estimate
@@ -299,14 +306,27 @@ exdyn_front_speed_estimate <- function(T_X, direction) {
     return(list(speed = NA_real_, slope = NA_real_, r2 = NA_real_))
   }
   proj <- idx[, 1] * direction[1] + idx[, 2] * direction[2]
-  fit <- tryCatch(stats::lm(T_X[idx] ~ proj), error = function(...) NULL)
-  if (is.null(fit)) {
+  tx_vals <- T_X[idx]
+  valid <- is.finite(proj) & is.finite(tx_vals)
+  if (sum(valid) < 3) {
     return(list(speed = NA_real_, slope = NA_real_, r2 = NA_real_))
   }
-  coef_fit <- stats::coef(fit)
-  slope <- if (length(coef_fit) >= 2) coef_fit[2] else NA_real_
+  proj <- proj[valid]
+  tx_vals <- tx_vals[valid]
+  var_proj <- stats::var(proj)
+  var_tx <- stats::var(tx_vals)
+  slope <- if (!is.finite(var_proj) || var_proj <= 0) {
+    NA_real_
+  } else {
+    stats::cov(tx_vals, proj) / var_proj
+  }
   speed <- if (!is.na(slope) && abs(slope) > .Machine$double.eps) 1 / slope else NA_real_
-  r2 <- tryCatch(summary(fit)$r.squared, error = function(...) NA_real_)
+  if (!is.finite(var_proj) || var_proj <= 0 || !is.finite(var_tx) || var_tx <= 0) {
+    r2 <- 0
+  } else {
+    r <- suppressWarnings(stats::cor(tx_vals, proj, use = "complete.obs"))
+    r2 <- if (is.finite(r)) max(0, min(1, r^2)) else NA_real_
+  }
   list(speed = speed, slope = slope, r2 = r2)
 }
 
