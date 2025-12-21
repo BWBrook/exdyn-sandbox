@@ -539,7 +539,7 @@ summary outputs report explicit counts of valid pairs.
 
 **Completion record (append on completion):**
 - Completed: 2025-12-21
-- Commit: TBD
+- Commit: 73bec4f
 - Canonical: outputs/canonical/0.3/WP-0.3.4.1/wp0341_manifest_20251221_202507/
 
 ---
