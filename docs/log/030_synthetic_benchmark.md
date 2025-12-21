@@ -103,3 +103,9 @@ benchmark.
 ## Next steps
 - Use WP‑0.3.4b budgets to gate WP‑0.3.5.
 - Revisit summary scaling before full benchmark (to avoid extreme eps values).
+
+## WP‑0.3.4.1 mask‑consistent summaries (2025‑12‑21)
+- Implemented mask‑aware summary counts (`n_mask`, `n_TP_finite`, `n_pairs`, `n_TX_*`) and enforced mask use in summary/score paths.
+- New regression test `test_mask_consistency` confirms masked vs unmasked coverage differs as expected and `summary_obs` coverage matches masked scoring.
+- Canonical run: `outputs/canonical/0.3/WP-0.3.4.1/wp0341_manifest_20251221_202507/`.
+- Artefact review (realistic mode smoke): `outputs/synthetic/realistic/summary_obs.csv` shows coverage = 0.3448 and `n_pairs / n_TP_finite` = 0.3448 (mask‑consistent).

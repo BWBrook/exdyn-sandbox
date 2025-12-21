@@ -108,7 +108,7 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 - [x] **WP‑0.3.3 — Synthetic: replicated recovery harness + parameter recovery metrics**
 - [x] **WP‑0.3.4 — Synthetic: summary/loss alignment + regression tests**
 - [x] **WP‑0.3.4b — GB‑scale preflight budget check (single‑replicate, realistic mode, real RSS)**
-- [ ] **WP‑0.3.4.1 — Pilot: mask‑consistent summaries + tests**
+- [x] **WP‑0.3.4.1 — Pilot: mask‑consistent summaries + tests**
 - [ ] **WP‑0.3.4.2 — Pilot: arrival‑surface diagnostics + override switch**
 - [ ] **WP‑0.3.4.3 — Pilot: truth viability sweep (TX coverage tuning)**
 - [ ] **WP‑0.3.4.4 — Pilot: re‑run recovery + enforce identifiability gates**
@@ -536,6 +536,11 @@ summary outputs report explicit counts of valid pairs.
 **Stop condition:**
 - Tests pass and pilot summaries no longer show near‑zero coverage due solely to
   denominator mismatch.
+
+**Completion record (append on completion):**
+- Completed: 2025-12-21
+- Commit: TBD
+- Canonical: outputs/canonical/0.3/WP-0.3.4.1/wp0341_manifest_20251221_202507/
 
 ---
 

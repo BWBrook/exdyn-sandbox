@@ -100,7 +100,10 @@ exdyn_synthetic_screen_run <- function(theta_tbl,
       TX_years[idx] <- years_vec[TX_idx[idx]]
     }
     TX_years[!mask] <- NA_real_
-    metrics <- exdyn_score(TX_obs, T_P_adj, TX_years, compat_cfg, coverage_breaks = coverage_breaks)
+    metrics <- exdyn_score(TX_obs, T_P_adj, TX_years, compat_cfg,
+      coverage_breaks = coverage_breaks,
+      mask = mask
+    )
     coverage_sim <- if (any(mask)) mean(is.finite(TX_years[mask]), na.rm = TRUE) else NA_real_
     result_row <- dplyr::bind_cols(theta_row, metrics) %>%
       dplyr::mutate(coverage_sim = coverage_sim)
@@ -213,7 +216,8 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
       sim$TX_sim,
       sim$T_P,
       years = years_vec,
-      coverage_breaks = coverage_breaks
+      coverage_breaks = coverage_breaks,
+      mask = mask
     )
   }
 
@@ -412,7 +416,21 @@ exdyn_synthetic_mode_run <- function(truth,
     tx_info$TX_use,
     tx_info$T_P,
     years = years_vec,
-    coverage_breaks = coverage_breaks
+    coverage_breaks = coverage_breaks,
+    mask = mask
+  )
+  counts_true <- exdyn_summary_counts(truth$TX_true, truth$T_P, mask = mask)
+  counts_obs <- exdyn_summary_counts(truth$TX_obs, truth$T_P, mask = mask)
+  counts_use <- exdyn_summary_counts(tx_info$TX_use, tx_info$T_P, mask = mask)
+  counts <- c(
+    n_mask = counts_use[["n_mask"]],
+    n_TP_finite = counts_use[["n_TP_finite"]],
+    n_pairs = counts_use[["n_pairs"]],
+    n_TX_use = counts_use[["n_TX_finite"]],
+    n_TX_true = counts_true[["n_TX_finite"]],
+    n_TX_obs = counts_obs[["n_TX_finite"]],
+    n_pairs_true = counts_true[["n_pairs"]],
+    n_pairs_obs = counts_obs[["n_pairs"]]
   )
   screen <- exdyn_synthetic_screen_run(
     theta_tbl = theta_tbl,
@@ -440,6 +458,7 @@ exdyn_synthetic_mode_run <- function(truth,
   list(
     mode = mode,
     summary_obs = summary_obs,
+    summary_counts = counts,
     screen_results = screen$results,
     best_index = screen$best_index,
     best_tx = screen$best_tx,
@@ -473,7 +492,11 @@ exdyn_write_synthetic_outputs <- function(mode_runs, truth, grid_info, output_ro
     readr::write_csv(run$abc_summary %||% tibble::tibble(), abc_summary_path)
     out_paths <- c(out_paths, abc_summary_path)
     summary_path <- file.path(mode_dir, "summary_obs.csv")
-    readr::write_csv(tibble::enframe(run$summary_obs, name = "statistic", value = "value"), summary_path)
+    summary_vec <- run$summary_obs
+    if (!is.null(run$summary_counts)) {
+      summary_vec <- c(summary_vec, run$summary_counts)
+    }
+    readr::write_csv(tibble::enframe(summary_vec, name = "statistic", value = "value"), summary_path)
     out_paths <- c(out_paths, summary_path)
     theta_path <- file.path(mode_dir, "theta_star.yaml")
     yaml::write_yaml(truth$theta_star, theta_path)
@@ -508,10 +531,16 @@ exdyn_recovery_rep_metrics <- function(mode_runs) {
       best <- tibble::tibble()
     }
     summaries <- run$abc$summaries %||% tibble::tibble()
+    counts <- run$summary_counts %||% list()
     tibble::tibble(
       mode = run$mode,
       replicate = run$replicate %||% NA_integer_,
       seed = run$seed %||% NA_integer_,
+      n_mask = counts[["n_mask"]] %||% NA_real_,
+      n_TP_finite = counts[["n_TP_finite"]] %||% NA_real_,
+      n_TX_true = counts[["n_TX_true"]] %||% NA_real_,
+      n_TX_obs = counts[["n_TX_obs"]] %||% NA_real_,
+      n_pairs = counts[["n_pairs"]] %||% NA_real_,
       n_accept = nrow(run$abc$samples %||% tibble::tibble()),
       eps = run$abc$eps %||% NA_real_,
       screen_best_loss = best$loss %||% NA_real_,

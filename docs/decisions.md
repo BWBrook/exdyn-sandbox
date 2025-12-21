@@ -185,3 +185,24 @@ Format for entries:
     projected wall time stays within acceptable limits.  
 - **Alternatives considered:**  
   - Proceeding to WP‑0.3.5 without a full‑pipeline preflight (rejected).  
+
+---
+
+- **Date:** 2025-12-21  
+- **Decision:** Enforce **mask‑consistent summary denominators** and add explicit
+  count fields (`n_mask`, `n_TP_finite`, `n_pairs`, `n_TX_*`) to synthetic
+  summary outputs; bump schema to **0.3.3**.  
+- **Rationale:**  
+  - Prior pilot runs compared masked simulated summaries against unmasked
+    observed summaries, producing artificially low coverage and NA geometry.  
+  - Explicit counts make denominator mismatches visible and auditable in
+    recovery outputs.  
+- **Implications:**  
+  - `summary_obs.csv`, `screen_results.csv`, and `replicate_metrics.csv` now
+    include mask‑aware count fields.  
+  - Mask is applied consistently in `exdyn_summary_tx_response` and
+    `exdyn_score`.  
+  - Schema version is now **0.3.3** (see `docs/schema.md`).  
+- **Alternatives considered:**  
+  - Leaving summaries unmasked and manually adjusting denominators in reports
+    (rejected: too error‑prone and not enforceable by tests).

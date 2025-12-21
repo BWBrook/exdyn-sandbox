@@ -92,6 +92,7 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - Phase 000 — Takeover + harness (docs + README + Makefile refresh).
 - Completed perf profiling + scaling + guardrails + optimisation (WP‑0.2.x).
 - Completed WP‑0.3.1 → WP‑0.3.4b (canonical schema, modes, replicated recovery, alignment tests, GB preflight budgets).
+- Completed WP‑0.3.4.1 (mask‑consistent summaries with explicit count fields + tests).
 - Performance hardening: vectorised orientation metrics, analytic r²/slope, streaming counts‑mode truth generation.
 - Re‑measured GB counts preflight (streaming counts): ~42.5 s wall, ~1.0 GB RSS (pilot grid, direct sim+obs+TX).
 - Full‑pipeline counts preflight (screen + ABC + report, pilot grid, crop enabled): ~3:01 wall, ~1.2 GB RSS; canonical size ~192 kB.
@@ -99,6 +100,6 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 
 ### Next steps (short queue)
 - Decide whether WP‑0.3.5 is green‑lit given the pilot‑scale WP‑0.3.5 run and planned ABC draw counts.
-- Confirm new ABC scaling defaults yield acceptance without extreme eps on toy/medium runs.
-- Adjust synthetic truth/observation settings for the GB grid if TX coverage remains too sparse for recovery metrics.
-- If WP‑0.3.5 budgets are still prohibitive at intended draw counts, evaluate crop defaults or segment/graph representation as targeted optimisations.
+- Run WP‑0.3.4.2 arrival‑surface diagnostics + override switch (pilot grid).
+- Run WP‑0.3.4.3 truth viability sweep to tune `theta_star` coverage on pilot grid.
+- Run WP‑0.3.4.4 pilot recovery with identifiability gates before resuming WP‑0.3.5.

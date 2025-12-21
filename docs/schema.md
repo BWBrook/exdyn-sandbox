@@ -8,7 +8,7 @@ If schemas change, bump `exdyn_schema_version()` in `R/schema.R` and update this
 ## Schema version
 
 - **Authoritative source:** `R/schema.R` (`exdyn_schema_version()`).
-- **Current version:** 0.3.2
+- **Current version:** 0.3.3
 
 ---
 
@@ -21,10 +21,15 @@ Location: `outputs/synthetic/<mode>/` where `<mode>` is `ideal` or `realistic`.
 Files (current stable set):
 - `screen_results.csv` — parameter screen results (one row per draw).
   - Required columns (minimum): `draw`, `loss`, `coverage`, `lag_mean`, `r2_arrival`.
+  - Required count fields (mask‑aware): `n_mask`, `n_TP_finite`, `n_TX_obs`,
+    `n_TX_sim`, `n_pairs_obs`, `n_pairs_sim`.
   - Parameter columns mirror `config/synthetic.yaml` names plus `delta_<REGION>` entries.
 - `abc_posterior.csv` — accepted ABC samples (one row per accepted draw).
 - `abc_summary.csv` — posterior summary statistics (per parameter).
 - `summary_obs.csv` — observed summary vector used in ABC (name/value pairs).
+  - Includes count fields appended to the summary vector:
+    `n_mask`, `n_TP_finite`, `n_pairs`, `n_TX_use`, `n_TX_true`, `n_TX_obs`,
+    `n_pairs_true`, `n_pairs_obs`.
 - `theta_star.yaml` — generating parameters (truth).
 - `TX_obs_syn.png` — observed/noisy extirpation surface (TX_obs).
 - `TX_true_syn.png` — true extirpation surface (TX_true).
@@ -46,6 +51,7 @@ One row per replicate, per mode.
 
 Required columns:
 - `mode`, `replicate`, `seed`
+- `n_mask`, `n_TP_finite`, `n_TX_true`, `n_TX_obs`, `n_pairs`
 - `n_accept`, `eps`
 - `screen_best_loss`, `screen_best_r2`, `screen_best_lag`, `screen_best_coverage`
 - `abc_distance_median`, `abc_lag_median`, `abc_coverage_median`, `abc_r2_median`

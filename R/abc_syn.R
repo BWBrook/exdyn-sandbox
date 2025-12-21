@@ -1,10 +1,38 @@
+# Internal helpers for masking and counts
+.exdyn_prepare_mask <- function(mask, dims) {
+  if (is.null(mask)) {
+    return(matrix(TRUE, nrow = dims[1], ncol = dims[2]))
+  }
+  mask <- as.matrix(mask)
+  if (!all(dim(mask) == dims)) {
+    stop("mask must have dimensions nx × ny")
+  }
+  mask[is.na(mask)] <- FALSE
+  mask
+}
+
+exdyn_summary_counts <- function(TX, T_P, mask = NULL) {
+  stopifnot(length(dim(TX)) == 2L, length(dim(T_P)) == 2L)
+  stopifnot(all(dim(TX) == dim(T_P)))
+  mask_use <- .exdyn_prepare_mask(mask, dim(TX))
+  tp_finite <- is.finite(T_P) & mask_use
+  tx_finite <- is.finite(TX) & mask_use
+  c(
+    n_mask = sum(mask_use),
+    n_TP_finite = sum(tp_finite),
+    n_TX_finite = sum(tx_finite),
+    n_pairs = sum(tp_finite & tx_finite)
+  )
+}
+
 # Internal helper for cumulative coverage
-exdyn_coverage_curve <- function(TX, T_P, breaks) {
+exdyn_coverage_curve <- function(TX, T_P, breaks, mask = NULL) {
   if (is.null(breaks) || !length(breaks)) {
     return(numeric())
   }
-  finite <- is.finite(TX) & is.finite(T_P)
-  denom <- sum(is.finite(T_P))
+  mask_use <- .exdyn_prepare_mask(mask, dim(TX))
+  finite <- is.finite(TX) & is.finite(T_P) & mask_use
+  denom <- sum(is.finite(T_P) & mask_use)
   if (!denom) {
     return(rep(NA_real_, length(breaks)))
   }
@@ -26,31 +54,37 @@ exdyn_coverage_curve <- function(TX, T_P, breaks) {
 #' @param coverage_breaks Optional numeric vector of year thresholds used
 #'   to derive cumulative coverage values. If NULL, evenly spaced breaks
 #'   over the provided years are used (when available).
+#' @param mask Optional logical matrix specifying the analysis domain.
 #'
 #' @return Named numeric vector containing gradient magnitude, principal
 #'   axis ratio, coverage, mean/SD lag, orientation concentration,
 #'   front speed, overall extirpation statistics, and (optionally) the
 #'   cumulative coverage evaluated at each requested break.
 #' @export
-exdyn_summary_tx_response <- function(TX, T_P, years = NULL, coverage_breaks = NULL) {
+exdyn_summary_tx_response <- function(TX, T_P, years = NULL, coverage_breaks = NULL, mask = NULL) {
   stopifnot(length(dim(TX)) == 2L, length(dim(T_P)) == 2L)
   stopifnot(all(dim(TX) == dim(T_P)))
-  plane <- exdyn_front_plane(TX)
-  orient <- exdyn_orientation_metrics(TX)
-  speed_est <- exdyn_front_speed_estimate(TX, orient$dominant)
-  finite <- is.finite(TX) & is.finite(T_P)
-  denom <- sum(is.finite(T_P))
+  mask_use <- .exdyn_prepare_mask(mask, dim(TX))
+  TX_use <- TX
+  T_P_use <- T_P
+  TX_use[!mask_use] <- NA_real_
+  T_P_use[!mask_use] <- NA_real_
+  plane <- exdyn_front_plane(TX_use)
+  orient <- exdyn_orientation_metrics(TX_use)
+  speed_est <- exdyn_front_speed_estimate(TX_use, orient$dominant)
+  finite <- is.finite(TX_use) & is.finite(T_P_use)
+  denom <- sum(is.finite(T_P_use))
   coverage <- if (denom > 0) sum(finite) / denom else 0
   lag_mean <- lag_sd <- NA_real_
   if (coverage > 0) {
-    lag_vals <- TX[finite] - T_P[finite]
+    lag_vals <- TX_use[finite] - T_P_use[finite]
     lag_mean <- mean(lag_vals)
     lag_sd <- stats::sd(lag_vals)
   }
   r2_arrival <- NA_real_
   if (sum(finite) >= 3) {
-    tx_vals <- TX[finite]
-    tp_vals <- T_P[finite]
+    tx_vals <- TX_use[finite]
+    tp_vals <- T_P_use[finite]
     var_tp <- stats::var(tp_vals)
     var_tx <- stats::var(tx_vals)
     if (!is.finite(var_tp) || var_tp <= 0 || !is.finite(var_tx) || var_tx <= 0) {
@@ -60,7 +94,7 @@ exdyn_summary_tx_response <- function(TX, T_P, years = NULL, coverage_breaks = N
       r2_arrival <- if (is.finite(r)) max(0, min(1, r^2)) else NA_real_
     }
   }
-  tx_vals <- TX[is.finite(TX)]
+  tx_vals <- TX_use[is.finite(TX_use)]
   tx_mean <- if (length(tx_vals)) mean(tx_vals) else NA_real_
   tx_sd <- if (length(tx_vals)) stats::sd(tx_vals) else NA_real_
   if (is.null(coverage_breaks)) {
@@ -70,7 +104,7 @@ exdyn_summary_tx_response <- function(TX, T_P, years = NULL, coverage_breaks = N
       coverage_breaks <- numeric()
     }
   }
-  coverage_curve <- exdyn_coverage_curve(TX, T_P, coverage_breaks)
+  coverage_curve <- exdyn_coverage_curve(TX_use, T_P_use, coverage_breaks, mask = mask_use)
   if (length(coverage_curve)) {
     names(coverage_curve) <- paste0("cov_curve_", seq_along(coverage_curve))
   }

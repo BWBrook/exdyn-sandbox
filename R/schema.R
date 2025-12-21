@@ -1,7 +1,7 @@
 # Schema helpers (internal)
 
 exdyn_schema_version <- function() {
-  "0.3.2"
+  "0.3.3"
 }
 
 exdyn_summary_schema <- function() {

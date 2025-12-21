@@ -187,15 +187,26 @@ exdyn_simulate_params <- function(theta_row, fields, K0) {
 #' @param compat_cfg Compatibility thresholds.
 #' @param coverage_breaks Optional numeric vector of year thresholds used
 #'   to compare cumulative coverage between observed and simulated maps.
+#' @param mask Optional logical matrix specifying the analysis domain.
 #' @return Tibble (one row) with metrics and loss.
 #' @export
-exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL) {
-  idx <- which(is.finite(TX_obs) & is.finite(T_P))
-  denom <- sum(is.finite(T_P))
+exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL, mask = NULL) {
+  counts_obs <- exdyn_summary_counts(TX_obs, T_P, mask = mask)
+  counts_sim <- exdyn_summary_counts(TX_sim, T_P, mask = mask)
+  mask_use <- .exdyn_prepare_mask(mask, dim(T_P))
+  TX_obs_use <- TX_obs
+  TX_sim_use <- TX_sim
+  T_P_use <- T_P
+  TX_obs_use[!mask_use] <- NA_real_
+  TX_sim_use[!mask_use] <- NA_real_
+  T_P_use[!mask_use] <- NA_real_
+
+  idx <- which(is.finite(TX_obs_use) & is.finite(T_P_use))
+  denom <- counts_obs[["n_TP_finite"]]
   coverage <- if (length(idx) && denom > 0) length(idx) / denom else 0
   if (length(idx) >= 3) {
-    tx_vals <- TX_obs[idx]
-    tp_vals <- T_P[idx]
+    tx_vals <- TX_obs_use[idx]
+    tp_vals <- T_P_use[idx]
     var_tp <- stats::var(tp_vals)
     var_tx <- stats::var(tx_vals)
     if (!is.finite(var_tp) || var_tp <= 0 || !is.finite(var_tx) || var_tx <= 0) {
@@ -207,14 +218,14 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL)
   } else {
     r2 <- NA_real_
   }
-  lag_mean <- if (length(idx)) mean(TX_obs[idx] - T_P[idx]) else NA_real_
-  orient_obs <- tryCatch(exdyn_orientation_metrics(TX_obs), error = function(...) list(R = NA_real_))
-  orient_sim <- tryCatch(exdyn_orientation_metrics(TX_sim), error = function(...) list(R = NA_real_))
+  lag_mean <- if (length(idx)) mean(TX_obs_use[idx] - T_P_use[idx]) else NA_real_
+  orient_obs <- tryCatch(exdyn_orientation_metrics(TX_obs_use), error = function(...) list(R = NA_real_))
+  orient_sim <- tryCatch(exdyn_orientation_metrics(TX_sim_use), error = function(...) list(R = NA_real_))
   R_obs <- orient_obs$R %||% NA_real_
   R_sim <- orient_sim$R %||% NA_real_
   anis_gap <- if (is.finite(R_obs) && is.finite(R_sim)) abs(R_obs - R_sim) else NA_real_
-  curve_obs <- exdyn_coverage_curve(TX_obs, T_P, coverage_breaks)
-  curve_sim <- exdyn_coverage_curve(TX_sim, T_P, coverage_breaks)
+  curve_obs <- exdyn_coverage_curve(TX_obs_use, T_P_use, coverage_breaks, mask = mask_use)
+  curve_sim <- exdyn_coverage_curve(TX_sim_use, T_P_use, coverage_breaks, mask = mask_use)
   curve_rmse <- if (length(curve_obs) && length(curve_sim)) {
     sqrt(mean((curve_obs - curve_sim)^2, na.rm = TRUE))
   } else {
@@ -239,6 +250,12 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL)
   compatible <- compatible && coverage >= (compat_cfg$min_coverage %||% 0)
 
   tibble::tibble(
+    n_mask = counts_obs[["n_mask"]],
+    n_TP_finite = counts_obs[["n_TP_finite"]],
+    n_TX_obs = counts_obs[["n_TX_finite"]],
+    n_TX_sim = counts_sim[["n_TX_finite"]],
+    n_pairs_obs = counts_obs[["n_pairs"]],
+    n_pairs_sim = counts_sim[["n_pairs"]],
     r2_arrival = r2,
     lag_mean = lag_mean,
     coverage = coverage,

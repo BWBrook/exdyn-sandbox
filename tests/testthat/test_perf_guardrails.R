@@ -8,5 +8,5 @@ test_that("perf smoke guardrail stays within generous limits", {
 })
 
 test_that("schema version is pinned for guardrails", {
-  expect_equal(exdyn_schema_version(), "0.3.2")
+  expect_equal(exdyn_schema_version(), "0.3.3")
 })
