@@ -12,45 +12,16 @@ exdyn_update_local_const <- function(N, P, pars, K0, pred_type = c("II", "III"),
   N * exp(growth)
 }
 
-#' Streamed simulation returning first-passage times only
-#'
-#' This helper runs the vole dynamics for a single parameter draw while
-#' avoiding storage of full 3-D abundance arrays. It maintains only the
-#' current abundance matrix and the output first-passage matrix, keeping
-#' memory use approximately constant across time steps.
-#'
-#' @param grid_info List returned by [exdyn_grid_lookup()], must contain
-#'   `nx`, `ny`, and optionally `cell_km`.
-#' @param years Integer vector of simulation years.
-#' @param T_P Matrix of mink arrival years (same dimensions as grid).
-#' @param ramp_years Integer ramp duration (years to reach full predation).
-#' @param pars List with entries `rmax`, `A_frac`, `beta_H`, `d`.
-#' @param K0 Carrying capacity per cell.
-#' @param alpha Dispersal share.
-#' @param disp_mean_cells Dispersal scale in grid cells.
-#' @param pred List with entries `type`, `c`, `h`.
-#' @param frac Threshold fraction for first passage (defaults to 0.02).
-#' @param rel0 Relative threshold to initial abundance (defaults to 0.5).
-#' @param pre_leak Baseline predation prior to arrival (default 0).
-#' @param log_mem If TRUE, emits memory telemetry every 10 time steps.
-#' @param log_tag Optional label appended to memory log messages.
-#' @param profile If TRUE, attaches timing diagnostics as an attribute.
-#' @param conv_reuse If TRUE, reuse convolution buffers to reduce allocations.
-#' @param mask Optional logical matrix (nx × ny). Cells with `FALSE` are treated
-#'   as outside the simulation: their abundance is fixed at zero and they do not
-#'   receive or donate dispersers.
-#'
-#' @return Matrix of first-passage times (year indices).
-#' @export
-exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
-                                   pars, K0, alpha,
-                                   disp_mean_cells, pred,
-                                   frac = 0.02, rel0 = 0.5,
-                                   pre_leak = 0, log_mem = FALSE,
-                                   log_tag = NULL,
-                                   mask = NULL,
-                                   profile = FALSE,
-                                   conv_reuse = TRUE) {
+# Internal core for tx-only simulation (no cropping).
+.exdyn_simulate_tx_only_core <- function(grid_info, years, T_P, ramp_years,
+                                         pars, K0, alpha,
+                                         disp_mean_cells, pred,
+                                         frac = 0.02, rel0 = 0.5,
+                                         pre_leak = 0, log_mem = FALSE,
+                                         log_tag = NULL,
+                                         mask = NULL,
+                                         profile = FALSE,
+                                         conv_reuse = TRUE) {
   nx <- grid_info$nx
   ny <- grid_info$ny
   stopifnot(length(years) >= 2)
@@ -188,15 +159,156 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
   TX
 }
 
-#' Streamed simulation for counts-only observations
+#' Compute crop bounds for a mask
 #' @keywords internal
-exdyn_simulate_counts_stream <- function(grid_info, years, T_P, ramp_years,
-                                         pars, K0, alpha,
-                                         disp_mean_cells, pred,
-                                         rate, effort_strength = 1,
-                                         pre_leak = 0,
-                                         mask = NULL,
-                                         conv_reuse = TRUE) {
+.exdyn_crop_bounds <- function(mask, nx, ny, pad = 0L) {
+  if (is.null(mask)) {
+    return(list(rows = seq_len(nx), cols = seq_len(ny), row_min = 1L, col_min = 1L, cropped = FALSE))
+  }
+  idx <- which(mask, arr.ind = TRUE)
+  if (!nrow(idx)) {
+    return(list(rows = seq_len(nx), cols = seq_len(ny), row_min = 1L, col_min = 1L, cropped = FALSE))
+  }
+  pad <- max(0L, as.integer(pad))
+  r_min <- max(1L, min(idx[, 1]) - pad)
+  r_max <- min(nx, max(idx[, 1]) + pad)
+  c_min <- max(1L, min(idx[, 2]) - pad)
+  c_max <- min(ny, max(idx[, 2]) + pad)
+  rows <- r_min:r_max
+  cols <- c_min:c_max
+  cropped <- r_min > 1L || r_max < nx || c_min > 1L || c_max < ny
+  list(rows = rows, cols = cols, row_min = r_min, col_min = c_min, cropped = cropped)
+}
+
+#' Access surface for effort weighting
+#' @keywords internal
+.exdyn_access_surface <- function(nx, ny, effort_strength) {
+  access <- outer(seq(0, 1, length.out = nx), seq(0, 1, length.out = ny),
+                  function(i, j) 1 - pmin(i, 1 - i, j, 1 - j))
+  access <- access^effort_strength
+  access / mean(access)
+}
+
+#' Streamed simulation returning first-passage times only
+#'
+#' This helper runs the vole dynamics for a single parameter draw while
+#' avoiding storage of full 3-D abundance arrays. It maintains only the
+#' current abundance matrix and the output first-passage matrix, keeping
+#' memory use approximately constant across time steps.
+#'
+#' @param grid_info List returned by [exdyn_grid_lookup()], must contain
+#'   `nx`, `ny`, and optionally `cell_km`.
+#' @param years Integer vector of simulation years.
+#' @param T_P Matrix of mink arrival years (same dimensions as grid).
+#' @param ramp_years Integer ramp duration (years to reach full predation).
+#' @param pars List with entries `rmax`, `A_frac`, `beta_H`, `d`.
+#' @param K0 Carrying capacity per cell.
+#' @param alpha Dispersal share.
+#' @param disp_mean_cells Dispersal scale in grid cells.
+#' @param pred List with entries `type`, `c`, `h`.
+#' @param frac Threshold fraction for first passage (defaults to 0.02).
+#' @param rel0 Relative threshold to initial abundance (defaults to 0.5).
+#' @param pre_leak Baseline predation prior to arrival (default 0).
+#' @param log_mem If TRUE, emits memory telemetry every 10 time steps.
+#' @param log_tag Optional label appended to memory log messages.
+#' @param profile If TRUE, attaches timing diagnostics as an attribute.
+#' @param conv_reuse If TRUE, reuse convolution buffers to reduce allocations.
+#' @param mask Optional logical matrix (nx × ny). Cells with `FALSE` are treated
+#'   as outside the simulation: their abundance is fixed at zero and they do not
+#'   receive or donate dispersers.
+#' @param crop If TRUE, crop the simulation domain to the bounding box of
+#'   `mask` (with padding) to reduce FFT size.
+#' @param crop_pad Padding (cells) to include around the mask bounding box.
+#'
+#' @return Matrix of first-passage times (year indices).
+#' @export
+exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
+                                   pars, K0, alpha,
+                                   disp_mean_cells, pred,
+                                   frac = 0.02, rel0 = 0.5,
+                                   pre_leak = 0, log_mem = FALSE,
+                                   log_tag = NULL,
+                                   mask = NULL,
+                                   profile = FALSE,
+                                   conv_reuse = TRUE,
+                                   crop = FALSE,
+                                   crop_pad = NULL) {
+  nx <- grid_info$nx
+  ny <- grid_info$ny
+  if (isTRUE(crop) && !is.null(mask)) {
+    pad <- crop_pad %||% 5L
+    bounds <- .exdyn_crop_bounds(mask, nx, ny, pad = pad)
+    if (isTRUE(bounds$cropped)) {
+      rows <- bounds$rows
+      cols <- bounds$cols
+      T_P_sub <- T_P[rows, cols, drop = FALSE]
+      mask_sub <- mask[rows, cols, drop = FALSE]
+      pred_sub <- pred
+      if (!is.null(pred$scale_matrix)) {
+        pred_sub$scale_matrix <- pred$scale_matrix[rows, cols, drop = FALSE]
+      }
+      grid_sub <- list(nx = length(rows), ny = length(cols), cell_km = grid_info$cell_km)
+      TX_sub <- .exdyn_simulate_tx_only_core(
+        grid_info = grid_sub,
+        years = years,
+        T_P = T_P_sub,
+        ramp_years = ramp_years,
+        pars = pars,
+        K0 = K0,
+        alpha = alpha,
+        disp_mean_cells = disp_mean_cells,
+        pred = pred_sub,
+        frac = frac,
+        rel0 = rel0,
+        pre_leak = pre_leak,
+        log_mem = log_mem,
+        log_tag = log_tag,
+        mask = mask_sub,
+        profile = profile,
+        conv_reuse = conv_reuse
+      )
+      TX_full <- matrix(NA_integer_, nrow = nx, ncol = ny)
+      TX_full[rows, cols] <- TX_sub
+      if (!is.null(mask)) {
+        TX_full[!mask] <- NA_integer_
+      }
+      if (isTRUE(profile)) {
+        attr(TX_full, "profile") <- attr(TX_sub, "profile")
+      }
+      return(TX_full)
+    }
+  }
+  .exdyn_simulate_tx_only_core(
+    grid_info = grid_info,
+    years = years,
+    T_P = T_P,
+    ramp_years = ramp_years,
+    pars = pars,
+    K0 = K0,
+    alpha = alpha,
+    disp_mean_cells = disp_mean_cells,
+    pred = pred,
+    frac = frac,
+    rel0 = rel0,
+    pre_leak = pre_leak,
+    log_mem = log_mem,
+    log_tag = log_tag,
+    mask = mask,
+    profile = profile,
+    conv_reuse = conv_reuse
+  )
+}
+
+#' Streamed simulation for counts-only observations (core)
+#' @keywords internal
+.exdyn_simulate_counts_stream_core <- function(grid_info, years, T_P, ramp_years,
+                                               pars, K0, alpha,
+                                               disp_mean_cells, pred,
+                                               rate, effort_strength = 1,
+                                               pre_leak = 0,
+                                               mask = NULL,
+                                               conv_reuse = TRUE,
+                                               access = NULL) {
   nx <- grid_info$nx
   ny <- grid_info$ny
   stopifnot(length(years) >= 2)
@@ -227,10 +339,9 @@ exdyn_simulate_counts_stream <- function(grid_info, years, T_P, ramp_years,
     }
   }
 
-  access <- outer(seq(0, 1, length.out = nx), seq(0, 1, length.out = ny),
-                  function(i, j) 1 - pmin(i, 1 - i, j, 1 - j))
-  access <- access^effort_strength
-  access <- access / mean(access)
+  if (is.null(access)) {
+    access <- .exdyn_access_surface(nx, ny, effort_strength)
+  }
   lookup <- grid_info$lookup
   cell_idx <- cbind(lookup$row_idx, lookup$col_idx)
   n_cells <- nrow(lookup)
@@ -296,5 +407,91 @@ exdyn_simulate_counts_stream <- function(grid_info, years, T_P, ramp_years,
     effort_mat = counts_mat,
     years = years,
     cells = lookup
+  )
+}
+
+#' Streamed simulation for counts-only observations
+#' @keywords internal
+exdyn_simulate_counts_stream <- function(grid_info, years, T_P, ramp_years,
+                                         pars, K0, alpha,
+                                         disp_mean_cells, pred,
+                                         rate, effort_strength = 1,
+                                         pre_leak = 0,
+                                         mask = NULL,
+                                         conv_reuse = TRUE,
+                                         crop = FALSE,
+                                         crop_pad = NULL) {
+  nx <- grid_info$nx
+  ny <- grid_info$ny
+  if (isTRUE(crop) && !is.null(mask)) {
+    pad <- crop_pad %||% 5L
+    bounds <- .exdyn_crop_bounds(mask, nx, ny, pad = pad)
+    if (isTRUE(bounds$cropped)) {
+      rows <- bounds$rows
+      cols <- bounds$cols
+      T_P_sub <- T_P[rows, cols, drop = FALSE]
+      mask_sub <- mask[rows, cols, drop = FALSE]
+      pred_sub <- pred
+      if (!is.null(pred$scale_matrix)) {
+        pred_sub$scale_matrix <- pred$scale_matrix[rows, cols, drop = FALSE]
+      }
+      lookup_full <- grid_info$lookup
+      lookup_full$cell_idx <- seq_len(nrow(lookup_full))
+      in_bounds <- lookup_full$row_idx %in% rows & lookup_full$col_idx %in% cols
+      lookup_sub <- lookup_full[in_bounds, , drop = FALSE]
+      lookup_sub_local <- lookup_sub
+      lookup_sub_local$row_idx <- lookup_sub$row_idx - bounds$row_min + 1L
+      lookup_sub_local$col_idx <- lookup_sub$col_idx - bounds$col_min + 1L
+      grid_sub <- list(
+        nx = length(rows),
+        ny = length(cols),
+        cell_km = grid_info$cell_km,
+        lookup = lookup_sub_local
+      )
+      access_full <- .exdyn_access_surface(nx, ny, effort_strength)
+      access_sub <- access_full[rows, cols, drop = FALSE]
+      counts_sub <- .exdyn_simulate_counts_stream_core(
+        grid_info = grid_sub,
+        years = years,
+        T_P = T_P_sub,
+        ramp_years = ramp_years,
+        pars = pars,
+        K0 = K0,
+        alpha = alpha,
+        disp_mean_cells = disp_mean_cells,
+        pred = pred_sub,
+        rate = rate,
+        effort_strength = effort_strength,
+        pre_leak = pre_leak,
+        mask = mask_sub,
+        conv_reuse = conv_reuse,
+        access = access_sub
+      )
+      n_cells_full <- nrow(lookup_full)
+      counts_full <- matrix(0L, nrow = n_cells_full, ncol = length(years))
+      counts_full[lookup_sub$cell_idx, ] <- counts_sub$counts_mat
+      return(list(
+        counts_mat = counts_full,
+        effort_mat = counts_full,
+        years = years,
+        cells = lookup_full
+      ))
+    }
+  }
+  .exdyn_simulate_counts_stream_core(
+    grid_info = grid_info,
+    years = years,
+    T_P = T_P,
+    ramp_years = ramp_years,
+    pars = pars,
+    K0 = K0,
+    alpha = alpha,
+    disp_mean_cells = disp_mean_cells,
+    pred = pred,
+    rate = rate,
+    effort_strength = effort_strength,
+    pre_leak = pre_leak,
+    mask = mask,
+    conv_reuse = conv_reuse
   )
 }

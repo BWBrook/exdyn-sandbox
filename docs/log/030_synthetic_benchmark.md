@@ -51,10 +51,23 @@ Re-ran the GB counts preflight using the new streaming counts path
   - `outputs/perf/preflight_gb_counts_summary.csv`
   - `outputs/perf/preflight_gb_counts_runtime.csv`
 
+### Full‑pipeline counts preflight (screen + ABC + report)
+Measured end‑to‑end runtime for the full synthetic pipeline (counts‑mode,
+pilot grid, minimal screen/ABC, crop enabled).
+
+- Full pipeline counts (pilot grid, pilot years, realistic):
+  - wall time ≈ **3:01** (181 s), max RSS ≈ **1,205,900 kB** (~1.15 GB)
+  - `_targets/objects` delta ≈ **-12 kB** (stable)
+  - canonical size ≈ **192 kB**
+  - `outputs/perf/preflight_gb_full_counts_time.txt`
+  - `outputs/perf/preflight_gb_full_counts_sizes.csv`
+  - `outputs/canonical/0.3/WP-0.3.4b/preflight_full_counts_20251221_142443/`
+
 ## Sanity checks (artefact review)
 - Reviewed TX_true/TX_obs/TX_best maps (toy canonical runs): coherent front gradients, non‑blank, spatial ordering preserved.
 - Recovery tables present for WP‑0.3.3 with non‑zero acceptance and parameter summaries.
 - GB preflight generated TX maps and report; no 3‑D `N[x,y,t]` arrays written to canonical outputs.
+ - Full‑pipeline counts preflight maps reviewed (pilot grid): TX surfaces are extremely sparse (expected with toy θ* on pilot grid); treated as a **performance‑only** artefact, not for inference.
 
 ## Notes & issues
 - ABC acceptance was initially zero with tight scaling; raised `ABC_EPS` for toy recovery to produce accepted draws (see WP‑0.3.3 manifest). This is a toy‑run scaling issue to revisit for full benchmark.
@@ -62,6 +75,7 @@ Re-ran the GB counts preflight using the new streaming counts path
 - Synthetic observation generation now defaults to **cell‑year counts** (no point-level PO), eliminating the heavy points→counts mapping step for synthetic pipelines.
 - GB preflight confirms observation pipeline dominates runtime/memory; WP‑0.3.5 needs batching/HPC or further optimisation.
 - Larger structural optimisations (domain cropping, graph/segment representation) are deferred unless GB budgets remain prohibitive.
+ - Full‑pipeline counts preflight now runs in minutes with ~1.2 GB RSS on the pilot grid; this is a green‑light signal for WP‑0.3.5 if ABC draws are kept bounded.
 
 ## Next steps
 - Use WP‑0.3.4b budgets to gate WP‑0.3.5.

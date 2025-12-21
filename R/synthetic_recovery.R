@@ -91,7 +91,8 @@ exdyn_synthetic_screen_run <- function(theta_tbl,
         gamma = theta_row$gamma
       ),
       pre_leak = theta_star$pre_leak %||% 0,
-      mask = mask
+      mask = mask,
+      crop = screen_cfg$crop %||% FALSE
     )
     TX_years <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
     idx <- is.finite(TX_idx)
@@ -195,7 +196,8 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
         gamma = theta$gamma
       ),
       pre_leak = truth$theta_star$pre_leak %||% 0,
-      mask = mask
+      mask = mask,
+      crop = screen_cfg$crop %||% FALSE
     )
     TX_years <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
     idx <- is.finite(TX_idx)
@@ -264,7 +266,8 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
           gamma = theta_row$gamma
         ),
         pre_leak = truth$theta_star$pre_leak %||% 0,
-        mask = mask
+        mask = mask,
+        crop = screen_cfg$crop %||% FALSE
       )
       TX_years <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
       idx <- is.finite(TX_idx)

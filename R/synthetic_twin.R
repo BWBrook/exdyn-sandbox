@@ -63,7 +63,8 @@ exdyn_make_synthetic <- function(theta_star,
     missing_years_prob = 0,
     random_tx_dropout = 0,
     obs_mode = "counts",
-    keep_counts = FALSE
+    keep_counts = FALSE,
+    crop = FALSE
   )
   noise <- utils::modifyList(base_noise, noise_cfg)
   obs_mode <- noise$obs_mode %||% "counts"
@@ -160,10 +161,11 @@ exdyn_make_synthetic <- function(theta_star,
       c = theta$pred_c,
       h = theta$pred_h,
       scale = theta$pred_scale,
-      gamma = theta$gamma
+    gamma = theta$gamma
     ),
     pre_leak = theta$pre_leak %||% 0,
     mask = mask,
+    crop = isTRUE(noise$crop),
     frac = truth_frac,
     rel0 = truth_rel0
   )
@@ -214,7 +216,8 @@ exdyn_make_synthetic <- function(theta_star,
       rate = noise$po_rate,
       effort_strength = noise$effort_strength,
       pre_leak = theta$pre_leak %||% 0,
-      mask = mask_mat
+      mask = mask_mat,
+      crop = isTRUE(noise$crop)
     )
     counts_mat <- counts_out$counts_mat
     effort_mat <- counts_out$effort_mat

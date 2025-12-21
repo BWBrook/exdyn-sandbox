@@ -149,3 +149,39 @@ Format for entries:
 - **Alternatives considered:**  
   - Keeping the existing loop/`lm()` implementations (rejected: unnecessary
     compute tax at GB scale).
+
+---
+
+- **Date:** 2025-12-21  
+- **Decision:** Add optional **domain cropping** (mask bounding box + padding)
+  for TX‑only and counts‑stream simulations, enabled via synthetic config or
+  `EXDYN_SYNTHETIC_CROP=1`.  
+- **Rationale:**  
+  - Avoids FFT work over ocean/NA cells without changing scientific meaning.  
+  - Keeps outputs on the full grid while reducing compute for masked domains.  
+- **Implications:**  
+  - Cropping is **opt‑in**; default behaviour is unchanged.  
+  - Performance preflights may enable crop for GB‑scale runs.  
+- **Alternatives considered:**  
+  - Hard‑cropping outputs to the sub‑grid (rejected: breaks downstream plots).  
+
+---
+
+- **Date:** 2025-12-21  
+- **Decision:** Record a **full‑pipeline GB counts preflight** (screen + ABC +
+  report, pilot grid) with true RSS and storage deltas.  
+- **Rationale:**  
+  - WP‑0.3.5 budgets must reflect the **end‑to‑end** pipeline, not just
+    sim+obs stages.  
+  - Counts‑mode + streaming counts reduced core costs; this confirms the
+    pipeline is now minutes‑scale at pilot grid size.  
+- **Implications:**  
+  - **Full‑pipeline counts preflight** (pilot grid, minimal ABC, crop=TRUE):  
+    - wall time ≈ **3:01** (181 s), max RSS ≈ **1,205,900 kB** (~1.15 GB).  
+    - canonical size ≈ **192 kB**, `_targets/objects` delta ≈ **-12 kB**.  
+  - Canonical run:  
+    - `outputs/canonical/0.3/WP-0.3.4b/preflight_full_counts_20251221_142443/`  
+  - WP‑0.3.5 can proceed **only if** ABC draw counts remain bounded and
+    projected wall time stays within acceptable limits.  
+- **Alternatives considered:**  
+  - Proceeding to WP‑0.3.5 without a full‑pipeline preflight (rejected).  

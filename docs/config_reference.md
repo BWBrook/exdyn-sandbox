@@ -92,6 +92,8 @@ Environment overrides (optional, for reproducible smoke/canonical runs):
   `EXDYN_SYNTHETIC_GRID_REGION_N`,
   `EXDYN_SYNTHETIC_GRID_REGION_LABELS` (comma-separated).
 - `EXDYN_SYNTHETIC_OBS_MODE` (`counts` or `points`).
+- `EXDYN_SYNTHETIC_MASK` (`all` or `riparian`).
+- `EXDYN_SYNTHETIC_CROP=1` enables domain cropping for synthetic runs.
 - `EXDYN_SYNTHETIC_SMOKE=1` caps draw counts and simulation sizes.
 - `EXDYN_SYNTHETIC_REPS=<int>` overrides `recovery.n_reps`.
 - `EXDYN_SYNTHETIC_SCREEN_DRAWS=<int>` overrides `screen.n_draws`.

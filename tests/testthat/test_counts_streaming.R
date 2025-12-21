@@ -62,6 +62,21 @@ test_that("streaming counts match 3D counts on toy grid", {
     mask = mask
   )
   expect_equal(TX_idx_new, TX_idx_ref)
+  TX_idx_crop <- exdyn_simulate_tx_only(
+    grid_info = grid_info,
+    years = years,
+    T_P = T_P,
+    ramp_years = ramp_years,
+    pars = list(rmax = 0.4, A_frac = 0.1 * 80, beta_H = 0, d = 0.02),
+    K0 = 80,
+    alpha = 0.1,
+    disp_mean_cells = 1,
+    pred = list(type = "II", c = 0.8, h = 30, scale = 1, gamma = 1),
+    pre_leak = pre_leak,
+    mask = mask,
+    crop = TRUE
+  )
+  expect_equal(TX_idx_crop, TX_idx_ref)
   pars <- list(rmax = 0.4, A_frac = 0.1 * 80, beta_H = 0, d = 0.02)
   pred <- list(type = "II", c = 0.8, h = 30, scale = 1, gamma = 1)
   alpha <- 0.1
@@ -111,7 +126,25 @@ test_that("streaming counts match 3D counts on toy grid", {
     pre_leak = pre_leak,
     mask = mask
   )
+  set.seed(999)
+  counts_crop <- exdyn.sandbox:::exdyn_simulate_counts_stream(
+    grid_info = grid_info,
+    years = years,
+    T_P = T_P,
+    ramp_years = ramp_years,
+    pars = pars,
+    K0 = 80,
+    alpha = alpha,
+    disp_mean_cells = disp_mean_cells,
+    pred = pred,
+    rate = rate,
+    effort_strength = effort_strength,
+    pre_leak = pre_leak,
+    mask = mask,
+    crop = TRUE
+  )
   expect_equal(counts_new$counts_mat, counts_old$counts_mat)
+  expect_equal(counts_crop$counts_mat, counts_old$counts_mat)
   tx_cfg <- list(
     smooth_window = 3,
     min_years_active = 3,

@@ -94,8 +94,9 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - Completed WP‑0.3.1 → WP‑0.3.4b (canonical schema, modes, replicated recovery, alignment tests, GB preflight budgets).
 - Performance hardening: vectorised orientation metrics, analytic r²/slope, streaming counts‑mode truth generation.
 - Re‑measured GB counts preflight (streaming counts): ~42.5 s wall, ~1.0 GB RSS (pilot grid, direct sim+obs+TX).
+- Full‑pipeline counts preflight (screen + ABC + report, pilot grid, crop enabled): ~3:01 wall, ~1.2 GB RSS; canonical size ~192 kB.
 
 ### Next steps (short queue)
+- Decide whether WP‑0.3.5 is green‑lit given the full‑pipeline counts preflight and planned ABC draw counts.
 - Confirm new ABC scaling defaults yield acceptance without extreme eps on toy/medium runs.
-- Run a **full‑pipeline** counts‑mode GB preflight (screen/ABC/report) to update WP‑0.3.5 budget.
-- If GB budgets remain prohibitive, evaluate domain cropping or segment/graph representation as targeted optimisations.
+- If WP‑0.3.5 budgets are still prohibitive at intended draw counts, evaluate crop defaults or segment/graph representation as targeted optimisations.

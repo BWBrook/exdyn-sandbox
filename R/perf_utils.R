@@ -345,7 +345,8 @@ exdyn_perf_run_profile <- function(profile, perf_cfg, label = "smoke",
           effort_strength = obs_cfg$effort_strength %||% 1,
           pre_leak = sim_cfg$pre_leak %||% 0,
           mask = mask,
-          conv_reuse = sim_cfg$conv_reuse %||% TRUE
+          conv_reuse = sim_cfg$conv_reuse %||% TRUE,
+          crop = obs_cfg$crop %||% FALSE
         )
       })
       counts_out <- obs_sim_stage$value

@@ -23,6 +23,8 @@ exdyn_synthetic_env_snapshot <- function() {
     grid_region_n = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_N", unset = ""),
     grid_region_labels = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_LABELS", unset = ""),
     obs_mode = Sys.getenv("EXDYN_SYNTHETIC_OBS_MODE", unset = ""),
+    mask = Sys.getenv("EXDYN_SYNTHETIC_MASK", unset = ""),
+    crop = Sys.getenv("EXDYN_SYNTHETIC_CROP", unset = ""),
     reps = Sys.getenv("EXDYN_SYNTHETIC_REPS", unset = ""),
     screen_draws = Sys.getenv("EXDYN_SYNTHETIC_SCREEN_DRAWS", unset = ""),
     abc_n_sims = Sys.getenv("EXDYN_SYNTHETIC_ABC_N", unset = ""),
@@ -91,6 +93,17 @@ exdyn_synthetic_cfg_apply_overrides <- function(cfg, env = NULL) {
   if (nzchar(env$obs_mode)) {
     cfg$noise <- cfg$noise %||% list()
     cfg$noise$obs_mode <- env$obs_mode
+  }
+  if (nzchar(env$mask)) {
+    cfg$mask <- env$mask
+  }
+  if (exdyn_env_flag(env$crop, default = FALSE)) {
+    cfg$screen <- cfg$screen %||% list()
+    cfg$abc <- cfg$abc %||% list()
+    cfg$noise <- cfg$noise %||% list()
+    cfg$screen$crop <- TRUE
+    cfg$abc$crop <- TRUE
+    cfg$noise$crop <- TRUE
   }
 
   if (exdyn_env_flag(env$smoke, default = FALSE)) {

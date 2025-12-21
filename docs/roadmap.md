@@ -503,7 +503,7 @@ Before Codex is allowed to run WP‑0.3.5 on the British Isles grid:
 - Completed: 2025-12-20
 - Commit: f6c16ae
 - Canonical: outputs/canonical/0.3/WP-0.3.4b/syn_20251220_164636_0099/
-- Notes: GB realistic preflight timed with `/usr/bin/time -v`; budgets logged in decisions.
+- Notes: GB realistic preflight timed with `/usr/bin/time -v`; budgets logged in decisions. Full‑pipeline counts preflight (screen + ABC + report, crop enabled) recorded on 2025‑12‑21: `outputs/canonical/0.3/WP-0.3.4b/preflight_full_counts_20251221_142443/` with wall ≈ 3:01, max RSS ≈ 1.2 GB.
 
 ---
 
