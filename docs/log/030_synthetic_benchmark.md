@@ -96,6 +96,9 @@ benchmark.
   filled cells); this is treated as a **performance‑only** artefact.
 - Replicate metrics show **coverage ~0** and **r2/lag NA**; acceptance exists,
   but recovery metrics are not informative under this sparse coverage regime.
+- Fixed recovery table export to be **mode‑specific** (`ideal` vs `realistic`);
+  re‑wrote recovery tables and refreshed the canonical manifest for the pilot
+  run.
 
 ## Next steps
 - Use WP‑0.3.4b budgets to gate WP‑0.3.5.

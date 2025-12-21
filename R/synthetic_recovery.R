@@ -612,11 +612,11 @@ exdyn_write_synthetic_recovery_tables <- function(recovery_tables, output_root) 
     rep_path <- file.path(mode_dir, "replicate_metrics.csv")
     param_path <- file.path(mode_dir, "parameter_recovery.csv")
     if (nrow(rep_tbl)) {
-      readr::write_csv(rep_tbl %>% dplyr::filter(.data$mode == mode), rep_path)
+      readr::write_csv(rep_tbl %>% dplyr::filter(.data$mode == .env$mode), rep_path)
       out_paths <- c(out_paths, rep_path)
     }
     if (nrow(param_tbl) && "mode" %in% names(param_tbl)) {
-      readr::write_csv(param_tbl %>% dplyr::filter(.data$mode == mode), param_path)
+      readr::write_csv(param_tbl %>% dplyr::filter(.data$mode == .env$mode), param_path)
       out_paths <- c(out_paths, param_path)
     }
   }
