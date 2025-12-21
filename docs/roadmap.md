@@ -2,7 +2,7 @@
 
 **Purpose:** This roadmap is the execution contract for autonomous Codex CLI runs. It defines the scientific arc of the paper (methods → validation → case study) and the minimum engineering needed to make that arc reproducible and reviewable.
 
-**Last updated:** 2025-12-16
+**Last updated:** 2025-12-21
 
 ---
 
@@ -108,6 +108,10 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 - [x] **WP‑0.3.3 — Synthetic: replicated recovery harness + parameter recovery metrics**
 - [x] **WP‑0.3.4 — Synthetic: summary/loss alignment + regression tests**
 - [x] **WP‑0.3.4b — GB‑scale preflight budget check (single‑replicate, realistic mode, real RSS)**
+- [ ] **WP‑0.3.4.1 — Pilot: mask‑consistent summaries + tests**
+- [ ] **WP‑0.3.4.2 — Pilot: arrival‑surface diagnostics + override switch**
+- [ ] **WP‑0.3.4.3 — Pilot: truth viability sweep (TX coverage tuning)**
+- [ ] **WP‑0.3.4.4 — Pilot: re‑run recovery + enforce identifiability gates**
 - [ ] **WP‑0.3.5 (LARGE) — Synthetic: canonical recovery run (R≥20) + benchmark gates**
 - [ ] **WP‑0.3.6 — Synthetic: identifiability stress mini‑sweep + failure regime artefacts**
 
@@ -504,6 +508,113 @@ Before Codex is allowed to run WP‑0.3.5 on the British Isles grid:
 - Commit: f6c16ae
 - Canonical: outputs/canonical/0.3/WP-0.3.4b/syn_20251220_164636_0099/
 - Notes: GB realistic preflight timed with `/usr/bin/time -v`; budgets logged in decisions. Full‑pipeline counts preflight (screen + ABC + report, crop enabled) recorded on 2025‑12‑21: `outputs/canonical/0.3/WP-0.3.4b/preflight_full_counts_20251221_142443/` with wall ≈ 3:01, max RSS ≈ 1.2 GB.
+
+---
+
+### **WP‑0.3.4.1 — Pilot: mask‑consistent summaries + tests**
+
+**Outcome:** Synthetic summaries are computed over a single, consistent analysis
+domain (mask applied identically for observed and simulated summaries), and
+summary outputs report explicit counts of valid pairs.
+
+**Scope:**
+- **In:** apply mask to `T_P` (and any denominator) in all summary/score paths;
+  add `n_mask`, `n_TP_finite`, `n_pairs`, `n_TX_true`, `n_TX_obs` to
+  `summary_obs.csv`, `screen_results.csv`, and `replicate_metrics.csv`.
+- **Out:** changing summary definitions beyond mask/denominator consistency.
+
+**Acceptance criteria:**
+- Observed summary and simulated summary agree on denominators under mask.
+- Unit test fails if `summary_obs` uses unmasked `T_P` while simulations use
+  masked `T_P`.
+- Pilot summaries include the new count fields.
+
+**Artefact evidence:**
+- Updated `outputs/synthetic/*/summary_obs.csv` with count fields.
+- New regression test covering masked/unmasked mismatch.
+
+**Stop condition:**
+- Tests pass and pilot summaries no longer show near‑zero coverage due solely to
+  denominator mismatch.
+
+---
+
+### **WP‑0.3.4.2 — Pilot: arrival‑surface diagnostics + override switch**
+
+**Outcome:** We can diagnose arrival‑surface sparsity and, for pilot runs,
+override arrivals with a complete synthetic surface.
+
+**Scope:**
+- **In:** add `arrival_source = real | synthetic_plane | synthetic_gradient` for
+  pilot grid; record fraction finite arrivals overall and within mask; save
+  arrival plots (real vs override).
+- **Out:** modifying the real GB arrival construction itself.
+
+**Acceptance criteria:**
+- Diagnostics report `frac_finite_TP` overall and within mask.
+- Override modes produce `frac_finite_TP_in_mask ≥ 0.90`.
+- Plots of arrival surfaces saved.
+
+**Artefact evidence:**
+- `outputs/synthetic/pilot_diagnostics.csv` (or equivalent).
+- Arrival plots saved under `outputs/synthetic/`.
+
+**Stop condition:**
+- We can attribute pilot coverage failure to arrival sparsity vs other causes.
+
+---
+
+### **WP‑0.3.4.3 — Pilot: truth viability sweep (TX coverage tuning)**
+
+**Outcome:** `theta_star` is chosen because it yields an informative TX pattern
+on the pilot grid, not by guesswork.
+
+**Scope:**
+- **In:** small sweep over 1–2 predation strength knobs (e.g., `pred_scale`,
+  `pred_c`) using TX‑only streaming; record `coverage_true`, `n_TX_true`,
+  temporal spread.
+- **Out:** broad multi‑parameter calibration or full ABC sweeps.
+
+**Acceptance criteria:**
+- Sweep outputs include coverage and temporal spread metrics.
+- Selected `theta_star` yields either `n_TX_true ≥ 50` **or**
+  coverage in `[0.10, 0.80]` within mask and finite arrivals.
+- Decision recorded in `docs/decisions.md`.
+
+**Artefact evidence:**
+- `outputs/synthetic/viability_sweep.csv`
+- `outputs/synthetic/viability_sweep_plot.png`
+
+**Stop condition:**
+- Pilot truth is demonstrably non‑degenerate.
+
+---
+
+### **WP‑0.3.4.4 — Pilot: re‑run recovery + enforce identifiability gates**
+
+**Outcome:** Pilot recovery is meaningful and passes explicit gates before any
+full GB benchmark run.
+
+**Pilot gates (G1–G5):**
+- **G1 Arrival coverage:** `frac_finite_TP_in_mask ≥ 0.90`.
+- **G2 TX_true coverage:** `n_TX_true ≥ 50` **or** coverage in `[0.10, 0.80]`.
+- **G3 TX_obs signal:** `n_TX_obs ≥ 30` **or** coverage_obs ≥ 0.05; at least
+  3 geometry summaries are finite.
+- **G4 Coverage curve:** at least 2 breakpoints with coverage strictly between
+  0 and 1.
+- **G5 Screen/ABC non‑vacuous:** ≥1 compatible draw; ABC acceptance fraction
+  < 0.20 unless explicitly relaxed for debugging.
+
+**Acceptance criteria:**
+- All gates pass and are reported in the pilot report/log.
+- If any gate fails, pipeline stops after diagnostics (no ABC).
+
+**Artefact evidence:**
+- Updated pilot report (gates printed explicitly).
+- `replicate_metrics.csv` shows finite r²/lag/coverage for both modes.
+
+**Stop condition:**
+- Pilot is demonstrably identifiable; WP‑0.3.5 full run is allowed.
 
 ---
 
