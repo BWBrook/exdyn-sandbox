@@ -538,6 +538,10 @@ A canonical, replicated benchmark run is produced (ideal + realistic), with expl
 - Canonical benchmark folder:
   - `outputs/canonical/0.3/WP-0.3.5/<run_id>/...`
 - Recovery tables for both modes under `outputs/synthetic/recovery/`.
+
+**Pilot run (not a completion):**
+- 2025‑12‑21: `outputs/canonical/0.3/WP-0.3.5/wp035_pilot_20251221_161039/`
+  (3 reps, draws=16, abc_n=500, crop=TRUE; runtime ~1h14m, RSS ~1.3 GB).
 - Synthetic report updated to include:
   - recovery tables,
   - gate results,

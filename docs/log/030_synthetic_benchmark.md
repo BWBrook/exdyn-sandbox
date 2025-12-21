@@ -75,7 +75,27 @@ pilot grid, minimal screen/ABC, crop enabled).
 - Synthetic observation generation now defaults to **cell‑year counts** (no point-level PO), eliminating the heavy points→counts mapping step for synthetic pipelines.
 - GB preflight confirms observation pipeline dominates runtime/memory; WP‑0.3.5 needs batching/HPC or further optimisation.
 - Larger structural optimisations (domain cropping, graph/segment representation) are deferred unless GB budgets remain prohibitive.
- - Full‑pipeline counts preflight now runs in minutes with ~1.2 GB RSS on the pilot grid; this is a green‑light signal for WP‑0.3.5 if ABC draws are kept bounded.
+- Full‑pipeline counts preflight now runs in minutes with ~1.2 GB RSS on the pilot grid; this is a green‑light signal for WP‑0.3.5 if ABC draws are kept bounded.
+
+## WP‑0.3.5 pilot run (counts, pilot grid)
+Pilot‑scale WP‑0.3.5 run to validate end‑to‑end performance before the full
+benchmark.
+
+- Settings: reps=3, modes=ideal+realistic, draws=16, abc_n=500, lhs=32/16, crop=TRUE.
+- Wall time ≈ **1:13:57**, max RSS ≈ **1,359,784 kB** (~1.30 GB).
+- `_targets/objects` delta ≈ **+228 kB** (stable).
+- Canonical size ≈ **544 kB**.
+- Run id: `wp035_pilot_20251221_161039`
+- Logs:
+  - `outputs/perf/wp035_pilot_time.txt`
+  - `outputs/perf/wp035_pilot_sizes.csv`
+  - `outputs/canonical/0.3/WP-0.3.5/wp035_pilot_20251221_161039/`
+
+### Pilot sanity notes
+- TX_true/TX_obs maps are **extremely sparse** on the pilot grid (almost no
+  filled cells); this is treated as a **performance‑only** artefact.
+- Replicate metrics show **coverage ~0** and **r2/lag NA**; acceptance exists,
+  but recovery metrics are not informative under this sparse coverage regime.
 
 ## Next steps
 - Use WP‑0.3.4b budgets to gate WP‑0.3.5.

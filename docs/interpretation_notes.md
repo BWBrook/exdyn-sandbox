@@ -47,6 +47,7 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - Remaining runtime risk now sits in full pipeline stages (screen/ABC/report), not the core sim or counts observation.
 - New preflight numbers imply WP‑0.3.5 is feasible only if screen/ABC costs are managed; we still need a full‑pipeline counts preflight.
 - Full‑pipeline counts preflight (pilot grid + crop) runs in ~3 minutes with ~1.2 GB RSS; TX maps are extremely sparse under toy θ* on pilot grid, so treat as **performance‑only** evidence.
+- WP‑0.3.5 pilot run (3 reps, counts, pilot grid) confirms end‑to‑end runtime is ~1h14m with ~1.3 GB RSS, but **coverage is near‑zero** and r2/lag metrics are NA; we need non‑degenerate TX coverage for the full benchmark.
 
 ---
 
