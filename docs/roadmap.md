@@ -569,7 +569,7 @@ override arrivals with a complete synthetic surface.
 
 **Completion record (append on completion):**
 - Completed: 2025-12-21
-- Commit: TBD
+- Commit: 9eb4ae1
 - Artefacts: outputs/synthetic/pilot_diagnostics.csv; outputs/synthetic/arrival_real.png; outputs/synthetic/arrival_synthetic_plane.png; outputs/synthetic/arrival_synthetic_gradient.png
 
 ---
