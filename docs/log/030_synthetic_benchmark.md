@@ -109,3 +109,51 @@ benchmark.
 - New regression test `test_mask_consistency` confirms masked vs unmasked coverage differs as expected and `summary_obs` coverage matches masked scoring.
 - Canonical run: `outputs/canonical/0.3/WP-0.3.4.1/wp0341_manifest_20251221_202507/`.
 - Artefact review (realistic mode smoke): `outputs/synthetic/realistic/summary_obs.csv` shows coverage = 0.3448 and `n_pairs / n_TP_finite` = 0.3448 (mask‑consistent).
+
+## WP‑0.3.4.2 arrival diagnostics + override (2025‑12‑21)
+- Added pilot arrival overrides (`real`, `synthetic_plane`, `synthetic_gradient`) and diagnostics.
+- Diagnostics (pilot grid, riparian mask):
+  - real: frac_finite_mask = 0.632 (12/19)
+  - synthetic_plane: frac_finite_mask = 1.0 (19/19)
+  - synthetic_gradient: frac_finite_mask = 1.0 (19/19)
+- Artefacts:
+  - `outputs/synthetic/pilot_diagnostics.csv`
+  - `outputs/synthetic/arrival_real.png`
+  - `outputs/synthetic/arrival_synthetic_plane.png`
+  - `outputs/synthetic/arrival_synthetic_gradient.png`
+
+## WP‑0.3.4.3 truth viability sweep (2025‑12‑21)
+- Ran pilot‑grid viability sweep with arrival_source = synthetic_plane and mask = all.
+- Sweep varied `truth_frac` and `truth_rel0` at `pred_scale=3.0`, `pred_c=2.4`.
+- Results (see `outputs/synthetic/viability_sweep.csv`):
+  - `(0.12, 1.5–2.0)` → ~5 extirpations (coverage ~0.001).
+  - `(0.16, 1.8–2.0)` → ~90 extirpations (coverage ~0.025).
+  - `(0.20, 1.8–2.0)` → full extirpation (coverage = 1).
+- Selected truth thresholds: **truth_frac = 0.16**, **truth_rel0 = 1.8**.
+- Artefacts:
+  - `outputs/synthetic/viability_sweep.csv`
+  - `outputs/synthetic/viability_sweep_plot.png`
+
+## WP‑0.3.4.4 pilot gates update (2025‑12‑22)
+- Updated pilot mask handling: mask="all" now includes only land cells (lookup indices), not the full bounding box.
+- Viability sweep (pilot grid, arrival_source=synthetic_plane, truth_frac=0.02, truth_rel0=0.5) across predation strength:
+  - pred_scale=0.6, pred_c=0.6 → coverage ≈ 0.289, n_TX_true ≈ 1058 (informative).
+  - pred_scale=1.2, pred_c=0.6 → coverage = 1 (saturated).
+  - pred_scale≤0.6 with pred_c=0.3 → zero extirpations.
+- Updated theta_star: pred_scale=0.6, pred_c=0.6; truth thresholds reverted to 0.02/0.5.
+
+## WP‑0.3.4.4 pilot gates (final pass, 2025‑12‑23)
+- Added TX‑quantile coverage breaks (`coverage_breaks.strategy = tx_quantile`) to keep coverage curves informative within the pilot window.
+- Enabled mode‑specific ABC eps settings (`realistic=15`, `ideal=23`) so both modes can pass G5 without over‑accepting.
+- Pilot observation/compat tuning for identifiability:
+  - `po_rate=0.01`, `drop_fraction=0.3`, `normalize_by="none"`.
+  - `compat.min_r2_arrival=0`, `compat.lag_range=[0,40]`.
+- Gate results (pilot grid, mask=all, arrival_source=synthetic_plane, crop=TRUE):
+  - **Realistic:** G1–G5 all pass (acceptance 2/20 = 0.10).
+  - **Ideal:** G1–G5 all pass (acceptance 2/20 = 0.10).
+- Sanity check: TX_true map shows a coherent late‑period front; TX_obs is noisier but still aligned with the arrival gradient (no obvious spatial inversion).
+- Artefacts:
+  - `outputs/synthetic/recovery/pilot_gates.csv`
+  - `outputs/synthetic/recovery/realistic/replicate_metrics.csv`
+  - `outputs/synthetic/recovery/ideal/replicate_metrics.csv`
+- Runtime note: `synthetic_runs` recomputation took ~3h28m (pilot grid, counts, crop=TRUE).

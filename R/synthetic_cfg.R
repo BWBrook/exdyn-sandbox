@@ -22,6 +22,9 @@ exdyn_synthetic_env_snapshot <- function() {
     grid_riparian_frac = Sys.getenv("EXDYN_SYNTHETIC_GRID_RIPARIAN_FRAC", unset = ""),
     grid_region_n = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_N", unset = ""),
     grid_region_labels = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_LABELS", unset = ""),
+    arrival_source = Sys.getenv("EXDYN_SYNTHETIC_ARRIVAL_SOURCE", unset = ""),
+    viability = Sys.getenv("EXDYN_SYNTHETIC_VIABILITY", unset = ""),
+    pilot_gates = Sys.getenv("EXDYN_SYNTHETIC_PILOT_GATES", unset = ""),
     obs_mode = Sys.getenv("EXDYN_SYNTHETIC_OBS_MODE", unset = ""),
     mask = Sys.getenv("EXDYN_SYNTHETIC_MASK", unset = ""),
     crop = Sys.getenv("EXDYN_SYNTHETIC_CROP", unset = ""),
@@ -89,6 +92,17 @@ exdyn_synthetic_cfg_apply_overrides <- function(cfg, env = NULL) {
     labels <- strsplit(env$grid_region_labels, ",")[[1]]
     labels <- trimws(labels)
     if (length(labels)) cfg$grid$region_labels <- labels
+  }
+  if (nzchar(env$arrival_source)) {
+    cfg$grid$arrival_source <- env$arrival_source
+  }
+  if (nzchar(env$viability)) {
+    cfg$viability <- cfg$viability %||% list()
+    cfg$viability$enabled <- exdyn_env_flag(env$viability, default = FALSE)
+  }
+  if (nzchar(env$pilot_gates)) {
+    cfg$pilot_gates <- cfg$pilot_gates %||% list()
+    cfg$pilot_gates$enabled <- exdyn_env_flag(env$pilot_gates, default = TRUE)
   }
   if (nzchar(env$obs_mode)) {
     cfg$noise <- cfg$noise %||% list()

@@ -1,6 +1,6 @@
 # Pilot WP‑0.3.5 analysis (coverage failure triage)
 
-Date: 2025-12-21
+Date: 2025-12-21 (updated 2025-12-23)
 
 ## Summary of the pilot run
 - **Run id:** `wp035_pilot_20251221_161039`
@@ -75,3 +75,60 @@ The accompanying zip includes:
 - core synthetic pipeline code and configs.
 
 This should be enough to diagnose the coverage issue without the full repo.
+
+## Arrival diagnostics update (WP‑0.3.4.2)
+Diagnostics now report finite arrival coverage by source (pilot grid, riparian mask):
+- **real:** 12/19 finite (frac = 0.632)
+- **synthetic_plane:** 19/19 finite (frac = 1.0)
+- **synthetic_gradient:** 19/19 finite (frac = 1.0)
+
+Artefacts:
+- `outputs/synthetic/pilot_diagnostics.csv`
+- `outputs/synthetic/arrival_real.png`
+- `outputs/synthetic/arrival_synthetic_plane.png`
+- `outputs/synthetic/arrival_synthetic_gradient.png`
+
+## Truth viability update (WP‑0.3.4.3)
+Viability sweep (pilot grid, arrival_source=synthetic_plane, mask=all) varied
+`truth_frac`/`truth_rel0` at `pred_scale=3.0`, `pred_c=2.4`:
+- `(0.12, 1.5–2.0)` → ~5 extirpations (coverage ~0.001)
+- `(0.16, 1.8–2.0)` → **~90 extirpations** (coverage ~0.025)
+- `(0.20, 1.8–2.0)` → full extirpation (coverage = 1)
+
+Selected truth thresholds for the pilot synthetic:
+- `truth_frac = 0.16`
+- `truth_rel0 = 1.8`
+
+Artefacts:
+- `outputs/synthetic/viability_sweep.csv`
+- `outputs/synthetic/viability_sweep_plot.png`
+
+## Pilot gates pass (WP‑0.3.4.4, 2025‑12‑23)
+Pilot recovery now passes all identifiability gates for **both** modes using:
+- **Coverage breaks:** TX‑quantile breaks (`coverage_breaks.strategy = "tx_quantile"`).
+- **Mode‑specific ABC eps:** `realistic=15`, `ideal=23` (acceptance 2/20 in each).
+- **Observation/compat tuning:** `po_rate=0.01`, `drop_fraction=0.3`,
+  `normalize_by="none"`, `min_r2_arrival=0`, `lag_range=[0,40]`.
+
+Gate results (pilot grid, mask=all, arrival_source=synthetic_plane):
+- **Realistic:** G1–G5 all pass (coverage_obs ≈ 0.835; n_TX_obs=3058).
+- **Ideal:** G1–G5 all pass (coverage_true ≈ 0.289; n_TX_true=1058).
+
+Key artefacts:
+- `outputs/synthetic/recovery/pilot_gates.csv`
+- `outputs/synthetic/recovery/realistic/replicate_metrics.csv`
+- `outputs/synthetic/recovery/ideal/replicate_metrics.csv`
+
+## Pilot viability update (predation strength sweep)
+Using `truth_frac=0.02`, `truth_rel0=0.5` and varying predation strength:
+- `pred_scale=0.6`, `pred_c=0.6` → coverage ≈ 0.289 (n_TX_true ≈ 1058)
+- `pred_scale=1.2`, `pred_c=0.6` → coverage = 1 (saturated)
+- `pred_scale≤0.6`, `pred_c=0.3` → zero extirpations
+
+Selected pilot theta_star update:
+- `pred_scale = 0.6`, `pred_c = 0.6`
+- `truth_frac = 0.02`, `truth_rel0 = 0.5`
+
+Artefacts:
+- `outputs/synthetic/viability_sweep.csv`
+- `outputs/synthetic/viability_sweep_plot.png`

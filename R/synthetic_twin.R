@@ -279,6 +279,180 @@ exdyn_prepare_arrivals <- function(arrivals) {
 }
 
 #' @keywords internal
+exdyn_synthetic_arrival_table <- function(arrivals,
+                                          grid_info,
+                                          years,
+                                          source = "real",
+                                          seed = NULL) {
+  source <- tolower(source %||% "real")
+  source <- match.arg(source, c("real", "synthetic_plane", "synthetic_gradient"))
+  years_seq <- if (length(years) == 2L) seq.int(years[1], years[2]) else sort(unique(as.integer(years)))
+  if (!is.null(seed)) set.seed(seed)
+  if (identical(source, "real")) {
+    return(exdyn_prepare_arrivals(arrivals))
+  }
+  if (identical(source, "synthetic_gradient")) {
+    return(exdyn_perf_arrival_table(
+      grid_info = grid_info,
+      years = years_seq,
+      pattern = "gradient",
+      noise_sd = 0,
+      span_frac = 1,
+      seed = seed
+    ))
+  }
+  arrivals_tbl <- exdyn_prepare_arrivals(arrivals)
+  lookup <- grid_info$lookup
+  df <- dplyr::left_join(lookup, arrivals_tbl, by = "cell_id")
+  fit_df <- df[is.finite(df$arrival_year), , drop = FALSE]
+  if (nrow(fit_df) < 3) {
+    return(exdyn_perf_arrival_table(
+      grid_info = grid_info,
+      years = years_seq,
+      pattern = "gradient",
+      noise_sd = 0,
+      span_frac = 1,
+      seed = seed
+    ))
+  }
+  fit <- stats::lm(arrival_year ~ row_idx + col_idx, data = fit_df)
+  pred <- stats::predict(fit, newdata = df)
+  pred <- round(pmin(max(years_seq), pmax(min(years_seq), pred)))
+  tibble::tibble(cell_id = df$cell_id, arrival_year = pred)
+}
+
+#' @keywords internal
+exdyn_arrival_coverage_stats <- function(T_P, mask = NULL) {
+  stopifnot(length(dim(T_P)) == 2L)
+  n_cells <- length(T_P)
+  n_finite <- sum(is.finite(T_P))
+  frac_finite <- if (n_cells) n_finite / n_cells else NA_real_
+  if (is.null(mask)) {
+    return(list(
+      n_cells = n_cells,
+      n_finite = n_finite,
+      frac_finite = frac_finite,
+      n_mask = n_cells,
+      n_finite_mask = n_finite,
+      frac_finite_mask = frac_finite
+    ))
+  }
+  mask_use <- as.matrix(mask)
+  mask_use[is.na(mask_use)] <- FALSE
+  n_mask <- sum(mask_use)
+  n_finite_mask <- sum(is.finite(T_P) & mask_use)
+  frac_finite_mask <- if (n_mask) n_finite_mask / n_mask else NA_real_
+  list(
+    n_cells = n_cells,
+    n_finite = n_finite,
+    frac_finite = frac_finite,
+    n_mask = n_mask,
+    n_finite_mask = n_finite_mask,
+    frac_finite_mask = frac_finite_mask
+  )
+}
+
+#' @keywords internal
+exdyn_viability_sweep <- function(theta_star,
+                                  sweep_cfg,
+                                  grid_info,
+                                  years,
+                                  T_P,
+                                  mask,
+                                  K0 = 120) {
+  sweep_cfg <- sweep_cfg %||% list(enabled = FALSE)
+  if (!isTRUE(sweep_cfg$enabled)) {
+    return(tibble::tibble())
+  }
+  years_seq <- if (length(years) == 2L) seq.int(years[1], years[2]) else sort(unique(as.integer(years)))
+  pred_scale_vals <- sweep_cfg$pred_scale %||% theta_star$pred_scale %||% 1
+  pred_c_vals <- sweep_cfg$pred_c %||% theta_star$pred_c %||% 1
+  truth_frac_vals <- sweep_cfg$truth_frac %||% theta_star$truth_frac %||% 0.02
+  truth_rel0_vals <- sweep_cfg$truth_rel0 %||% theta_star$truth_rel0 %||% 0.5
+  seed <- sweep_cfg$seed %||% 1234
+  combos <- tidyr::expand_grid(
+    pred_scale = pred_scale_vals,
+    pred_c = pred_c_vals,
+    truth_frac = truth_frac_vals,
+    truth_rel0 = truth_rel0_vals
+  )
+  max_runs <- sweep_cfg$max_runs %||% nrow(combos)
+  if (is.finite(max_runs) && max_runs > 0 && nrow(combos) > max_runs) {
+    set.seed(seed)
+    combos <- combos[sample.int(nrow(combos), size = max_runs), , drop = FALSE]
+  }
+  cell_km <- grid_info$cell_km %||% 10
+  disp_mean_cells <- (theta_star$disp_mean_km %||% 10) / cell_km
+  mask_use <- mask %||% grid_info$riparian_matrix %||% matrix(TRUE, nrow = grid_info$nx, ncol = grid_info$ny)
+  mask_use <- as.matrix(mask_use)
+  mask_use[is.na(mask_use)] <- FALSE
+
+  results <- vector("list", nrow(combos))
+  for (i in seq_len(nrow(combos))) {
+    set.seed(seed + i)
+    pred_scale <- combos$pred_scale[i]
+    pred_c <- combos$pred_c[i]
+    truth_frac <- combos$truth_frac[i]
+    truth_rel0 <- combos$truth_rel0[i]
+    pars <- list(
+      rmax = theta_star$rmax %||% 0.4,
+      A_frac = (theta_star$A_over_K %||% 0.1) * K0,
+      beta_H = 0,
+      d = 0.02
+    )
+    TX_idx <- exdyn_simulate_tx_only(
+      grid_info = grid_info,
+      years = years_seq,
+      T_P = T_P,
+      ramp_years = theta_star$ramp_years %||% 8,
+      pars = pars,
+      K0 = K0,
+      alpha = theta_star$alpha %||% 0.2,
+      disp_mean_cells = disp_mean_cells,
+      pred = list(
+        type = theta_star$pred_type %||% "II",
+        c = pred_c,
+        h = theta_star$pred_h %||% 30,
+        scale = pred_scale,
+        gamma = theta_star$gamma %||% 1
+      ),
+      pre_leak = theta_star$pre_leak %||% 0,
+      mask = mask_use,
+      crop = sweep_cfg$crop %||% FALSE,
+      frac = truth_frac,
+      rel0 = truth_rel0
+    )
+    TX_true <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
+    idx <- is.finite(TX_idx)
+    if (any(idx)) {
+      TX_true[idx] <- years_seq[TX_idx[idx]]
+    }
+    TX_true[!mask_use] <- NA_real_
+    counts <- exdyn_summary_counts(TX_true, T_P, mask = mask_use)
+    n_pairs <- counts[["n_pairs"]]
+    n_TP_finite <- counts[["n_TP_finite"]]
+    coverage_true <- if (n_TP_finite > 0) n_pairs / n_TP_finite else NA_real_
+    tx_vals <- TX_true[is.finite(TX_true) & is.finite(T_P) & mask_use]
+    lag_vals <- tx_vals - T_P[is.finite(TX_true) & is.finite(T_P) & mask_use]
+    tx_range <- if (length(tx_vals) >= 2) max(tx_vals) - min(tx_vals) else NA_real_
+    results[[i]] <- tibble::tibble(
+      pred_scale = pred_scale,
+      pred_c = pred_c,
+      truth_frac = truth_frac,
+      truth_rel0 = truth_rel0,
+      n_pairs = n_pairs,
+      n_TP_finite = n_TP_finite,
+      n_TX_true = counts[["n_TX_finite"]],
+      coverage_true = coverage_true,
+      tx_sd = if (length(tx_vals) >= 2) stats::sd(tx_vals) else NA_real_,
+      tx_range = tx_range,
+      lag_mean = if (length(lag_vals)) mean(lag_vals) else NA_real_
+    )
+  }
+  dplyr::bind_rows(results)
+}
+
+#' @keywords internal
 exdyn_synthetic_po_points <- function(N, years_seq, grid_info, rate, effort_strength) {
   N_clean <- N
   N_clean[!is.finite(N_clean)] <- 0

@@ -25,6 +25,9 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       })
     ),
     tar_target(synthetic_grid_cfg, synthetic_cfg$grid %||% list(type = "pilot")),
+    tar_target(synthetic_arrival_source, {
+      tolower(synthetic_grid_cfg$arrival_source %||% "real")
+    }),
     tar_target(synthetic_years, {
       years_cfg <- synthetic_cfg$years %||% "pilot"
       if (is.character(years_cfg) && identical(years_cfg, "pilot")) {
@@ -73,22 +76,48 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       }
     }),
     tar_target(synthetic_grid_info, synthetic_grid_bundle$grid_info),
-    tar_target(synthetic_arrivals, synthetic_grid_bundle$arrivals),
+    tar_target(synthetic_arrivals_real, synthetic_grid_bundle$arrivals),
+    tar_target(synthetic_arrivals, {
+      exdyn_synthetic_arrival_table(
+        arrivals = synthetic_arrivals_real,
+        grid_info = synthetic_grid_info,
+        years = synthetic_years,
+        source = synthetic_arrival_source,
+        seed = synthetic_recovery_cfg$seed %||% 1234
+      )
+    }),
     tar_target(synthetic_modes, exdyn_synthetic_modes(synthetic_cfg)),
     tar_target(synthetic_recovery_cfg, synthetic_cfg$recovery %||% list(n_reps = 1L, seed = 1234L, reference_rep = 1L)),
+    tar_target(synthetic_pilot_gates, {
+      cfg <- synthetic_cfg$pilot_gates %||% list()
+      if (!is.null(cfg$enabled)) {
+        return(isTRUE(cfg$enabled))
+      }
+      identical(synthetic_grid_cfg$type %||% "pilot", "pilot")
+    }),
     tar_target(synthetic_theta_star, synthetic_cfg$theta_star),
     tar_target(synthetic_noise_cfg, synthetic_cfg$noise),
     tar_target(synthetic_tx_cfg, synthetic_cfg$tx_cfg),
     tar_target(synthetic_screen_cfg, synthetic_cfg$screen),
     tar_target(synthetic_compat_cfg, synthetic_cfg$compat),
     tar_target(synthetic_abc_cfg, synthetic_cfg$abc),
+    tar_target(synthetic_viability_cfg, synthetic_cfg$viability %||% list(enabled = FALSE)),
     tar_target(synthetic_coverage_breaks, {
-      exdyn_coverage_breaks(synthetic_years)
+      cfg <- synthetic_cfg$coverage_breaks %||% NULL
+      if (is.null(cfg)) {
+        exdyn_coverage_breaks(synthetic_years)
+      } else {
+        cfg
+      }
     }),
     tar_target(synthetic_mask, {
       mask_cfg <- synthetic_cfg$mask %||% "riparian"
       if (identical(mask_cfg, "all")) {
-        matrix(TRUE, nrow = synthetic_grid_info$nx, ncol = synthetic_grid_info$ny)
+        mask <- matrix(FALSE, nrow = synthetic_grid_info$nx, ncol = synthetic_grid_info$ny)
+        lookup <- synthetic_grid_info$lookup
+        idx <- cbind(lookup$row_idx, lookup$col_idx)
+        mask[idx] <- TRUE
+        mask
       } else if (identical(mask_cfg, "riparian")) {
         synthetic_grid_info$riparian_matrix %||% matrix(TRUE, nrow = synthetic_grid_info$nx, ncol = synthetic_grid_info$ny)
       } else {
@@ -99,6 +128,108 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       dir <- file.path("outputs", "synthetic")
       dir.create(dir, recursive = TRUE, showWarnings = FALSE)
       dir
+    }, format = "file"),
+    tar_target(synthetic_viability_sweep, {
+      if (!isTRUE(synthetic_viability_cfg$enabled)) {
+        return(tibble::tibble())
+      }
+      T_P <- exdyn_arrival_matrix(
+        arrivals = synthetic_arrivals,
+        grid_info = synthetic_grid_info,
+        years = synthetic_years,
+        delta_region = synthetic_theta_star$delta_region
+      )
+      exdyn_viability_sweep(
+        theta_star = synthetic_theta_star,
+        sweep_cfg = synthetic_viability_cfg,
+        grid_info = synthetic_grid_info,
+        years = synthetic_years,
+        T_P = T_P,
+        mask = synthetic_mask,
+        K0 = synthetic_screen_cfg$K0
+      )
+    }),
+    tar_target(synthetic_viability_sweep_csv, {
+      if (!nrow(synthetic_viability_sweep)) {
+        return(character())
+      }
+      out_path <- file.path(synthetic_output_root, "viability_sweep.csv")
+      readr::write_csv(synthetic_viability_sweep, out_path)
+      out_path
+    }, format = "file"),
+    tar_target(synthetic_viability_sweep_plot, {
+      if (!nrow(synthetic_viability_sweep)) {
+        return(character())
+      }
+      plot_path <- file.path(synthetic_output_root, "viability_sweep_plot.png")
+      plot_df <- synthetic_viability_sweep
+      p <- ggplot2::ggplot(plot_df, ggplot2::aes(x = pred_scale, y = pred_c, fill = coverage_true)) +
+        ggplot2::geom_tile(color = "white") +
+        ggplot2::geom_text(ggplot2::aes(label = n_TX_true), color = "black", size = 3) +
+        ggplot2::scale_fill_viridis_c(option = "C", na.value = "grey80") +
+        ggplot2::labs(
+          title = "Pilot viability sweep: coverage_true (labels = n_TX_true)",
+          x = "pred_scale",
+          y = "pred_c",
+          fill = "Coverage"
+        ) +
+        ggplot2::theme_minimal()
+      ggplot2::ggsave(plot_path, p, width = 6, height = 5, dpi = 150)
+      plot_path
+    }, format = "file"),
+    tar_target(synthetic_arrival_diagnostics, {
+      sources <- c("real", "synthetic_plane", "synthetic_gradient")
+      diag_tbl <- purrr::map_dfr(sources, function(src) {
+        arrivals_tbl <- exdyn_synthetic_arrival_table(
+          arrivals = synthetic_arrivals_real,
+          grid_info = synthetic_grid_info,
+          years = synthetic_years,
+          source = src,
+          seed = synthetic_recovery_cfg$seed %||% 1234
+        )
+        T_P <- exdyn_arrival_matrix(
+          arrivals = arrivals_tbl,
+          grid_info = synthetic_grid_info,
+          years = synthetic_years,
+          delta_region = NULL
+        )
+        stats <- exdyn_arrival_coverage_stats(T_P, mask = synthetic_mask)
+        tibble::tibble(
+          source = src,
+          n_cells = stats$n_cells,
+          n_finite = stats$n_finite,
+          frac_finite = stats$frac_finite,
+          n_mask = stats$n_mask,
+          n_finite_mask = stats$n_finite_mask,
+          frac_finite_mask = stats$frac_finite_mask
+        )
+      })
+      diag_path <- file.path(synthetic_output_root, "pilot_diagnostics.csv")
+      readr::write_csv(diag_tbl, diag_path)
+      diag_path
+    }, format = "file"),
+    tar_target(synthetic_arrival_plots, {
+      sources <- c("real", "synthetic_plane", "synthetic_gradient")
+      out_paths <- purrr::map_chr(sources, function(src) {
+        arrivals_tbl <- exdyn_synthetic_arrival_table(
+          arrivals = synthetic_arrivals_real,
+          grid_info = synthetic_grid_info,
+          years = synthetic_years,
+          source = src,
+          seed = synthetic_recovery_cfg$seed %||% 1234
+        )
+        T_P <- exdyn_arrival_matrix(
+          arrivals = arrivals_tbl,
+          grid_info = synthetic_grid_info,
+          years = synthetic_years,
+          delta_region = NULL
+        )
+        plot_path <- file.path(synthetic_output_root, sprintf("arrival_%s.png", src))
+        p <- exdyn_plot_surface(T_P, synthetic_grid_info, sprintf("Arrival surface (%s)", src))
+        ggplot2::ggsave(plot_path, p, width = 6, height = 7, dpi = 150)
+        plot_path
+      })
+      out_paths
     }, format = "file"),
     tar_target(synthetic_rep_grid, exdyn_synthetic_rep_grid(synthetic_recovery_cfg)),
     tar_target(synthetic_theta_lhs, {
@@ -171,7 +302,8 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
             compat_cfg = synthetic_compat_cfg,
             abc_cfg = synthetic_abc_cfg,
             coverage_breaks = synthetic_coverage_breaks,
-            keep_best_tx = keep_best
+            keep_best_tx = keep_best,
+            enforce_gates = synthetic_pilot_gates
           )
           res$replicate <- replicate_id
           res$seed <- seed
@@ -197,7 +329,15 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       runs
     }),
     tar_target(synthetic_outputs_written, {
-      exdyn_write_synthetic_outputs(synthetic_reference_runs, synthetic_reference_truth, synthetic_grid_info, synthetic_output_root)
+      out_paths <- exdyn_write_synthetic_outputs(
+        synthetic_reference_runs,
+        synthetic_reference_truth,
+        synthetic_grid_info,
+        synthetic_output_root
+      )
+      extra_paths <- c(synthetic_arrival_diagnostics, synthetic_arrival_plots, synthetic_viability_sweep_csv, synthetic_viability_sweep_plot)
+      extra_paths <- extra_paths[!is.na(extra_paths)]
+      c(out_paths, extra_paths)
     }, format = "file"),
     tar_target(synthetic_recovery_tables, {
       exdyn_synthetic_recovery_tables(synthetic_mode_runs, synthetic_screen_cfg, synthetic_abc_cfg)

@@ -109,9 +109,9 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 - [x] **WP‑0.3.4 — Synthetic: summary/loss alignment + regression tests**
 - [x] **WP‑0.3.4b — GB‑scale preflight budget check (single‑replicate, realistic mode, real RSS)**
 - [x] **WP‑0.3.4.1 — Pilot: mask‑consistent summaries + tests**
-- [ ] **WP‑0.3.4.2 — Pilot: arrival‑surface diagnostics + override switch**
-- [ ] **WP‑0.3.4.3 — Pilot: truth viability sweep (TX coverage tuning)**
-- [ ] **WP‑0.3.4.4 — Pilot: re‑run recovery + enforce identifiability gates**
+- [x] **WP‑0.3.4.2 — Pilot: arrival‑surface diagnostics + override switch**
+- [x] **WP‑0.3.4.3 — Pilot: truth viability sweep (TX coverage tuning)**
+- [x] **WP‑0.3.4.4 — Pilot: re‑run recovery + enforce identifiability gates**
 - [ ] **WP‑0.3.5 (LARGE) — Synthetic: canonical recovery run (R≥20) + benchmark gates**
 - [ ] **WP‑0.3.6 — Synthetic: identifiability stress mini‑sweep + failure regime artefacts**
 
@@ -567,6 +567,11 @@ override arrivals with a complete synthetic surface.
 **Stop condition:**
 - We can attribute pilot coverage failure to arrival sparsity vs other causes.
 
+**Completion record (append on completion):**
+- Completed: 2025-12-21
+- Commit: TBD
+- Artefacts: outputs/synthetic/pilot_diagnostics.csv; outputs/synthetic/arrival_real.png; outputs/synthetic/arrival_synthetic_plane.png; outputs/synthetic/arrival_synthetic_gradient.png
+
 ---
 
 ### **WP‑0.3.4.3 — Pilot: truth viability sweep (TX coverage tuning)**
@@ -592,6 +597,11 @@ on the pilot grid, not by guesswork.
 
 **Stop condition:**
 - Pilot truth is demonstrably non‑degenerate.
+
+**Completion record (append on completion):**
+- Completed: 2025-12-21
+- Commit: TBD
+- Artefacts: outputs/synthetic/viability_sweep.csv; outputs/synthetic/viability_sweep_plot.png
 
 ---
 
@@ -620,6 +630,12 @@ full GB benchmark run.
 
 **Stop condition:**
 - Pilot is demonstrably identifiable; WP‑0.3.5 full run is allowed.
+
+**Completion record (append on completion):**
+- Completed: 2025-12-23
+- Commit: TBD
+- Artefacts: outputs/synthetic/recovery/pilot_gates.csv; outputs/synthetic/recovery/realistic/replicate_metrics.csv; outputs/synthetic/recovery/ideal/replicate_metrics.csv; reports/synthetic_mink_vole.{html,pdf}
+- Notes: Pilot gates pass for both modes with TX-quantile coverage breaks and mode-specific ABC eps; screen/ABC now non-vacuous.
 
 ---
 

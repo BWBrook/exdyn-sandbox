@@ -23,6 +23,7 @@ theta_star <- tar_read(synthetic_theta_star)
 recovery <- tar_read(synthetic_recovery_tables)
 rep_metrics <- recovery$replicate_metrics
 param_recovery <- recovery$parameter_recovery
+pilot_gates <- recovery$pilot_gates %||% tibble::tibble()
 grid_info <- tar_read(synthetic_grid_info)
 recovery_cfg <- tar_read(synthetic_recovery_cfg)
 plot_surface <- function(mat, title) exdyn_plot_surface(mat, grid_info, title)
@@ -78,6 +79,18 @@ if (nrow(param_recovery) && all(c("abs_bias", "coverage_80", "mode") %in% names(
     geom_vline(xintercept = 0, linetype = "dashed", color = "grey70") +
     theme_minimal() +
     labs(title = "Recovery tradeoff (abs bias vs 80% coverage)", x = "Absolute bias", y = "Coverage (80%)")
+}
+```
+
+## Pilot gate checks
+
+```{r pilot-gates}
+if (nrow(pilot_gates)) {
+  pilot_gates %>%
+    arrange(.data$mode, .data$replicate, .data$gate) %>%
+    mutate(pass = ifelse(.data$pass, "PASS", "FAIL"))
+} else {
+  tibble::tibble(note = "No pilot gate table available for this run.")
 }
 ```
 

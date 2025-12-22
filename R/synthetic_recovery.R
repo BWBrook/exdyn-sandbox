@@ -29,6 +29,17 @@ exdyn_synthetic_rep_grid <- function(recovery_cfg) {
   tibble::tibble(replicate = seq_len(n_reps), seed = seeds)
 }
 
+exdyn_abc_cfg_by_mode <- function(abc_cfg, mode) {
+  cfg <- abc_cfg %||% list()
+  if (!is.null(cfg$eps_by_mode) && !is.null(cfg$eps_by_mode[[mode]])) {
+    cfg$eps <- cfg$eps_by_mode[[mode]]
+  }
+  if (!is.null(cfg$eps_tight_by_mode) && !is.null(cfg$eps_tight_by_mode[[mode]])) {
+    cfg$eps_tight <- cfg$eps_tight_by_mode[[mode]]
+  }
+  cfg
+}
+
 exdyn_synthetic_tx_by_mode <- function(truth, mode) {
   mode <- match.arg(mode, c("ideal", "realistic"))
   tx_use <- if (identical(mode, "ideal")) truth$TX_true else truth$TX_obs
@@ -38,6 +49,79 @@ exdyn_synthetic_tx_by_mode <- function(truth, mode) {
     TX_true = truth$TX_true,
     TX_obs = truth$TX_obs,
     T_P = truth$T_P
+  )
+}
+
+exdyn_abc_empty <- function(abc_cfg) {
+  list(
+    samples = tibble::tibble(),
+    summaries = tibble::tibble(),
+    distances = numeric(),
+    all = tibble::tibble(),
+    eps = abc_cfg$eps %||% NA_real_,
+    scale = abc_cfg$scale %||% NULL
+  )
+}
+
+exdyn_pilot_gate_pre <- function(truth, summary_obs, counts, mask) {
+  arrival_stats <- exdyn_arrival_coverage_stats(truth$T_P, mask = mask)
+  frac_finite <- arrival_stats$frac_finite_mask %||% NA_real_
+  g1_pass <- is.finite(frac_finite) && frac_finite >= 0.9
+
+  n_TP_finite <- counts[["n_TP_finite"]] %||% 0
+  n_pairs_true <- counts[["n_pairs_true"]] %||% 0
+  n_TX_true <- counts[["n_TX_true"]] %||% 0
+  coverage_true <- if (n_TP_finite > 0) n_pairs_true / n_TP_finite else NA_real_
+  g2_pass <- (is.finite(n_TX_true) && n_TX_true >= 50) ||
+    (is.finite(coverage_true) && coverage_true >= 0.1 && coverage_true <= 0.8)
+
+  coverage_obs <- summary_obs[["coverage"]] %||% NA_real_
+  n_TX_obs <- counts[["n_TX_obs"]] %||% 0
+  geom_keys <- c("grad_mag", "pc_ratio", "r2_arrival", "orient_R", "speed_cells_per_year", "speed_r2")
+  geom_vals <- summary_obs[geom_keys]
+  geom_finite <- sum(is.finite(geom_vals))
+  g3_signal <- (is.finite(n_TX_obs) && n_TX_obs >= 30) ||
+    (is.finite(coverage_obs) && coverage_obs >= 0.05)
+  g3_pass <- g3_signal && geom_finite >= 3
+
+  cov_vals <- summary_obs[grepl("^cov_curve_", names(summary_obs))]
+  cov_mid <- if (length(cov_vals)) sum(cov_vals > 0 & cov_vals < 1, na.rm = TRUE) else 0
+  g4_pass <- cov_mid >= 2
+
+  gate_tbl <- tibble::tibble(
+    gate = c("G1_arrival", "G2_TX_true", "G3_TX_obs", "G4_cov_curve"),
+    pass = c(g1_pass, g2_pass, g3_pass, g4_pass),
+    value = c(frac_finite, coverage_true, coverage_obs, cov_mid),
+    threshold = c(">=0.90", "n_TX_true>=50 or coverage in [0.10,0.80]",
+                  "n_TX_obs>=30 or coverage>=0.05 AND geom>=3", ">=2 breakpoints"),
+    detail = c(
+      sprintf("n_finite_mask=%s n_mask=%s", arrival_stats$n_finite_mask, arrival_stats$n_mask),
+      sprintf("n_TX_true=%s n_pairs_true=%s n_TP_finite=%s", n_TX_true, n_pairs_true, n_TP_finite),
+      sprintf("n_TX_obs=%s geom_finite=%s", n_TX_obs, geom_finite),
+      sprintf("n_mid_breaks=%s", cov_mid)
+    )
+  )
+  list(table = gate_tbl, pass = all(gate_tbl$pass))
+}
+
+exdyn_pilot_gate_post <- function(screen_results, abc, abc_cfg, skipped = FALSE) {
+  n_compatible <- if (is.null(screen_results) || !nrow(screen_results)) 0 else sum(screen_results$compatible %||% FALSE)
+  n_accept <- if (!is.null(abc) && !is.null(abc$samples)) nrow(abc$samples) else 0
+  n_sims <- abc_cfg$n_sims %||% NA_real_
+  accept_rate <- if (is.finite(n_sims) && n_sims > 0) n_accept / n_sims else NA_real_
+  g5_pass <- is.finite(n_compatible) && n_compatible >= 1 &&
+    is.finite(accept_rate) && accept_rate > 0 && accept_rate < 0.2
+  if (isTRUE(skipped)) {
+    g5_pass <- FALSE
+  }
+  tibble::tibble(
+    gate = "G5_screen_abc",
+    pass = g5_pass,
+    value = accept_rate,
+    threshold = "n_compatible>=1 & 0<accept_rate<0.20",
+    detail = sprintf("n_compatible=%s n_accept=%s n_sims=%s%s",
+                     n_compatible, n_accept, n_sims,
+                     if (isTRUE(skipped)) " (skipped)" else "")
   )
 }
 
@@ -410,13 +494,20 @@ exdyn_synthetic_mode_run <- function(truth,
                                      compat_cfg,
                                      abc_cfg,
                                      coverage_breaks,
-                                     keep_best_tx = FALSE) {
+                                     keep_best_tx = FALSE,
+                                     enforce_gates = FALSE) {
   tx_info <- exdyn_synthetic_tx_by_mode(truth, mode)
+  coverage_breaks_use <- exdyn_coverage_breaks_resolve(
+    coverage_breaks,
+    TX = tx_info$TX_use,
+    years = years_vec
+  )
+  abc_cfg_use <- exdyn_abc_cfg_by_mode(abc_cfg, mode)
   summary_obs <- exdyn_summary_tx_response(
     tx_info$TX_use,
     tx_info$T_P,
     years = years_vec,
-    coverage_breaks = coverage_breaks,
+    coverage_breaks = coverage_breaks_use,
     mask = mask
   )
   counts_true <- exdyn_summary_counts(truth$TX_true, truth$T_P, mask = mask)
@@ -432,33 +523,66 @@ exdyn_synthetic_mode_run <- function(truth,
     n_pairs_true = counts_true[["n_pairs"]],
     n_pairs_obs = counts_obs[["n_pairs"]]
   )
-  screen <- exdyn_synthetic_screen_run(
-    theta_tbl = theta_tbl,
-    grid_info = grid_info,
-    years_vec = years_vec,
-    T_P = tx_info$T_P,
-    TX_obs = tx_info$TX_use,
-    screen_cfg = screen_cfg,
-    compat_cfg = compat_cfg,
-    coverage_breaks = coverage_breaks,
-    mask = mask,
-    theta_star = truth$theta_star,
-    keep_best_tx = keep_best_tx
-  )
-  abc_bundle <- exdyn_synthetic_abc_bundle(
-    summary_obs = summary_obs,
-    truth = truth,
-    grid_info = grid_info,
-    years_vec = years_vec,
-    mask = mask,
-    screen_cfg = screen_cfg,
-    abc_cfg = abc_cfg,
-    coverage_breaks = coverage_breaks
-  )
+  gate_pre <- if (isTRUE(enforce_gates)) {
+    exdyn_pilot_gate_pre(truth, summary_obs, counts, mask)
+  } else {
+    list(table = tibble::tibble(), pass = TRUE)
+  }
+
+  screen <- list(results = tibble::tibble(), best_index = NA_integer_, best_tx = NULL)
+  abc_bundle <- list(abc = exdyn_abc_empty(abc_cfg_use), abc_summary = tibble::tibble())
+  gate_table <- gate_pre$table
+
+  if (!isTRUE(enforce_gates) || gate_pre$pass) {
+    screen <- exdyn_synthetic_screen_run(
+      theta_tbl = theta_tbl,
+      grid_info = grid_info,
+      years_vec = years_vec,
+      T_P = tx_info$T_P,
+      TX_obs = tx_info$TX_use,
+      screen_cfg = screen_cfg,
+      compat_cfg = compat_cfg,
+      coverage_breaks = coverage_breaks_use,
+      mask = mask,
+      theta_star = truth$theta_star,
+      keep_best_tx = keep_best_tx
+    )
+    n_compatible <- if (nrow(screen$results)) sum(screen$results$compatible %||% FALSE) else 0
+    if (!isTRUE(enforce_gates) || n_compatible >= 1) {
+      abc_bundle <- exdyn_synthetic_abc_bundle(
+        summary_obs = summary_obs,
+        truth = truth,
+        grid_info = grid_info,
+        years_vec = years_vec,
+        mask = mask,
+        screen_cfg = screen_cfg,
+        abc_cfg = abc_cfg_use,
+        coverage_breaks = coverage_breaks_use
+      )
+      if (isTRUE(enforce_gates)) {
+        gate_table <- dplyr::bind_rows(
+          gate_table,
+          exdyn_pilot_gate_post(screen$results, abc_bundle$abc, abc_cfg_use, skipped = FALSE)
+        )
+      }
+    } else if (isTRUE(enforce_gates)) {
+      gate_table <- dplyr::bind_rows(
+        gate_table,
+        exdyn_pilot_gate_post(screen$results, abc_bundle$abc, abc_cfg_use, skipped = TRUE)
+      )
+    }
+  } else if (isTRUE(enforce_gates)) {
+    gate_table <- dplyr::bind_rows(
+      gate_table,
+      exdyn_pilot_gate_post(screen$results, abc_bundle$abc, abc_cfg_use, skipped = TRUE)
+    )
+  }
+
   list(
     mode = mode,
     summary_obs = summary_obs,
     summary_counts = counts,
+    pilot_gates = gate_table,
     screen_results = screen$results,
     best_index = screen$best_index,
     best_tx = screen$best_tx,
@@ -555,6 +679,24 @@ exdyn_recovery_rep_metrics <- function(mode_runs) {
   })
 }
 
+exdyn_pilot_gate_table <- function(mode_runs) {
+  if (!length(mode_runs)) {
+    return(tibble::tibble())
+  }
+  purrr::map_dfr(mode_runs, function(run) {
+    gates <- run$pilot_gates %||% tibble::tibble()
+    if (!nrow(gates)) return(tibble::tibble())
+    gates %>%
+      dplyr::mutate(
+        mode = run$mode,
+        replicate = run$replicate %||% NA_integer_,
+        seed = run$seed %||% NA_integer_
+      ) %>%
+      dplyr::select(.data$mode, .data$replicate, .data$seed, .data$gate,
+                    .data$pass, .data$value, .data$threshold, .data$detail)
+  })
+}
+
 exdyn_prior_sd_table <- function(screen_cfg, abc_cfg) {
   prior_cfg <- abc_cfg$prior %||% list()
   scalar_bounds <- list(
@@ -621,13 +763,15 @@ exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg) {
 exdyn_synthetic_recovery_tables <- function(mode_runs, screen_cfg, abc_cfg) {
   list(
     replicate_metrics = exdyn_recovery_rep_metrics(mode_runs),
-    parameter_recovery = exdyn_recovery_param_table(mode_runs, screen_cfg, abc_cfg)
+    parameter_recovery = exdyn_recovery_param_table(mode_runs, screen_cfg, abc_cfg),
+    pilot_gates = exdyn_pilot_gate_table(mode_runs)
   )
 }
 
 exdyn_write_synthetic_recovery_tables <- function(recovery_tables, output_root) {
   rep_tbl <- recovery_tables$replicate_metrics %||% tibble::tibble()
   param_tbl <- recovery_tables$parameter_recovery %||% tibble::tibble()
+  gate_tbl <- recovery_tables$pilot_gates %||% tibble::tibble()
   if (!nrow(rep_tbl) && !nrow(param_tbl)) {
     return(character())
   }
@@ -648,6 +792,13 @@ exdyn_write_synthetic_recovery_tables <- function(recovery_tables, output_root) 
       readr::write_csv(param_tbl %>% dplyr::filter(.data$mode == .env$mode), param_path)
       out_paths <- c(out_paths, param_path)
     }
+  }
+  if (nrow(gate_tbl)) {
+    gate_dir <- file.path(output_root, "recovery")
+    dir.create(gate_dir, recursive = TRUE, showWarnings = FALSE)
+    gate_path <- file.path(gate_dir, "pilot_gates.csv")
+    readr::write_csv(gate_tbl, gate_path)
+    out_paths <- c(out_paths, gate_path)
   }
   out_paths
 }

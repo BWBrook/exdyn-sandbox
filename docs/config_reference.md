@@ -30,6 +30,14 @@ Controls the spatial grid used for synthetic runs.
 Simulation years for synthetic runs. Either `[start, end]` or `"pilot"` to
 use the pilot year range.
 
+### `coverage_breaks`
+Coverage-curve breakpoint configuration for synthetic summaries.
+- `strategy`: `"years"` (fixed breaks over the full year range) or
+  `"tx_quantile"` (breaks from TX quantiles in the current mode).
+- `n_breaks`: number of interior breakpoints (default 4).
+- `min_points`: minimum finite TX points required to use quantiles
+  (otherwise falls back to `"years"`).
+
 ### `modes`
 Vector of synthetic inference modes:
 - `ideal`: inference on `TX_true` (algorithmic identifiability).
@@ -62,6 +70,8 @@ Compatibility thresholds for screening (`min_r2_arrival`, `lag_range`,
 ### `abc`
 ABC configuration. Keys include:
 - `n_sims`, `eps`, `eps_tight`
+- optional `eps_by_mode` / `eps_tight_by_mode` named lists (keys `ideal`,
+  `realistic`) to set mode-specific acceptance thresholds.
 - `scale`: named vector of summary scales
 - `prior`: bounds mirroring `screen`
 - `lhs`: optional seeding via Latin hypercube (`n`, `keep`, `seed`,

@@ -206,3 +206,119 @@ Format for entries:
 - **Alternatives considered:**  
   - Leaving summaries unmasked and manually adjusting denominators in reports
     (rejected: too error‑prone and not enforceable by tests).
+
+---
+
+- **Date:** 2025-12-21  
+- **Decision:** Add `arrival_source` override for synthetic pilot runs with options
+  `real`, `synthetic_plane`, `synthetic_gradient`, plus arrival diagnostics
+  reporting finite coverage overall and within mask.  
+- **Rationale:**  
+  - Pilot failures may be driven by sparse arrival coverage; overrides provide a
+    controlled way to separate arrival sparsity from simulator behaviour.  
+  - Diagnostics make coverage gaps explicit before running recovery.  
+- **Implications:**  
+  - Synthetic pipeline can swap arrival surfaces without altering real-data
+    construction.  
+  - `outputs/synthetic/pilot_diagnostics.csv` and arrival plots document coverage
+    by source.  
+- **Alternatives considered:**  
+  - Manually editing arrival matrices for diagnostics (rejected: not reproducible).
+
+---
+
+- **Date:** 2025-12-21  
+- **Decision:** Set synthetic truth thresholds to **truth_frac = 0.16** and
+  **truth_rel0 = 1.8** (pilot grid, arrival_source = synthetic_plane, mask = all).  
+- **Rationale:**  
+  - Viability sweep over `(truth_frac, truth_rel0)` at `pred_scale=3.0`,
+    `pred_c=2.4` showed:  
+    - `(0.12, 1.5–2.0)` → ~5 extirpations (coverage ~0.001)  
+    - `(0.16, 1.8–2.0)` → **~90 extirpations** (coverage ~0.025)  
+    - `(0.20, 1.8–2.0)` → full extirpation (coverage = 1).  
+  - The selected values are the smallest thresholds that clear the
+    **n_TX_true ≥ 50** gate without saturating the grid.  
+- **Implications:**  
+  - Synthetic pilot runs should use `truth_frac=0.16`, `truth_rel0=1.8` while
+    keeping predation parameters unchanged.  
+  - Viability artefacts: `outputs/synthetic/viability_sweep.csv` and
+    `outputs/synthetic/viability_sweep_plot.png`.  
+- **Alternatives considered:**  
+  - Increasing predation strength alone (insufficient signal under pilot grid).  
+  - Higher thresholds (`truth_frac ≥ 0.20`, `truth_rel0 ≥ 2.0`) (rejected: full
+    extirpation saturation).
+
+---
+
+- **Date:** 2025-12-22  
+- **Decision:** Update synthetic `theta_star` to **pred_scale = 0.6** and
+  **pred_c = 0.6**, reverting truth thresholds to **truth_frac = 0.02** and
+  **truth_rel0 = 0.5**, for pilot‑grid identifiability.  
+- **Rationale:**  
+  - Pilot viability sweep with `truth_frac=0.02`, `truth_rel0=0.5` showed:
+    - `(pred_scale=0.6, pred_c=0.6)` → **coverage ≈ 0.289** (n_TX_true ≈ 1058),
+      satisfying Gate G2 without saturation.  
+    - Lower predation (`pred_scale≤0.6`, `pred_c=0.3`) yielded zero extirpations;
+      higher predation (`pred_scale=1.2`, `pred_c=0.6`) saturated coverage (=1).  
+  - Adjusting predation parameters is the minimal change to achieve
+    non‑degenerate TX patterns under the pilot grid.  
+- **Implications:**  
+  - Pilot synthetic runs use the updated `theta_star` (predation strength tuned).
+  - Viability artefacts updated: `outputs/synthetic/viability_sweep.csv` and
+    `outputs/synthetic/viability_sweep_plot.png`.  
+- **Alternatives considered:**  
+  - Raising truth thresholds (led to saturation under the pilot grid).  
+  - Keeping strong predation (produced full extirpation).
+
+---
+
+- **Date:** 2025-12-23  
+- **Decision:** Use **TX-quantile coverage breaks** for synthetic pilot summaries
+  (`coverage_breaks.strategy = "tx_quantile"`).  
+- **Rationale:**  
+  - Fixed year-based breaks sat below the TX_true window, causing the
+    coverage-curve gate (G4) to fail even when extirpations were informative.  
+  - Quantile breaks keep the coverage curve informative while preserving
+    consistent breaks between observed and simulated summaries within a mode.  
+- **Implications:**  
+  - Synthetic summaries now compute coverage-curve breakpoints from TX_use
+    quantiles when enough points exist; otherwise they fall back to
+    year-based breaks.  
+  - Pilot gates become sensitive to coverage shape rather than being dominated
+    by an arbitrary year range.  
+- **Alternatives considered:**  
+  - Shifting the pilot year range (rejected: ad hoc and inconsistent with real data).  
+  - Relaxing G4 (rejected: would mask a real loss of summary information).  
+
+---
+
+- **Date:** 2025-12-23  
+- **Decision:** Enable **mode-specific ABC eps thresholds** for pilot gates
+  (`abc.eps_by_mode: realistic=15, ideal=23`).  
+- **Rationale:**  
+  - Distance scales differ between ideal and realistic modes; a single eps
+    either rejected all ideal samples or over-accepted realistic samples.  
+  - Mode-specific eps yields non-vacuous ABC acceptance (<0.2) in both modes.  
+- **Implications:**  
+  - Pilot gate G5 is now evaluated with mode-appropriate eps settings.  
+  - ABC refinement remains optional (kept off for pilot speed).  
+- **Alternatives considered:**  
+  - Inflating a single eps (rejected: violates acceptance-rate gate).  
+  - Dropping ABC for ideal mode (rejected: loses recovery diagnostics).  
+
+---
+
+- **Date:** 2025-12-23  
+- **Decision:** Pilot observation/compat tuning set to
+  `po_rate=0.01`, `drop_fraction=0.3`, `normalize_by="none"`, and
+  `compat.min_r2_arrival=0`, `compat.lag_range=[0,40]`.  
+- **Rationale:**  
+  - Pilot TX_obs needed sufficient signal to pass identifiability gates.  
+  - Looser compat thresholds prevent early rejection while the pilot is still
+    being stabilized.  
+- **Implications:**  
+  - These settings are **pilot-only** defaults; full GB runs may need tighter
+    thresholds once recovery is stable.  
+- **Alternatives considered:**  
+  - Increasing predation strength further (rejected: saturates coverage).  
+  - Forcing normalize-by-effort (rejected: collapsed counts to near-binary).

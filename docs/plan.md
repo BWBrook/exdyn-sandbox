@@ -93,13 +93,14 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - Completed perf profiling + scaling + guardrails + optimisation (WP‑0.2.x).
 - Completed WP‑0.3.1 → WP‑0.3.4b (canonical schema, modes, replicated recovery, alignment tests, GB preflight budgets).
 - Completed WP‑0.3.4.1 (mask‑consistent summaries with explicit count fields + tests).
+- Completed WP‑0.3.4.2 (arrival diagnostics + override switch; pilot arrivals sparse within mask).
+- Completed WP‑0.3.4.3 (truth viability sweep; tuned `truth_frac`/`truth_rel0` for pilot grid).
+- Completed WP‑0.3.4.4 (pilot recovery gates now pass for ideal+realistic; mode‑specific ABC eps + TX‑quantile coverage breaks).
 - Performance hardening: vectorised orientation metrics, analytic r²/slope, streaming counts‑mode truth generation.
 - Re‑measured GB counts preflight (streaming counts): ~42.5 s wall, ~1.0 GB RSS (pilot grid, direct sim+obs+TX).
 - Full‑pipeline counts preflight (screen + ABC + report, pilot grid, crop enabled): ~3:01 wall, ~1.2 GB RSS; canonical size ~192 kB.
 - WP‑0.3.5 pilot‑scale run (3 reps, ideal+realistic, counts, pilot grid): ~1h14m wall, ~1.3 GB RSS; coverage metrics degenerate due to sparse TX.
 
 ### Next steps (short queue)
-- Decide whether WP‑0.3.5 is green‑lit given the pilot‑scale WP‑0.3.5 run and planned ABC draw counts.
-- Run WP‑0.3.4.2 arrival‑surface diagnostics + override switch (pilot grid).
-- Run WP‑0.3.4.3 truth viability sweep to tune `theta_star` coverage on pilot grid.
-- Run WP‑0.3.4.4 pilot recovery with identifiability gates before resuming WP‑0.3.5.
+- Prepare WP‑0.3.5 pilot‑scale benchmark run parameters now that pilot gates pass.
+- Confirm full GB synthetic run plan (runtime budget + replicate count) before launching WP‑0.3.5 LARGE.

@@ -49,6 +49,15 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - Full‑pipeline counts preflight (pilot grid + crop) runs in ~3 minutes with ~1.2 GB RSS; TX maps are extremely sparse under toy θ* on pilot grid, so treat as **performance‑only** evidence.
 - WP‑0.3.5 pilot run (3 reps, counts, pilot grid) confirms end‑to‑end runtime is ~1h14m with ~1.3 GB RSS, but **coverage is near‑zero** and r2/lag metrics are NA; we need non‑degenerate TX coverage for the full benchmark.
 - Mask‑consistent summaries now report `n_mask`, `n_TP_finite`, and `n_pairs`; coverage equals `n_pairs / n_TP_finite` in smoke outputs, eliminating denominator mismatch as a failure mode.
+- Pilot arrival diagnostics show real arrivals are sparse within the riparian mask (12/19 cells finite), while synthetic plane/gradient overrides give full coverage; arrival sparsity is a plausible driver of pilot coverage failure.
+- Viability sweep on the pilot grid shows extirpation thresholds dominate coverage; selected `truth_frac=0.16`, `truth_rel0=1.8` to clear `n_TX_true ≥ 50` without saturating coverage.
+- Updated pilot viability sweep (mask=land, arrival_source=synthetic_plane) shows predation strength dominates coverage; selected `pred_scale=0.6`, `pred_c=0.6` with default truth thresholds to avoid saturation.
+- Pilot gates now pass for **both** modes after switching to TX‑quantile coverage breaks and mode‑specific ABC eps; this confirms the pilot grid is now informative enough to proceed.
+- Coverage‑curve information was previously degenerate because TX_true fell late in the timeline; quantile breaks fix this without changing the rest of the summary vector.
+- ABC acceptance is highly sensitive to eps; requiring mode‑specific eps underscores different distance scales between ideal and realistic summaries.
+- Realistic TX_obs coverage is now high (~0.83) with the pilot observation tuning; this is useful for identifiability but could be overly optimistic if carried to full GB runs.
+- Accepted ABC samples show very high r²/coverage medians (near 1); this may be an artefact of loose thresholds and should be watched in WP‑0.3.5.
+- Screen best r² in realistic mode remains very low (~0.01), suggesting arrival‑alignment geometry is still weak despite passing gates.
 
 ---
 
