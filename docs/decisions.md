@@ -322,3 +322,22 @@ Format for entries:
 - **Alternatives considered:**  
   - Increasing predation strength further (rejected: saturates coverage).  
   - Forcing normalize-by-effort (rejected: collapsed counts to near-binary).
+
+---
+
+- **Date:** 2025-12-23  
+- **Decision:** Split synthetic pipeline into **truth generation** (`synthetic_truths`)
+  and **mode recovery** (`synthetic_mode_runs`), with `synthetic_runs` as a
+  lightweight aggregator.  
+- **Rationale:**  
+  - Avoid re-running the expensive synthetic truth simulation when only
+    screen/ABC settings change.  
+  - Improves iteration speed for WP‑0.3.5 and later benchmarks.  
+- **Implications:**  
+  - Changing `compat`/`abc` now re-runs only `synthetic_mode_runs` and
+    downstream targets.  
+  - Truth regeneration is triggered only by changes to inputs that genuinely
+    affect the synthetic data (theta_star, noise, arrivals, grid, years, mask).  
+- **Alternatives considered:**  
+  - Keeping monolithic `synthetic_runs` (rejected: unnecessary recomputation).  
+  - Splitting per-replicate targets (deferred: more complex than needed now).  

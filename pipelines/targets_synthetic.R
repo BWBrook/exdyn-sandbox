@@ -261,11 +261,8 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       dplyr::bind_rows(truth_row, synthetic_theta_lhs)
     }),
     tar_target(synthetic_theta_bounds, exdyn_param_bounds(synthetic_screen_cfg, cell_km = synthetic_grid_info$cell_km %||% 10)),
-    tar_target(synthetic_runs, {
+    tar_target(synthetic_truths, {
       rep_grid <- synthetic_rep_grid
-      modes <- synthetic_modes
-      ref_id <- synthetic_recovery_cfg$reference_rep %||% 1L
-      runs <- list()
       truths <- list()
       for (i in seq_len(nrow(rep_grid))) {
         replicate_id <- rep_grid$replicate[i]
@@ -289,6 +286,19 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
         truth$replicate <- replicate_id
         truth$seed <- seed
         truths[[as.character(replicate_id)]] <- truth
+        gc()
+      }
+      truths
+    }, deployment = "main"),
+    tar_target(synthetic_mode_runs, {
+      rep_grid <- synthetic_rep_grid
+      modes <- synthetic_modes
+      ref_id <- synthetic_recovery_cfg$reference_rep %||% 1L
+      runs <- list()
+      for (i in seq_len(nrow(rep_grid))) {
+        replicate_id <- rep_grid$replicate[i]
+        truth <- synthetic_truths[[as.character(replicate_id)]]
+        if (is.null(truth)) next
         for (mode in modes) {
           keep_best <- replicate_id == ref_id
           res <- exdyn_synthetic_mode_run(
@@ -306,17 +316,17 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
             enforce_gates = synthetic_pilot_gates
           )
           res$replicate <- replicate_id
-          res$seed <- seed
+          res$seed <- truth$seed %||% rep_grid$seed[i]
           runs[[length(runs) + 1L]] <- res
         }
         gc()
       }
-      list(truths = truths, runs = runs)
+      runs
     }, deployment = "main"),
-    tar_target(synthetic_mode_runs, synthetic_runs$runs),
+    tar_target(synthetic_runs, list(truths = synthetic_truths, runs = synthetic_mode_runs)),
     tar_target(synthetic_reference_truth, {
       ref_id <- synthetic_recovery_cfg$reference_rep %||% 1L
-      synthetic_runs$truths[[as.character(ref_id)]]
+      synthetic_truths[[as.character(ref_id)]]
     }),
     tar_target(synthetic_reference_runs, {
       ref_id <- synthetic_recovery_cfg$reference_rep %||% 1L

@@ -156,4 +156,5 @@ benchmark.
   - `outputs/synthetic/recovery/pilot_gates.csv`
   - `outputs/synthetic/recovery/realistic/replicate_metrics.csv`
   - `outputs/synthetic/recovery/ideal/replicate_metrics.csv`
-- Runtime note: `synthetic_runs` recomputation took ~3h28m (pilot grid, counts, crop=TRUE).
+- Pipeline: split truth generation into `synthetic_truths` so ABC/screen tweaks no longer re-run the expensive truth simulation.
+- Runtime note: `synthetic_truths` recomputation took ~3h28m (pilot grid, counts, crop=TRUE).

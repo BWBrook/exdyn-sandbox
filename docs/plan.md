@@ -96,6 +96,7 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - Completed WP‑0.3.4.2 (arrival diagnostics + override switch; pilot arrivals sparse within mask).
 - Completed WP‑0.3.4.3 (truth viability sweep; tuned `truth_frac`/`truth_rel0` for pilot grid).
 - Completed WP‑0.3.4.4 (pilot recovery gates now pass for ideal+realistic; mode‑specific ABC eps + TX‑quantile coverage breaks).
+- Split synthetic pipeline into truth generation (`synthetic_truths`) and mode recovery (`synthetic_mode_runs`) to avoid re-simulating truth when only ABC/screen settings change.
 - Performance hardening: vectorised orientation metrics, analytic r²/slope, streaming counts‑mode truth generation.
 - Re‑measured GB counts preflight (streaming counts): ~42.5 s wall, ~1.0 GB RSS (pilot grid, direct sim+obs+TX).
 - Full‑pipeline counts preflight (screen + ABC + report, pilot grid, crop enabled): ~3:01 wall, ~1.2 GB RSS; canonical size ~192 kB.
