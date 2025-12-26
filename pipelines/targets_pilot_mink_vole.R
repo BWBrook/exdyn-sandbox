@@ -183,13 +183,11 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
   )
   list(
     wo8_log_start_target,
-    tar_target_raw(
-      "pilot_cfg",
-      rlang::expr({
-        wo8_log_start
-        yaml::read_yaml(!!cfg_path)
-      })
-    ),
+    tar_target_raw("pilot_cfg_file", rlang::expr(!!cfg_path), format = "file"),
+    tar_target(pilot_cfg, {
+      wo8_log_start
+      yaml::read_yaml(pilot_cfg_file)
+    }),
     tar_target(pilot_years, seq.int(pilot_cfg$pilot$years[1], pilot_cfg$pilot$years[2])),
     tar_target(pilot_grid, exdyn_make_grid(
       country_code = pilot_cfg$gbif$country,

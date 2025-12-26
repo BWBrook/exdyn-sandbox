@@ -81,7 +81,7 @@ After `tar_make()`:
 For the mink → vole pipelines:
 - `reports/pilot_mink_vole.html` — real-data pilot (arrival + TX_obs reconstruction + constrained screen/ABC diagnostics).
 - `reports/synthetic_mink_vole.html` — synthetic twin (truth vs observed TX + recovery diagnostics).
-Outputs land in `outputs/`: baseline bundles (`N.rds`, `presence_only.csv`, `fossils.csv`, `total_abundance.csv`), experiment summaries (`experiment_results.csv`), confusion matrices (`confusion_driver_aware_*`, `confusion_response_only_*`), feature importances, design guidance (`design_guidance.txt`), diagnostic PNGs (`outputs/diagnostics/*.png`), and power experiment artefacts (`power_curve_response_only.csv`, `power_curve.png`).
+Outputs land in `outputs/` with a simple hierarchy: baseline bundles in `outputs/baseline/` (`N.rds`, `presence_only.csv`, `fossils.csv`, `total_abundance.csv`, `default_summary.rds`), experiment summaries + confusion matrices + feature importances + design guidance in `outputs/experiments/`, QA tables in `outputs/qa/`, diagnostic PNGs in `outputs/diagnostics/`, sensitivity sweeps in `outputs/sensitivity/`, and power experiment artefacts in `outputs/power/`.
 
 ## Development Workflow
 Use conventional commits (`feat:`, `fix:`, `chore:`). Before committing, ensure `make test` passes and regenerate documentation (`devtools::document()`) if roxygen blocks change. Avoid committing `_targets/` cache; published artefacts belong in `outputs/` and rendered reports in `reports/`.

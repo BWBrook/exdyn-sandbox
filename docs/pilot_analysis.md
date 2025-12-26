@@ -10,8 +10,8 @@ Date: 2025-12-21 (updated 2025-12-23)
 - **Peak RSS:** ~1.36 GB
 - **Canonical:** `outputs/canonical/0.3/WP-0.3.5/wp035_pilot_20251221_161039/`
 - **Perf logs:**
-  - `outputs/perf/wp035_pilot_time.txt`
-  - `outputs/perf/wp035_pilot_sizes.csv`
+  - `outputs/perf/wp035/wp035_pilot_time.txt`
+  - `outputs/perf/wp035/wp035_pilot_sizes.csv`
 
 ## Key symptom
 - **TX_true / TX_obs maps are extremely sparse** on the pilot grid (almost no finite

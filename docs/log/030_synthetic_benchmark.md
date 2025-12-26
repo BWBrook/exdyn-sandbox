@@ -17,12 +17,12 @@ Date: 2025-12-20
 ## Preflight budgets (WP‑0.3.4b)
 - Medium realistic preflight (`70×70`, 1950–2020):
   - wall time ≈ **62.2 s**, max RSS ≈ **834,156 kB**.
-  - `outputs/perf/preflight_medium_time.txt`
-  - `outputs/perf/preflight_medium_summary.csv`
+  - `outputs/perf/preflight/medium/preflight_medium_time.txt`
+  - `outputs/perf/preflight/medium/preflight_medium_summary.csv`
 - GB realistic preflight (pilot grid, 1 replicate, minimal ABC):
   - wall time ≈ **43:30** (≈2610.6 s), max RSS ≈ **43,677,192 kB**.
-  - `outputs/perf/preflight_gb_time.txt`
-  - `outputs/perf/preflight_gb_summary.csv`
+  - `outputs/perf/preflight/gb/preflight_gb_time.txt`
+  - `outputs/perf/preflight/gb/preflight_gb_summary.csv`
   - Metrics recorded in the canonical manifest for WP‑0.3.4b.
 
 ## Observation mode comparison (counts vs points)
@@ -31,15 +31,15 @@ Re-ran single‑replicate realistic preflights using **direct synthetic generati
 - Medium (`70×70`, 1950–2020):
   - **counts:** wall ≈ **29.03 s**, max RSS ≈ **601,056 kB**
   - **points:** wall ≈ **34.11 s**, max RSS ≈ **1,098,548 kB**
-  - `outputs/perf/preflight_medium_counts_time.txt`
-  - `outputs/perf/preflight_medium_points_time.txt`
-  - `outputs/perf/preflight_medium_comparison.csv`
+  - `outputs/perf/preflight/medium/preflight_medium_counts_time.txt`
+  - `outputs/perf/preflight/medium/preflight_medium_points_time.txt`
+  - `outputs/perf/preflight/medium/preflight_medium_comparison.csv`
 - GB (pilot grid, pilot years):
   - **counts:** wall ≈ **311.97 s**, max RSS ≈ **6,660,760 kB**
   - **points:** wall ≈ **769.60 s**, max RSS ≈ **44,523,724 kB**
-  - `outputs/perf/preflight_gb_counts_time.txt`
-  - `outputs/perf/preflight_gb_points_time.txt`
-  - `outputs/perf/preflight_gb_comparison.csv`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_time.txt`
+  - `outputs/perf/preflight/gb/preflight_gb_points_time.txt`
+  - `outputs/perf/preflight/gb/preflight_gb_comparison.csv`
 
 ### Post‑hardening counts preflight (streaming counts)
 Re-ran the GB counts preflight using the new streaming counts path
@@ -47,9 +47,9 @@ Re-ran the GB counts preflight using the new streaming counts path
 
 - GB counts (pilot grid, pilot years):
   - wall time ≈ **42.5 s**, max RSS ≈ **1,049,268 kB**
-  - `outputs/perf/preflight_gb_counts_time.txt`
-  - `outputs/perf/preflight_gb_counts_summary.csv`
-  - `outputs/perf/preflight_gb_counts_runtime.csv`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_time.txt`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_summary.csv`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_runtime.csv`
 
 ### Full‑pipeline counts preflight (screen + ABC + report)
 Measured end‑to‑end runtime for the full synthetic pipeline (counts‑mode,
@@ -59,8 +59,8 @@ pilot grid, minimal screen/ABC, crop enabled).
   - wall time ≈ **3:01** (181 s), max RSS ≈ **1,205,900 kB** (~1.15 GB)
   - `_targets/objects` delta ≈ **-12 kB** (stable)
   - canonical size ≈ **192 kB**
-  - `outputs/perf/preflight_gb_full_counts_time.txt`
-  - `outputs/perf/preflight_gb_full_counts_sizes.csv`
+  - `outputs/perf/preflight/gb/full_counts/preflight_gb_full_counts_time.txt`
+  - `outputs/perf/preflight/gb/full_counts/preflight_gb_full_counts_sizes.csv`
   - `outputs/canonical/0.3/WP-0.3.4b/preflight_full_counts_20251221_142443/`
 
 ## Sanity checks (artefact review)
@@ -87,8 +87,8 @@ benchmark.
 - Canonical size ≈ **544 kB**.
 - Run id: `wp035_pilot_20251221_161039`
 - Logs:
-  - `outputs/perf/wp035_pilot_time.txt`
-  - `outputs/perf/wp035_pilot_sizes.csv`
+  - `outputs/perf/wp035/wp035_pilot_time.txt`
+  - `outputs/perf/wp035/wp035_pilot_sizes.csv`
   - `outputs/canonical/0.3/WP-0.3.5/wp035_pilot_20251221_161039/`
 
 ### Pilot sanity notes

@@ -150,7 +150,7 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 
 **Artefact evidence:**
 
-* `outputs/perf/toy_smoke/` (or canonical folder) with:
+* `outputs/perf/profiling/toy_smoke/` (or canonical folder) with:
 
   * manifest (commit, seeds, config snapshot),
   * a runtime + memory record,
@@ -158,7 +158,7 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 
 **Stop condition:** Smoke and medium profiles exist, are documented, and smoke completes fast.
 
-**Status:** Complete — see `config/perf.yaml` and `outputs/perf/toy_smoke/` (2025‑12‑19).
+**Status:** Complete — see `config/perf.yaml` and `outputs/perf/profiling/toy_smoke/` (2025‑12‑19).
 
 ---
 
@@ -187,12 +187,12 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 
 **Artefact evidence:**
 
-* `outputs/perf/stage_profile_smoke.csv`
+* `outputs/perf/profiling/stage_profile_smoke.csv`
 * One short narrative sanity note in `docs/log/` explaining what dominates and what surprised us.
 
 **Stop condition:** Stage profile exists and is repeatable.
 
-**Status:** Complete — `outputs/perf/stage_profile_smoke.csv` produced (2025‑12‑19).
+**Status:** Complete — `outputs/perf/profiling/stage_profile_smoke.csv` produced (2025‑12‑19).
 
 ---
 
@@ -220,12 +220,12 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 
 **Artefact evidence:**
 
-* `outputs/perf/scaling_sweep.csv`
-* `outputs/perf/scaling_plots/` containing at least one figure.
+* `outputs/perf/scaling/scaling_sweep.csv`
+* `outputs/perf/scaling/plots/` containing at least one figure.
 
 **Stop condition:** We can point to the table and say “doubling cells roughly does X”.
 
-**Status:** Complete — `outputs/perf/scaling_sweep.csv` and plots in `outputs/perf/scaling_plots/` (2025‑12‑19).
+**Status:** Complete — `outputs/perf/scaling/scaling_sweep.csv` and plots in `outputs/perf/scaling/plots/` (2025‑12‑19).
 
 ---
 
@@ -287,12 +287,12 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 
 **Artefact evidence:**
 
-* `outputs/perf/optimisation_before_after.csv`
+* `outputs/perf/optimisation/optimisation_before_after.csv`
 * Log note describing what changed and why it’s safe.
 
 **Stop condition:** Measured improvement delivered and validated.
 
-**Status:** Complete — fast TX map path implemented; comparison recorded in `outputs/perf/optimisation_before_after.csv` (2025-12-19).
+**Status:** Complete — fast TX map path implemented; comparison recorded in `outputs/perf/optimisation/optimisation_before_after.csv` (2025-12-19).
 
 ---
 

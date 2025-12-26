@@ -30,15 +30,32 @@ exdyn_perf_make_grid <- function(nx, ny, cell_km = 10, riparian_frac = 0.6,
   }
 
   center <- (ny + 1) / 2
-  score <- abs(grid$col - center) + stats::rnorm(nrow(grid), sd = 0.25)
-  threshold <- stats::quantile(score, probs = riparian_frac, na.rm = TRUE)
-  grid$riparian <- score <= threshold
+  amp <- max(1, round(ny * 0.25))
+  river_center <- center + amp * sin(2 * pi * (grid$row - 1) / max(1, nx - 1))
+  dist <- abs(grid$col - river_center)
+  dist <- pmax(0, dist + stats::rnorm(nrow(grid), sd = 0.15))
+  tau <- max(1, ny * 0.15)
+  suitability <- exp(-dist / tau)
+  suitability <- pmin(1, pmax(0, suitability))
+  threshold <- stats::quantile(suitability, probs = 1 - riparian_frac, na.rm = TRUE)
+  grid$suitability <- suitability
+  grid$riparian <- suitability >= threshold
   grid$river_km <- ifelse(grid$riparian, stats::runif(nrow(grid), min = 2, max = 15), 0)
 
   grid_sf <- sf::st_as_sf(grid, coords = c("col", "row"), remove = FALSE)
   grid_info <- exdyn_grid_lookup(grid_sf)
   mask <- grid_info$riparian_matrix
-  list(grid_sf = grid_sf, grid_info = grid_info, mask = mask)
+  lookup <- grid_info$lookup
+  idx <- cbind(lookup$row_idx, lookup$col_idx)
+  suit_vec <- grid$suitability[match(lookup$cell_id, grid$cell_id)]
+  suitability_matrix <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
+  suitability_matrix[idx] <- suit_vec
+  list(
+    grid_sf = grid_sf,
+    grid_info = grid_info,
+    mask = mask,
+    suitability_matrix = suitability_matrix
+  )
 }
 
 #' Generate synthetic arrival-year table for a toy grid
@@ -149,7 +166,14 @@ exdyn_perf_run_profile <- function(profile, perf_cfg, label = "smoke",
     }
   })
   grid_info <- grid_stage$value$grid_info
+  suitability_matrix <- grid_stage$value$suitability_matrix %||% NULL
+  mask_setting <- profile$mask %||% "riparian"
   mask <- grid_stage$value$mask
+  if (is.character(mask_setting)) {
+    if (mask_setting %in% c("all", "none", "full", "soft", "hsi")) {
+      mask <- NULL
+    }
+  }
   stage_records <- c(stage_records, list(grid_stage$record))
 
   years_vec <- if (is.character(profile$years) && identical(profile$years, "pilot")) {
@@ -209,6 +233,9 @@ exdyn_perf_run_profile <- function(profile, perf_cfg, label = "smoke",
     scale = sim_cfg$pred_scale %||% 1,
     gamma = sim_cfg$gamma %||% 1
   )
+  if (is.character(mask_setting) && mask_setting %in% c("soft", "hsi") && !is.null(suitability_matrix)) {
+    pred$scale_matrix <- suitability_matrix
+  }
 
   sim_stage <- exdyn_perf_stage("simulate_tx", {
     exdyn_simulate_tx_only(
@@ -419,6 +446,69 @@ exdyn_perf_run_profile <- function(profile, perf_cfg, label = "smoke",
     summary_obs = summary_obs,
     stage_records = stage_tbl,
     compat_cfg = compat_cfg
+  )
+}
+
+#' Run repeated performance profiles (optionally in parallel)
+#' @keywords internal
+exdyn_perf_run_replicates <- function(profile, perf_cfg, reps = 1,
+                                      parallel = FALSE, n_cores = NULL,
+                                      seed_base = NULL, label = "perf") {
+  reps <- max(1L, as.integer(reps))
+  seeds <- if (!is.null(seed_base)) {
+    seed_base + seq_len(reps) - 1L
+  } else {
+    stats::sample.int(1e6, reps)
+  }
+  run_one <- function(rep_i) {
+    prof <- profile
+    prof$seed <- seeds[rep_i]
+    run <- exdyn_perf_run_profile(prof, perf_cfg, label = sprintf("%s_rep%d", label, rep_i))
+    list(
+      rep = rep_i,
+      seed = seeds[rep_i],
+      stage_records = run$stage_records
+    )
+  }
+  use_parallel <- isTRUE(parallel)
+  if (use_parallel && identical(.Platform$OS.type, "windows")) {
+    warning("Parallel perf runs disabled on Windows; falling back to sequential.")
+    use_parallel <- FALSE
+  }
+  if (use_parallel) {
+    if (is.null(n_cores)) {
+      n_cores <- min(reps, parallel::detectCores())
+    }
+  } else {
+    n_cores <- 1L
+  }
+  start <- base::proc.time()[["elapsed"]]
+  out <- if (use_parallel) {
+    parallel::mclapply(seq_len(reps), run_one, mc.cores = n_cores)
+  } else {
+    lapply(seq_len(reps), run_one)
+  }
+  end <- base::proc.time()[["elapsed"]]
+  stage_tbl <- dplyr::bind_rows(lapply(out, function(x) {
+    x$stage_records %>%
+      dplyr::mutate(rep = x$rep, seed = x$seed)
+  }))
+  summary_tbl <- stage_tbl %>%
+    dplyr::group_by(.data$rep, .data$seed) %>%
+    dplyr::summarise(
+      wall_sec = sum(.data$wall_sec[!grepl("^sim_", .data$stage)], na.rm = TRUE),
+      peak_rss_mb = max(.data$rss_peak_mb, .data$rss_mb, na.rm = TRUE),
+      .groups = "drop"
+    )
+  list(
+    stage_records = stage_tbl,
+    summary = summary_tbl,
+    meta = list(
+      reps = reps,
+      parallel = use_parallel,
+      n_cores = n_cores,
+      wall_total_sec = as.numeric(end - start)
+    )
   )
 }
 

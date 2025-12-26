@@ -12,6 +12,20 @@ exdyn_update_local_const <- function(N, P, pars, K0, pred_type = c("II", "III"),
   N * exp(growth)
 }
 
+# Internal helper for tx-only simulation on vectors (graph mode)
+.exdyn_update_local_const_vec <- function(N, P, pars, K0, pred_type = c("II", "III"), pred_c, pred_h, r_eff_const) {
+  pred_type <- match.arg(pred_type)
+  A <- pars$A_frac
+  allee <- (1 - A / (pmax(N, 0) + A))
+  if (pred_type == "II") {
+    M <- pred_c * (P * N) / (pred_h + N)
+  } else {
+    M <- pred_c * (P * N^2) / (pred_h^2 + N^2)
+  }
+  growth <- r_eff_const * allee * (1 - N / K0) - M - pars$d
+  N * exp(growth)
+}
+
 # Internal core for tx-only simulation (no cropping).
 .exdyn_simulate_tx_only_core <- function(grid_info, years, T_P, ramp_years,
                                          pars, K0, alpha,
@@ -159,6 +173,147 @@ exdyn_update_local_const <- function(N, P, pars, K0, pred_type = c("II", "III"),
   TX
 }
 
+# Internal core for tx-only simulation using land-cell graph dispersal
+.exdyn_simulate_tx_only_core_graph <- function(grid_info, years, T_P, ramp_years,
+                                               pars, K0, alpha,
+                                               disp_mean_cells, pred,
+                                               frac = 0.02, rel0 = 0.5,
+                                               pre_leak = 0,
+                                               mask = NULL,
+                                               profile = FALSE,
+                                               graph = NULL,
+                                               graph_radius = 5L,
+                                               graph_include_self = TRUE) {
+  nx <- grid_info$nx
+  ny <- grid_info$ny
+  stopifnot(length(years) >= 2)
+  Tn <- length(years)
+  ramp_years <- max(1, ramp_years)
+
+  if (is.null(mask)) {
+    mask <- matrix(TRUE, nrow = nx, ncol = ny)
+  }
+  mask <- as.matrix(mask)
+  if (!all(dim(mask) == c(nx, ny))) {
+    stop("mask must have dimensions nx × ny")
+  }
+
+  graph_plan <- graph %||% exdyn_land_graph_plan(
+    grid_info = grid_info,
+    mask = mask,
+    radius = graph_radius,
+    include_self = graph_include_self
+  )
+  W <- exdyn_land_graph_weights(graph_plan, disp_mean_cells)
+
+  rows <- graph_plan$rows
+  cols <- graph_plan$cols
+  n_nodes <- graph_plan$n
+
+  N_vec <- rep(pmax(1, round(K0 * 0.1)), n_nodes)
+  tau_vec <- pmin(frac * K0, rel0 * N_vec)
+  TX_vec <- rep(NA_integer_, n_nodes)
+
+  T_P_vec <- T_P[cbind(rows, cols)]
+
+  pred_scale <- pred$scale %||% 1
+  pred_gamma <- pred$gamma %||% 1
+  scale_vec <- NULL
+  if (!is.null(pred$scale_matrix)) {
+    scale_vec <- as.matrix(pred$scale_matrix)[cbind(rows, cols)]
+  }
+  r_eff_const <- pars$rmax * exdyn_fS(1)
+  k <- 6 / ramp_years
+
+  prof <- NULL
+  if (isTRUE(profile)) {
+    prof <- list(
+      pred_field = 0,
+      local_update = 0,
+      dispersal = 0,
+      threshold = 0,
+      total = 0,
+      n_steps = Tn - 1
+    )
+    elapsed <- function() base::proc.time()[["elapsed"]]
+  }
+
+  for (tt in seq_len(Tn - 1)) {
+    if (isTRUE(profile)) {
+      step_start <- elapsed()
+    }
+    if (isTRUE(profile)) {
+      t0 <- elapsed()
+    }
+    dt <- years[tt] - T_P_vec
+    P_t <- rep(pre_leak, length(dt))
+    idx_dt <- !is.na(dt)
+    if (any(idx_dt)) {
+      val <- 0.2 + 0.8 / (1 + exp(-k * (dt[idx_dt] - ramp_years / 2)))
+      val[dt[idx_dt] < 0] <- pre_leak
+      val <- pmax(pre_leak, pmin(1, val))
+      if (!isTRUE(all.equal(pred_gamma, 1)) || !isTRUE(all.equal(pred_scale, 1)) || !is.null(scale_vec)) {
+        idx_active <- dt[idx_dt] >= 0
+        if (any(idx_active)) {
+          scaled <- (val[idx_active] ^ pred_gamma) * pred_scale
+          if (!is.null(scale_vec)) {
+            scaled <- scaled * scale_vec[idx_dt][idx_active]
+          }
+          val[idx_active] <- scaled
+        }
+      }
+      val[val < 0] <- 0
+      P_t[idx_dt] <- val
+    }
+    if (isTRUE(profile)) {
+      prof$pred_field <- prof$pred_field + (elapsed() - t0)
+      t0 <- elapsed()
+    }
+
+    local_vec <- .exdyn_update_local_const_vec(
+      N = N_vec,
+      P = P_t,
+      pars = pars,
+      K0 = K0,
+      pred_type = pred$type,
+      pred_c = pred$c,
+      pred_h = pred$h,
+      r_eff_const = r_eff_const
+    )
+    if (isTRUE(profile)) {
+      prof$local_update <- prof$local_update + (elapsed() - t0)
+      t0 <- elapsed()
+    }
+    N_next <- if (alpha > 0) {
+      moved_vec <- as.numeric(W %*% local_vec)
+      (1 - alpha) * local_vec + alpha * moved_vec
+    } else {
+      local_vec
+    }
+    if (isTRUE(profile)) {
+      prof$dispersal <- prof$dispersal + (elapsed() - t0)
+      t0 <- elapsed()
+    }
+    crossed <- is.na(TX_vec) & (N_vec > tau_vec) & (N_next <= tau_vec)
+    if (any(crossed, na.rm = TRUE)) {
+      TX_vec[crossed] <- tt + 1
+    }
+    N_vec <- pmax(N_next, 0)
+    if (isTRUE(profile)) {
+      prof$threshold <- prof$threshold + (elapsed() - t0)
+      prof$total <- prof$total + (elapsed() - step_start)
+    }
+  }
+
+  TX <- matrix(NA_integer_, nrow = nx, ncol = ny)
+  TX[cbind(rows, cols)] <- TX_vec
+  TX[!mask] <- NA_integer_
+  if (isTRUE(profile)) {
+    attr(TX, "profile") <- prof
+  }
+  TX
+}
+
 #' Compute crop bounds for a mask
 #' @keywords internal
 .exdyn_crop_bounds <- function(mask, nx, ny, pad = 0L) {
@@ -232,7 +387,33 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
                                    profile = FALSE,
                                    conv_reuse = TRUE,
                                    crop = FALSE,
-                                   crop_pad = NULL) {
+                                   crop_pad = NULL,
+                                   dispersal_mode = c("fft", "graph"),
+                                   graph = NULL,
+                                   graph_radius = 5L,
+                                   graph_include_self = TRUE) {
+  dispersal_mode <- match.arg(dispersal_mode)
+  if (dispersal_mode == "graph") {
+    return(.exdyn_simulate_tx_only_core_graph(
+      grid_info = grid_info,
+      years = years,
+      T_P = T_P,
+      ramp_years = ramp_years,
+      pars = pars,
+      K0 = K0,
+      alpha = alpha,
+      disp_mean_cells = disp_mean_cells,
+      pred = pred,
+      frac = frac,
+      rel0 = rel0,
+      pre_leak = pre_leak,
+      mask = mask,
+      profile = profile,
+      graph = graph,
+      graph_radius = graph_radius,
+      graph_include_self = graph_include_self
+    ))
+  }
   nx <- grid_info$nx
   ny <- grid_info$ny
   if (isTRUE(crop) && !is.null(mask)) {
@@ -410,6 +591,124 @@ exdyn_simulate_tx_only <- function(grid_info, years, T_P, ramp_years,
   )
 }
 
+#' Streamed simulation for counts-only observations (graph core)
+#' @keywords internal
+.exdyn_simulate_counts_stream_core_graph <- function(grid_info, years, T_P, ramp_years,
+                                                     pars, K0, alpha,
+                                                     disp_mean_cells, pred,
+                                                     rate, effort_strength = 1,
+                                                     pre_leak = 0,
+                                                     mask = NULL,
+                                                     graph = NULL,
+                                                     graph_radius = 5L,
+                                                     graph_include_self = TRUE,
+                                                     access = NULL) {
+  nx <- grid_info$nx
+  ny <- grid_info$ny
+  stopifnot(length(years) >= 2)
+  Tn <- length(years)
+  ramp_years <- max(1, ramp_years)
+  if (is.null(mask)) {
+    mask <- matrix(TRUE, nrow = nx, ncol = ny)
+  }
+  mask <- as.matrix(mask)
+  if (!all(dim(mask) == c(nx, ny))) {
+    stop("mask must have dimensions nx × ny")
+  }
+  graph_plan <- graph %||% exdyn_land_graph_plan(
+    grid_info = grid_info,
+    mask = mask,
+    radius = graph_radius,
+    include_self = graph_include_self
+  )
+  W <- exdyn_land_graph_weights(graph_plan, disp_mean_cells)
+  rows <- graph_plan$rows
+  cols <- graph_plan$cols
+  n_nodes <- graph_plan$n
+  lookup <- grid_info$lookup
+  lookup_idx <- graph_plan$lookup_idx
+  if (is.null(lookup_idx)) {
+    lookup_map <- matrix(NA_integer_, nrow = nx, ncol = ny)
+    lookup_map[cbind(lookup$row_idx, lookup$col_idx)] <- seq_len(nrow(lookup))
+    lookup_idx <- lookup_map[cbind(rows, cols)]
+  }
+
+  N_vec <- rep(pmax(1, round(K0 * 0.1)), n_nodes)
+  r_eff_const <- pars$rmax * exdyn_fS(1)
+  k <- 6 / ramp_years
+  pred_scale <- pred$scale %||% 1
+  pred_gamma <- pred$gamma %||% 1
+  scale_vec <- NULL
+  if (!is.null(pred$scale_matrix)) {
+    scale_vec <- as.matrix(pred$scale_matrix)[cbind(rows, cols)]
+  }
+
+  if (is.null(access)) {
+    access <- .exdyn_access_surface(nx, ny, effort_strength)
+  }
+  access_vec <- access[cbind(rows, cols)]
+
+  counts_mat <- matrix(0L, nrow = nrow(lookup), ncol = Tn)
+
+  record_counts <- function(year_idx) {
+    lam <- N_vec * access_vec * rate
+    lam[!is.finite(lam)] <- 0
+    lam <- pmax(lam, 0)
+    counts_vec <- stats::rpois(length(lam), lam)
+    counts_mat[lookup_idx, year_idx] <<- counts_vec
+  }
+
+  T_P_vec <- T_P[cbind(rows, cols)]
+  for (tt in seq_len(Tn - 1)) {
+    record_counts(tt)
+    dt <- years[tt] - T_P_vec
+    P_t <- rep(pre_leak, length(dt))
+    idx_dt <- !is.na(dt)
+    if (any(idx_dt)) {
+      val <- 0.2 + 0.8 / (1 + exp(-k * (dt[idx_dt] - ramp_years / 2)))
+      val[dt[idx_dt] < 0] <- pre_leak
+      val <- pmax(pre_leak, pmin(1, val))
+      if (!isTRUE(all.equal(pred_gamma, 1)) || !isTRUE(all.equal(pred_scale, 1)) || !is.null(scale_vec)) {
+        idx_active <- dt[idx_dt] >= 0
+        if (any(idx_active)) {
+          scaled <- (val[idx_active] ^ pred_gamma) * pred_scale
+          if (!is.null(scale_vec)) {
+            scaled <- scaled * scale_vec[idx_dt][idx_active]
+          }
+          val[idx_active] <- scaled
+        }
+      }
+      val[val < 0] <- 0
+      P_t[idx_dt] <- val
+    }
+
+    local_vec <- .exdyn_update_local_const_vec(
+      N = N_vec,
+      P = P_t,
+      pars = pars,
+      K0 = K0,
+      pred_type = pred$type,
+      pred_c = pred$c,
+      pred_h = pred$h,
+      r_eff_const = r_eff_const
+    )
+    N_next <- if (alpha > 0) {
+      moved_vec <- as.numeric(W %*% local_vec)
+      (1 - alpha) * local_vec + alpha * moved_vec
+    } else {
+      local_vec
+    }
+    N_vec <- pmax(N_next, 0)
+  }
+  record_counts(Tn)
+  list(
+    counts_mat = counts_mat,
+    effort_mat = counts_mat,
+    years = years,
+    cells = lookup
+  )
+}
+
 #' Streamed simulation for counts-only observations
 #' @keywords internal
 exdyn_simulate_counts_stream <- function(grid_info, years, T_P, ramp_years,
@@ -420,7 +719,32 @@ exdyn_simulate_counts_stream <- function(grid_info, years, T_P, ramp_years,
                                          mask = NULL,
                                          conv_reuse = TRUE,
                                          crop = FALSE,
-                                         crop_pad = NULL) {
+                                         crop_pad = NULL,
+                                         dispersal_mode = c("fft", "graph"),
+                                         graph = NULL,
+                                         graph_radius = 5L,
+                                         graph_include_self = TRUE) {
+  dispersal_mode <- match.arg(dispersal_mode)
+  if (dispersal_mode == "graph") {
+    return(.exdyn_simulate_counts_stream_core_graph(
+      grid_info = grid_info,
+      years = years,
+      T_P = T_P,
+      ramp_years = ramp_years,
+      pars = pars,
+      K0 = K0,
+      alpha = alpha,
+      disp_mean_cells = disp_mean_cells,
+      pred = pred,
+      rate = rate,
+      effort_strength = effort_strength,
+      pre_leak = pre_leak,
+      mask = mask,
+      graph = graph,
+      graph_radius = graph_radius,
+      graph_include_self = graph_include_self
+    ))
+  }
   nx <- grid_info$nx
   ny <- grid_info$ny
   if (isTRUE(crop) && !is.null(mask)) {

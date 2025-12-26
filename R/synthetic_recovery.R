@@ -141,6 +141,9 @@ exdyn_synthetic_screen_run <- function(theta_tbl,
   best_loss <- Inf
   best_tx <- NULL
   cell_km <- grid_info$cell_km %||% 10
+  scale_matrix <- screen_cfg$scale_matrix %||% NULL
+  dispersal_mode <- screen_cfg$dispersal_mode %||% "fft"
+  graph <- screen_cfg$graph %||% NULL
   for (i in seq_len(nrow(theta_tbl))) {
     theta_row <- theta_tbl[i, ]
     delta_lookup <- NULL
@@ -172,11 +175,14 @@ exdyn_synthetic_screen_run <- function(theta_tbl,
         c = theta_row$pred_c,
         h = theta_row$pred_h,
         scale = theta_row$pred_scale,
-        gamma = theta_row$gamma
+        gamma = theta_row$gamma,
+        scale_matrix = scale_matrix
       ),
       pre_leak = theta_star$pre_leak %||% 0,
       mask = mask,
-      crop = screen_cfg$crop %||% FALSE
+      crop = screen_cfg$crop %||% FALSE,
+      dispersal_mode = dispersal_mode,
+      graph = graph
     )
     TX_years <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
     idx <- is.finite(TX_idx)
@@ -266,6 +272,9 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
       d = 0.02
     )
     disp_cells <- theta$disp_mean_km / cell_km
+    scale_matrix <- truth$scale_matrix %||% screen_cfg$scale_matrix %||% abc_cfg$scale_matrix %||% NULL
+    dispersal_mode <- screen_cfg$dispersal_mode %||% "fft"
+    graph <- screen_cfg$graph %||% NULL
     TX_idx <- exdyn_simulate_tx_only(
       grid_info = grid_info,
       years = years_vec,
@@ -280,11 +289,14 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
         c = theta$pred_c,
         h = theta$pred_h,
         scale = theta$pred_scale,
-        gamma = theta$gamma
+        gamma = theta$gamma,
+        scale_matrix = scale_matrix
       ),
       pre_leak = truth$theta_star$pre_leak %||% 0,
       mask = mask,
-      crop = screen_cfg$crop %||% FALSE
+      crop = screen_cfg$crop %||% FALSE,
+      dispersal_mode = dispersal_mode,
+      graph = graph
     )
     TX_years <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
     idx <- is.finite(TX_idx)
@@ -337,6 +349,9 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
         beta_H = 0,
         d = 0.02
       )
+      scale_matrix <- truth$scale_matrix %||% screen_cfg$scale_matrix %||% abc_cfg$scale_matrix %||% NULL
+      dispersal_mode <- screen_cfg$dispersal_mode %||% "fft"
+      graph <- screen_cfg$graph %||% NULL
       TX_idx <- exdyn_simulate_tx_only(
         grid_info = grid_info,
         years = years_vec,
@@ -351,11 +366,14 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
           c = theta_row$pred_c,
           h = theta_row$pred_h,
           scale = theta_row$pred_scale,
-          gamma = theta_row$gamma
+          gamma = theta_row$gamma,
+          scale_matrix = scale_matrix
         ),
         pre_leak = truth$theta_star$pre_leak %||% 0,
         mask = mask,
-        crop = screen_cfg$crop %||% FALSE
+        crop = screen_cfg$crop %||% FALSE,
+        dispersal_mode = dispersal_mode,
+        graph = graph
       )
       TX_years <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
       idx <- is.finite(TX_idx)

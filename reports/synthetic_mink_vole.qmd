@@ -29,6 +29,16 @@ recovery_cfg <- tar_read(synthetic_recovery_cfg)
 plot_surface <- function(mat, title) exdyn_plot_surface(mat, grid_info, title)
 ```
 
+::: {.callout-note}
+### Glossary (synthetic workflow)
+- **TX**: extirpation year surface (year voles disappear in each grid cell).
+- **TX_true**: simulator ground truth extirpation year per cell.
+- **TX_obs**: extirpation year inferred after observation + TX estimator (what ABC sees).
+- **Screen**: fast filter over parameter draws; simulates TX, computes summaries, ranks draws.
+- **Pilot gates**: hard pass/fail checks (arrival coverage, TX coverage, informative summaries) that stop the pipeline if data are uninformative.
+- **TX_best / TX_diff**: best screen draw and its difference vs TX_true (only written if screen runs and gates pass).
+:::
+
 ## Configuration snapshot
 
 ```{r cfg}

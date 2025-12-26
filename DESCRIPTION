@@ -14,6 +14,7 @@ Suggests:
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Imports: 
+    Matrix,
     data.table,
     dplyr,
     forcats,
@@ -35,4 +36,5 @@ Imports:
     tidyr,
     terra,
     yaml,
-    yardstick
+    yardstick,
+    future.apply

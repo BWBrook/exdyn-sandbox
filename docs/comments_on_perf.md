@@ -12,7 +12,7 @@ You were right to get twitchy. And the Codex work basically proves it: **the “
 From the profiling artefacts you now have:
 
 * **The TX‑only simulator is cheap.** In the toy stage profile, the *entire* per‑year sim loop (`sim_total`) is tiny compared to everything else.
-* **The expensive bit was the observation pipeline, especially TX mapping + saving.** In `stage_profile_smoke.csv`, `observation_tx_map` and `save_outputs` are the largest single stages, and you’ve already shown the old TX mapping path was a pig: `exdyn_tx_map_fast` gives ~**4.2×** speedup on that stage (`optimisation_before_after.csv`).
+* **The expensive bit was the observation pipeline, especially TX mapping + saving.** In `outputs/perf/profiling/stage_profile_smoke.csv`, `observation_tx_map` and `save_outputs` are the largest single stages, and you’ve already shown the old TX mapping path was a pig: `exdyn_tx_map_fast` gives ~**4.2×** speedup on that stage (`outputs/perf/optimisation/optimisation_before_after.csv`).
 * **So the root cause wasn’t “large grids are impossible”.** It was: (i) a non‑toy run profile being triggered, (ii) the realistic observation pipeline being engaged, (iii) a slow `tx_map` implementation, plus (iv) I/O overhead being nontrivial when repeated many times.
 
 That’s consistent with the grant’s own philosophy: you *must* control tractability and scaling first; otherwise pattern‑oriented calibration/ABC becomes computationally unwieldy and you learn nothing. 
@@ -183,7 +183,7 @@ But: **add one extra gate before WP‑0.3.5** (full GB synthetic). Not a whole n
 
 The profiling data basically screams: *the simulator is not your problem.*
 
-From `stage_profile_smoke.csv` on the 25×25 smoke profile:
+From `outputs/perf/profiling/stage_profile_smoke.csv` on the 25×25 smoke profile:
 
 * Core sim inner loop (`sim_total`) is ~**0.059 s**.
 * The big costs are:

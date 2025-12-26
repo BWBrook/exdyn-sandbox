@@ -46,8 +46,8 @@ GB (pilot grid, pilot years):
 → ~**2.5× faster**, ~**6.7× lower RSS**
 
 These comparisons are recorded in:
-- `outputs/perf/preflight_medium_comparison.csv`
-- `outputs/perf/preflight_gb_comparison.csv`
+- `outputs/perf/preflight/medium/preflight_medium_comparison.csv`
+- `outputs/perf/preflight/gb/preflight_gb_comparison.csv`
 
 ### 3) I/O discipline (reference‑rep only)
 Heavy artefacts are limited to reference outputs in synthetic runs. Per‑rep
@@ -69,7 +69,7 @@ heavy outputs are skipped where not scientifically useful.
 
 **Canonical preflight (old points‑mode pipeline, includes screen/ABC/report):**
 - GB realistic preflight: **~43:30** wall, **~41.7 GB RSS**
-- Recorded in `outputs/perf/preflight_gb_summary.csv` and canonical manifest.
+- Recorded in `outputs/perf/preflight/gb/preflight_gb_summary.csv` and canonical manifest.
 
 **Updated counts‑mode preflights (direct sim+obs+TX estimator only):**
 - GB counts: **~5.2 min**, **~6.35 GB RSS**
@@ -80,8 +80,8 @@ heavy outputs are skipped where not scientifically useful.
 - canonical folder size: **192 kB**.
 - run id: `preflight_full_counts_20251221_142443`
 - files:
-  - `outputs/perf/preflight_gb_full_counts_time.txt`
-  - `outputs/perf/preflight_gb_full_counts_sizes.csv`
+  - `outputs/perf/preflight/gb/full_counts/preflight_gb_full_counts_time.txt`
+  - `outputs/perf/preflight/gb/full_counts/preflight_gb_full_counts_sizes.csv`
   - canonical: `outputs/canonical/0.3/WP-0.3.4b/preflight_full_counts_20251221_142443/`
 
 **Interpretation:**
@@ -93,9 +93,9 @@ draw counts remain bounded.
 **Post‑hardening counts‑mode preflight (streaming counts, no 3‑D arrays):**
 - GB counts: **~42.5 s**, **~1.00 GB RSS** (pilot grid, pilot years)
 - Files:
-  - `outputs/perf/preflight_gb_counts_time.txt`
-  - `outputs/perf/preflight_gb_counts_summary.csv`
-  - `outputs/perf/preflight_gb_counts_runtime.csv`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_time.txt`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_summary.csv`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_runtime.csv`
 
 **Before/after (counts mode, direct preflight):**
 - **5.2 min → 42.5 s** (~**7.3×** faster)
@@ -137,16 +137,16 @@ preflight is still too slow for WP‑0.3.5 at the intended draw counts:
 ## File locations (for verification)
 
 - Preflight logs:
-  - `outputs/perf/preflight_medium_counts_time.txt`
-  - `outputs/perf/preflight_medium_points_time.txt`
-  - `outputs/perf/preflight_gb_counts_time.txt`
-  - `outputs/perf/preflight_gb_points_time.txt`
+  - `outputs/perf/preflight/medium/preflight_medium_counts_time.txt`
+  - `outputs/perf/preflight/medium/preflight_medium_points_time.txt`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_time.txt`
+  - `outputs/perf/preflight/gb/preflight_gb_points_time.txt`
 - Comparison tables:
-  - `outputs/perf/preflight_medium_comparison.csv`
-  - `outputs/perf/preflight_gb_comparison.csv`
+  - `outputs/perf/preflight/medium/preflight_medium_comparison.csv`
+  - `outputs/perf/preflight/gb/preflight_gb_comparison.csv`
 - Streaming preflight summaries:
-  - `outputs/perf/preflight_gb_counts_summary.csv`
-  - `outputs/perf/preflight_gb_counts_runtime.csv`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_summary.csv`
+  - `outputs/perf/preflight/gb/preflight_gb_counts_runtime.csv`
 - Canonical GB preflight manifest:
   - `outputs/canonical/0.3/WP-0.3.4b/syn_20251220_164636_0099/manifest.yaml`
   - `outputs/canonical/0.3/WP-0.3.4b/preflight_full_counts_20251221_142443/manifest.yaml`

@@ -337,13 +337,19 @@ exdyn_screen_and_rank <- function(theta, grid_info, years, T_P,
 #' @return Tibble with columns \code{row,col,value}.
 #' @export
 exdyn_matrix_to_df <- function(mat, grid_info, value_name = "value") {
-  vals <- mat[cbind(grid_info$lookup$row_idx, grid_info$lookup$col_idx)]
-  tibble::tibble(
+  lookup <- grid_info$lookup
+  vals <- mat[cbind(lookup$row_idx, lookup$col_idx)]
+  df <- tibble::tibble(
     cell_id = grid_info$lookup$cell_id,
-    row = grid_info$lookup$row,
-    col = grid_info$lookup$col,
+    row = lookup$row,
+    col = lookup$col,
     !!value_name := vals
   )
+  if (all(c("centroid_x", "centroid_y") %in% names(lookup))) {
+    df$centroid_x <- lookup$centroid_x
+    df$centroid_y <- lookup$centroid_y
+  }
+  df
 }
 
 #' Plot raster-like matrix as ggplot tile
@@ -357,13 +363,30 @@ exdyn_matrix_to_df <- function(mat, grid_info, value_name = "value") {
 #' @export
 exdyn_plot_surface <- function(mat, grid_info, title, fill_label = "Year") {
   df <- exdyn_matrix_to_df(mat, grid_info, "value")
-  ggplot2::ggplot(df, ggplot2::aes(x = col, y = row, fill = value)) +
-    ggplot2::geom_tile(color = NA) +
-    ggplot2::scale_y_reverse() +
-    ggplot2::scale_fill_viridis_c(option = "magma", na.value = "grey90") +
-    ggplot2::coord_equal() +
-    ggplot2::labs(title = title, fill = fill_label, x = "Column", y = "Row") +
-    ggplot2::theme_minimal()
+  if (all(c("centroid_x", "centroid_y") %in% names(df))) {
+    cell_km <- grid_info$cell_km %||% NA_real_
+    cell_m <- if (is.finite(cell_km)) cell_km * 1000 else NA_real_
+    if (!is.finite(cell_m)) {
+      dx <- diff(sort(unique(df$centroid_x)))
+      dy <- diff(sort(unique(df$centroid_y)))
+      cell_m <- stats::median(c(dx[dx > 0], dy[dy > 0]), na.rm = TRUE)
+    }
+    if (!is.finite(cell_m)) cell_m <- 1
+    ggplot2::ggplot(df, ggplot2::aes(x = centroid_x, y = centroid_y, fill = value)) +
+      ggplot2::geom_tile(color = NA, width = cell_m, height = cell_m) +
+      ggplot2::scale_fill_viridis_c(option = "magma", na.value = "grey90") +
+      ggplot2::coord_equal() +
+      ggplot2::labs(title = title, fill = fill_label, x = "Easting", y = "Northing") +
+      ggplot2::theme_minimal()
+  } else {
+    ggplot2::ggplot(df, ggplot2::aes(x = col, y = row, fill = value)) +
+      ggplot2::geom_tile(color = NA) +
+      ggplot2::scale_y_reverse() +
+      ggplot2::scale_fill_viridis_c(option = "magma", na.value = "grey90") +
+      ggplot2::coord_equal() +
+      ggplot2::labs(title = title, fill = fill_label, x = "Column", y = "Row") +
+      ggplot2::theme_minimal()
+  }
 }
 
 #' Scatter plot of observed vs predator arrival times

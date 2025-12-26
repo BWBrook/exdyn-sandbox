@@ -341,3 +341,24 @@ Format for entries:
 - **Alternatives considered:**  
   - Keeping monolithic `synthetic_runs` (rejected: unnecessary recomputation).  
   - Splitting per-replicate targets (deferred: more complex than needed now).  
+
+---
+
+- **Date:** 2025-12-25  
+- **Decision:** Prototype **land‑cell graph dispersal** as a structural
+  reduction for GB‑scale performance, using a sparse kernel‑weighted adjacency
+  graph (radius 5) instead of FFT convolution on the full raster.  
+- **Rationale:**  
+  - FFT runs still pay for a 1203×1190 ocean‑heavy lattice even when only ~3.7k
+    land cells are active.  
+  - A land‑cell graph preserves the kernel form while eliminating the ocean
+    cost and enabling feasible screen/ABC loops.  
+  - Empirical tests show order‑of‑magnitude speedups for A–D stages.  
+- **Implications:**  
+  - New graph utilities (`exdyn_land_graph_plan`, `exdyn_land_graph_weights`) and
+    `dispersal_mode = "graph"` option in TX‑only and counts‑stream simulators.  
+  - Added Matrix dependency for sparse adjacency.  
+  - Graph mode is **optional** and currently used for performance prototyping.  
+- **Alternatives considered:**  
+  - More aggressive raster cropping (insufficient), river‑segment graph
+    (larger model change).  

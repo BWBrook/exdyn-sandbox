@@ -83,7 +83,7 @@ build_qa_outliers <- function(qa_summary, top_fraction = 0.1) {
 
 #' Write QA tables
 #' @keywords internal
-write_qa_tables <- function(qa_summary, qa_outliers, qa_metrics, dir = "outputs") {
+write_qa_tables <- function(qa_summary, qa_outliers, qa_metrics, dir = file.path("outputs", "qa")) {
   dir.create(dir, showWarnings = FALSE)
   paths <- c(
     qa_run = file.path(dir, "qa_run_summary.csv"),
@@ -127,7 +127,7 @@ build_sweep_f1_by_archetype <- function(predictions) {
     dplyr::summarise(macro_f1 = helper(dplyr::cur_data_all()), .groups = "drop")
 }
 
-write_sweep_tables <- function(f1_scenario, f1_archetype, dir = "outputs") {
+write_sweep_tables <- function(f1_scenario, f1_archetype, dir = file.path("outputs", "sensitivity")) {
   dir.create(dir, showWarnings = FALSE)
   files <- c(
     file.path(dir, "sweep_f1_by_scenario.csv"),
@@ -297,7 +297,7 @@ build_design_table <- function(predictions, sweep_results) {
     )
 }
 
-write_design_table <- function(design_table, path = file.path("outputs", "design_table.csv")) {
+write_design_table <- function(design_table, path = file.path("outputs", "experiments", "design_table.csv")) {
   dir.create(dirname(path), showWarnings = FALSE)
   data.table::fwrite(design_table, path)
   path
@@ -305,7 +305,7 @@ write_design_table <- function(design_table, path = file.path("outputs", "design
 
 write_design_guidance <- function(clf_driver, clf_response, conf_driver, results, power_cv,
                                   feature_importance_driver, feature_importance_response,
-                                  path = file.path("outputs", "design_guidance.txt")) {
+                                  path = file.path("outputs", "experiments", "design_guidance.txt")) {
   dir.create(dirname(path), showWarnings = FALSE)
   driver_label <- clf_driver$primary$label
   driver_macro <- clf_driver$primary$macro_f1
@@ -415,7 +415,7 @@ write_diagnostic_surfaces <- function(exp_grid, cases, dir = file.path("outputs"
 
 write_design_guidance <- function(clf_driver, clf_response, conf_driver, results, power_cv,
                                   feature_importance_driver, feature_importance_response,
-                                  path = file.path("outputs", "design_guidance.txt")) {
+                                  path = file.path("outputs", "experiments", "design_guidance.txt")) {
   dir.create(dirname(path), showWarnings = FALSE)
   driver_label <- clf_driver$primary$label
   driver_macro <- clf_driver$primary$macro_f1
@@ -462,7 +462,7 @@ write_design_guidance <- function(clf_driver, clf_response, conf_driver, results
 
 # Power experiment outputs ----------------------------------------------------
 
-write_power_outputs <- function(power_summary, dir = "outputs") {
+write_power_outputs <- function(power_summary, dir = file.path("outputs", "power")) {
   dir.create(dir, showWarnings = FALSE)
   csv_path <- file.path(dir, "power_curve_response_only.csv")
   png_path <- file.path(dir, "power_curve.png")

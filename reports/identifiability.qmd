@@ -150,8 +150,8 @@ knitr::kable(resp_top, caption = "Top response-only features")
 ## Design Guidance
 
 ```{r guidance}
-if (file.exists("outputs/design_guidance.txt")) {
-  cat(paste(readLines("outputs/design_guidance.txt"), collapse = "<br>"))
+if (file.exists("outputs/experiments/design_guidance.txt")) {
+  cat(paste(readLines("outputs/experiments/design_guidance.txt"), collapse = "<br>"))
 } else {
   cat("Design guidance file not available. Run the pipeline to regenerate recommendations.")
 }

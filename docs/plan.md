@@ -103,5 +103,6 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - WP‑0.3.5 pilot‑scale run (3 reps, ideal+realistic, counts, pilot grid): ~1h14m wall, ~1.3 GB RSS; coverage metrics degenerate due to sparse TX.
 
 ### Next steps (short queue)
-- Prepare WP‑0.3.5 pilot‑scale benchmark run parameters now that pilot gates pass.
-- Confirm full GB synthetic run plan (runtime budget + replicate count) before launching WP‑0.3.5 LARGE.
+- Execute the performance ladder (toy → small → medium) starting with Stage A TX-only simulation on the toy grid.
+- Record runtime/RSS in `docs/log/031_perf_ladder.md` and `outputs/perf/ladder/` for every stage.
+- Use ladder results to decide if/when to restart WP‑0.3.5 pilot/full GB runs.

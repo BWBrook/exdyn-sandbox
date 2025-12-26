@@ -95,3 +95,10 @@ optimisation:
   reps: 3
   seed: 702
   target: "tx_map_fast"
+graph_parallel:
+  enabled: false
+  workers: 8
+  n_draws: 64
+  n_sims: 200
+  mode: "full"
+  seed: 1045

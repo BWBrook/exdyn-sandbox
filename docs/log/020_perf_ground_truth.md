@@ -9,11 +9,11 @@ Date: 2025-12-19
 - Added **optimization comparison** for fast observation TX mapping (matrix-based counts).
 
 ## What ran (artefacts)
-- Smoke profile: `outputs/perf/toy_smoke/`
-- Stage profile: `outputs/perf/stage_profile_smoke.csv`
-- Scaling sweep: `outputs/perf/scaling_sweep.csv`
-- Scaling plots: `outputs/perf/scaling_plots/`
-- Optimisation compare: `outputs/perf/optimisation_before_after.csv`
+- Smoke profile: `outputs/perf/profiling/toy_smoke/`
+- Stage profile: `outputs/perf/profiling/stage_profile_smoke.csv`
+- Scaling sweep: `outputs/perf/scaling/scaling_sweep.csv`
+- Scaling plots: `outputs/perf/scaling/plots/`
+- Optimisation compare: `outputs/perf/optimisation/optimisation_before_after.csv`
 
 ## Quick sanity outcomes
 - Smoke TX_true map shows a coherent gradient (front advances across toy grid).
@@ -29,7 +29,7 @@ Date: 2025-12-19
 ## Optimisation note
 - Optimised the observation TX mapping path (`exdyn_tx_map_fast`) using matrix-based counts.
 - Before/after (3 reps, same seed) shows **~4.2× speedup** for TX mapping:
-  - slow: ~7.07 s; fast: ~1.67 s (`outputs/perf/optimisation_before_after.csv`).
+  - slow: ~7.07 s; fast: ~1.67 s (`outputs/perf/optimisation/optimisation_before_after.csv`).
 
 ## Next steps
 - Review scaling plots for non‑linearities and confirm budgets still reasonable.

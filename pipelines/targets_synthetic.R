@@ -16,14 +16,12 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
 
   tar_list <- list(
     synthetic_log_start_target,
+    tar_target_raw("synthetic_cfg_file", rlang::expr(!!cfg_path), format = "file"),
     tar_target(synthetic_env, exdyn_synthetic_env_snapshot(), cue = tar_cue("always")),
-    tar_target_raw(
-      "synthetic_cfg",
-      rlang::expr({
-        synthetic_log_start
-        exdyn_synthetic_cfg_apply_overrides(yaml::read_yaml(!!cfg_path), synthetic_env)
-      })
-    ),
+    tar_target(synthetic_cfg, {
+      synthetic_log_start
+      exdyn_synthetic_cfg_apply_overrides(yaml::read_yaml(synthetic_cfg_file), synthetic_env)
+    }),
     tar_target(synthetic_grid_cfg, synthetic_cfg$grid %||% list(type = "pilot")),
     tar_target(synthetic_arrival_source, {
       tolower(synthetic_grid_cfg$arrival_source %||% "real")

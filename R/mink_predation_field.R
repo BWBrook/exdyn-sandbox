@@ -20,7 +20,7 @@ exdyn_grid_lookup <- function(grid_sf) {
   if (!all(required_cols %in% names(meta))) {
     stop("Grid must contain columns: ", paste(required_cols, collapse = ", "))
   }
-  optional_cols <- intersect(c("river_km", "riparian", "region"), names(meta))
+  optional_cols <- intersect(c("river_km", "riparian", "region", "centroid_x", "centroid_y"), names(meta))
   select_cols <- c(required_cols, optional_cols)
   meta <- meta %>%
     dplyr::select(dplyr::all_of(select_cols)) %>%

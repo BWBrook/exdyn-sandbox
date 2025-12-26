@@ -1,4 +1,10 @@
-.PHONY: init test run report report-leak report-qa exp report-id report-sens pilot pilot-future synthetic
+.PHONY: init test run report report-leak report-qa exp report-id report-sens pilot pilot-future synthetic graph-parallel
+
+EXDYN_WORKERS ?= 8
+EXDYN_DRAWS ?= 64
+EXDYN_SIMS ?= 200
+EXDYN_MODE ?= full
+EXDYN_SEED ?= 1045
 
 init:
 	R --vanilla -e 'renv::restore(); devtools::document(); renv::snapshot(prompt=FALSE)'
@@ -37,6 +43,10 @@ pilot:
 
 pilot-future:
 	R --vanilla -e 'source("renv/activate.R"); targets::tar_make_future(names=c("pilot_screen","pilot_report_html","pilot_report_pdf","pilot_summary"), workers=6)'
+
+graph-parallel:
+	EXDYN_WORKERS=$(EXDYN_WORKERS) EXDYN_DRAWS=$(EXDYN_DRAWS) EXDYN_SIMS=$(EXDYN_SIMS) EXDYN_MODE=$(EXDYN_MODE) EXDYN_SEED=$(EXDYN_SEED) \
+		Rscript outputs/perf/ladder/gb_land_graph/run_gb_land_graph_parallel_runner.R
 
 synthetic:
 	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("synthetic_report_html","synthetic_report_pdf","synthetic_recovery_written"))'

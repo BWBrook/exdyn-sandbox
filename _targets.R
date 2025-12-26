@@ -11,7 +11,7 @@ tar_option_args <- list(
   packages = c(
     "yaml","data.table","ggplot2","matrixStats","tibble",
     "dplyr","purrr","tidyr","stringr","ranger","yardstick","lhs",
-    "viridisLite","rlang","future",
+    "viridisLite","rlang","future","future.apply","Matrix",
     "rsample","glmnet","zoo","sf","readr","httr","jsonlite"
   ),
   error = "stop",
@@ -44,6 +44,8 @@ source("R/canonical.R", local = TRUE)
 source("R/mink_predation_field.R", local = TRUE)
 source("R/observe.R", local = TRUE)
 source("R/simulate_tx_only.R", local = TRUE)
+source("R/graph_dispersal.R", local = TRUE)
+source("R/graph_parallel.R", local = TRUE)
 source("R/summaries.R", local = TRUE)
 source("R/vole_extirpation.R", local = TRUE)
 source("R/synthetic_cfg.R", local = TRUE)
@@ -81,16 +83,16 @@ c(
   )),
   tar_target(default_summs, exdyn_summaries(default_N, default_fields, K0 = cfg$K0)),
   tar_target(save_out, {
-    dir.create("outputs", showWarnings = FALSE)
-    saveRDS(default_N, "outputs/N.rds")
-    data.table::fwrite(default_po, "outputs/presence_only.csv")
-    data.table::fwrite(default_foss, "outputs/fossils.csv")
+    dir.create("outputs/baseline", recursive = TRUE, showWarnings = FALSE)
+    saveRDS(default_N, "outputs/baseline/N.rds")
+    data.table::fwrite(default_po, "outputs/baseline/presence_only.csv")
+    data.table::fwrite(default_foss, "outputs/baseline/fossils.csv")
     utils::write.csv(
       data.frame(year = seq_len(cfg$years), total = apply(default_N, 3, sum)),
-      "outputs/total_abundance.csv", row.names = FALSE
+      "outputs/baseline/total_abundance.csv", row.names = FALSE
     )
-    saveRDS(default_summs, "outputs/default_summary.rds")
-    "outputs"
+    saveRDS(default_summs, "outputs/baseline/default_summary.rds")
+    "outputs/baseline"
   }),
 
   # -- Experiment grid & QA --------------------------------------------------
@@ -154,18 +156,18 @@ c(
 
   # -- Consolidated outputs --------------------------------------------------
   tar_target(save_res, {
-    dir.create("outputs", showWarnings = FALSE)
-    data.table::fwrite(results, "outputs/experiment_results.csv")
-    data.table::fwrite(results_response_only, "outputs/experiment_results_response_only.csv")
-    data.table::fwrite(conf_driver_aware$confusion, "outputs/confusion_driver_aware.csv")
-    data.table::fwrite(conf_driver_aware$per_class, "outputs/confusion_driver_aware_per_class.csv")
-    data.table::fwrite(conf_driver_aware$overall, "outputs/confusion_driver_aware_overall.csv")
-    data.table::fwrite(conf_response_only$confusion, "outputs/confusion_response_only.csv")
-    data.table::fwrite(conf_response_only$per_class, "outputs/confusion_response_only_per_class.csv")
-    data.table::fwrite(conf_response_only$overall, "outputs/confusion_response_only_overall.csv")
-    data.table::fwrite(feature_importance_driver_aware, "outputs/feature_importance_driver_aware.csv")
-    data.table::fwrite(feature_importance_response_only, "outputs/feature_importance_response_only.csv")
-    "outputs"
+    dir.create("outputs/experiments", recursive = TRUE, showWarnings = FALSE)
+    data.table::fwrite(results, "outputs/experiments/experiment_results.csv")
+    data.table::fwrite(results_response_only, "outputs/experiments/experiment_results_response_only.csv")
+    data.table::fwrite(conf_driver_aware$confusion, "outputs/experiments/confusion_driver_aware.csv")
+    data.table::fwrite(conf_driver_aware$per_class, "outputs/experiments/confusion_driver_aware_per_class.csv")
+    data.table::fwrite(conf_driver_aware$overall, "outputs/experiments/confusion_driver_aware_overall.csv")
+    data.table::fwrite(conf_response_only$confusion, "outputs/experiments/confusion_response_only.csv")
+    data.table::fwrite(conf_response_only$per_class, "outputs/experiments/confusion_response_only_per_class.csv")
+    data.table::fwrite(conf_response_only$overall, "outputs/experiments/confusion_response_only_overall.csv")
+    data.table::fwrite(feature_importance_driver_aware, "outputs/experiments/feature_importance_driver_aware.csv")
+    data.table::fwrite(feature_importance_response_only, "outputs/experiments/feature_importance_response_only.csv")
+    "outputs/experiments"
   }),
   tar_target(design_guidance, write_design_guidance(
     clf_driver_aware,

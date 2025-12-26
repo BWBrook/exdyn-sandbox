@@ -1,10 +1,8 @@
 targets_realdata_gbif <- function(cfg_path = "config/realdata.yaml") {
   cfg_path <- normalizePath(cfg_path, mustWork = FALSE)
   list(
-    tar_target_raw(
-      "real_cfg",
-      rlang::expr(yaml::read_yaml(!!cfg_path))
-    ),
+    tar_target_raw("real_cfg_file", rlang::expr(!!cfg_path), format = "file"),
+    tar_target(real_cfg, yaml::read_yaml(real_cfg_file)),
     tar_target(real_mink_key, exdyn_gbif_usage_key(
       real_cfg$species$mink$scientific_name,
       real_cfg$species$mink$gbif_rank

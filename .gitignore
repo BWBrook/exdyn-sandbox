@@ -9,7 +9,7 @@ renv/staging/
 .Rproj
 .quarto/
 reports/_freeze/
-outputs/
+outputs/*
 reports/*
 !reports/*.qmd
 /data/raw/*
