@@ -3,8 +3,8 @@ theta_star:
   A_over_K: 0.05
   alpha: 0.2
   disp_mean_km: 10
-  pred_scale: 0.6
-  pred_c: 0.6
+  pred_scale: 0.8
+  pred_c: 0.8
   pred_h: 20
   gamma: 1.4
   delta_region:
@@ -47,8 +47,8 @@ pilot_gates:
 viability:
   enabled: true
   seed: 9301
-  pred_scale: [0.3, 0.6, 1.2]
-  pred_c: [0.3, 0.6]
+  pred_scale: [0.8, 1.6, 3.2]
+  pred_c: [0.8, 1.6, 3.2]
   truth_frac: [0.02]
   truth_rel0: [0.5]
   crop: true
