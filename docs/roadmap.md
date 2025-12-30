@@ -201,6 +201,11 @@ We explicitly quantify how much synthetic recoverability depends on arrival-surf
 **Stop condition:**  
 We can state, with evidence, whether “real arrival surface sparsity” is a limiting factor and how we will handle it going forward.
 
+**Status:** Complete — 2025‑12‑30  
+**Commit:** `f7408c8`  
+**Canonical:** `outputs/canonical/0.3/WP-0.3.4.5/syn_20251230_153246_0099/`  
+**What changed / learned:** Produced the arrival realism comparison (real vs synthetic-plane) on the pilot grid (R=10). Real arrivals have ~0.41 finite coverage within mask vs ~1.0 for synthetic-plane, and recovery metrics degrade accordingly; this is now treated as a data limitation (not model failure).
+
 ---
 
 ### WP‑0.3.4.6 — Masking philosophy gate: hard mask vs soft suitability weighting (pilot + GB sanity)
