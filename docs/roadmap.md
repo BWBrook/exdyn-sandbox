@@ -113,7 +113,7 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 - [x] **WP‑0.3.4.2 — Pilot: arrival‑surface diagnostics + override switch**
 - [x] **WP‑0.3.4.3 — Pilot: truth viability sweep (TX coverage tuning)**
 - [x] **WP‑0.3.4.4 — Pilot: re‑run recovery + enforce identifiability gates**
-- [ ] **WP‑0.3.4.5 — Arrival realism gate: real arrival vs synthetic override identifiability**
+- [x] **WP‑0.3.4.5 — Arrival realism gate: real arrival vs synthetic override identifiability**
 - [ ] **WP‑0.3.4.6 — Masking philosophy gate: hard mask vs soft suitability weighting (pilot + GB sanity)**
 - [ ] **WP‑0.3.4.7 — Information-rich synthetic ceiling run (upper bound on identifiability)**
 - [ ] **WP‑0.3.4.8 — Pipeline hygiene: eliminate/justify many-to-many join + output freshness guardrails**

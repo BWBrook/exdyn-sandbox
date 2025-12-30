@@ -44,6 +44,24 @@ recovery:
   reference_rep: 1
 pilot_gates:
   enabled: true
+arrival_realism:
+  enabled: true
+  sources: ["real", "synthetic_plane"]
+  modes: ["ideal", "realistic"]
+  reps: 10
+  seed: 2027
+  screen:
+    n_draws: 8
+    crop: true
+    dispersal_mode: "graph"
+  abc:
+    n_sims: 40
+    lhs:
+      n: 8
+      keep: 4
+  graph:
+    radius: 5
+    include_self: true
 viability:
   enabled: true
   seed: 9301

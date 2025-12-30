@@ -362,3 +362,22 @@ Format for entries:
 - **Alternatives considered:**  
   - More aggressive raster cropping (insufficient), river‑segment graph
     (larger model change).  
+
+---
+
+- **Date:** 2025-12-30  
+- **Decision:** Treat real-arrival sparsity as a limiting condition rather than
+  silently imputing for the arrival realism gate; synthetic-plane arrivals remain
+  the completeness baseline for identifiability checks.  
+- **Rationale:**  
+  - Arrival realism comparison shows `frac_finite_TP_in_mask ≈ 0.41` under real
+    arrivals vs `≈1.0` under synthetic_plane on the pilot grid.  
+  - Imputing arrivals could mask a real data limitation; we need an explicit
+    “real vs override” contrast to interpret identifiability honestly.  
+- **Implications:**  
+  - WP‑0.3.4.5 reports identifiability under both real and synthetic-plane arrivals.  
+  - Real-data inference (Phase 0.4.x) must acknowledge arrival sparsity as a
+    potential hard limitation unless a defensible imputation policy is adopted.  
+- **Alternatives considered:**  
+  - Automatically impute arrivals for all real-data runs (rejected for now; would
+    conflate model feasibility with data augmentation).

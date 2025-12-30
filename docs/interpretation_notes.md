@@ -58,6 +58,10 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - Realistic TX_obs coverage is now high (~0.83) with the pilot observation tuning; this is useful for identifiability but could be overly optimistic if carried to full GB runs.
 - Accepted ABC samples show very high r²/coverage medians (near 1); this may be an artefact of loose thresholds and should be watched in WP‑0.3.5.
 - Screen best r² in realistic mode remains very low (~0.01), suggesting arrival‑alignment geometry is still weak despite passing gates.
+- Arrival realism gate shows **real arrival coverage ≈0.41** within the mask vs **≈1.0** for synthetic‑plane arrivals on the pilot grid.
+- With real arrivals, `n_TX_true` and `n_pairs` drop by ~2× relative to synthetic‑plane, and recovery coverage weakens (coverage_80 ~0.33–0.75).
+- Summary finiteness remains stable (~0.79), indicating the **information deficit is spatial coverage**, not summary computation failure.
+- Real‑arrival sparsity must be treated as a **data limitation** when interpreting real‑data inference; otherwise we risk attributing failure to the model.
 
 ---
 

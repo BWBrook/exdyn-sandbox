@@ -49,11 +49,42 @@ Replicated recovery harness settings:
 - `seed`: RNG seed for replicate seeds.
 - `reference_rep`: which replicate is used for maps/plots in the report.
 
+### `pilot_gates`
+Identifiability gate configuration for pilot synthetic runs. When enabled,
+the pipeline stops before ABC if core signal checks fail (arrival coverage,
+TX coverage, coverage-curve informativeness, and screen compatibility).
+- `enabled`: boolean.
+
+### `arrival_realism`
+Arrival-surface realism gate (WP-0.3.4.5). Runs matched synthetic recovery
+comparisons under `arrival_source = real` vs synthetic overrides to test
+identifiability sensitivity.
+- `enabled`: boolean.
+- `sources`: vector of arrival sources (e.g., `real`, `synthetic_plane`).
+- `modes`: modes to compare (typically `ideal`, `realistic`).
+- `reps`: number of replicated datasets (>=10 recommended).
+- `seed`: RNG seed for comparison replicates.
+- `screen`: optional overrides for the screen stage (e.g., `n_draws`,
+  `crop`, `dispersal_mode`).
+- `abc`: optional overrides for ABC (e.g., `n_sims`, `lhs.n`, `lhs.keep`).
+- `graph`: graph-mode settings (`radius`, `include_self`) when
+  `dispersal_mode = graph` is used.
+
+### `viability`
+Truth-viability sweep configuration used to tune `theta_star` for
+informative synthetic extirpation patterns.
+- `enabled`: boolean.
+- `seed`: RNG seed.
+- `pred_scale`, `pred_c`, `truth_frac`, `truth_rel0`: sweep grids.
+- `crop`: whether to use cropped grid for the sweep.
+
 ### `noise`
 Observation noise and TX estimator distortion controls.
 Fields include: `po_rate`, `effort_strength`, `missing_years_prob`,
 `random_tx_dropout`, `obs_mode` (`counts` or `points`), and
-`keep_counts` (retain count tables in memory).
+`keep_counts` (retain count tables in memory). Optional internal fields:
+- `dispersal_mode`: `"fft"` (default) or `"graph"` (land-graph dispersal).
+- `graph`: precomputed graph plan (injected programmatically, not YAML).
 
 ### `mask`
 Spatial mask for synthetic runs: `"all"` or `"riparian"`.

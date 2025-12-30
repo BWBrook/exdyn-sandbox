@@ -64,11 +64,15 @@ exdyn_make_synthetic <- function(theta_star,
     random_tx_dropout = 0,
     obs_mode = "counts",
     keep_counts = FALSE,
-    crop = FALSE
+    crop = FALSE,
+    dispersal_mode = "fft",
+    graph = NULL
   )
   noise <- utils::modifyList(base_noise, noise_cfg)
   obs_mode <- noise$obs_mode %||% "counts"
   obs_mode <- tolower(obs_mode)
+  dispersal_mode <- tolower(noise$dispersal_mode %||% "fft")
+  graph <- noise$graph %||% NULL
   if (length(years) == 2L) {
     years_seq <- seq.int(years[1], years[2])
   } else {
@@ -161,13 +165,15 @@ exdyn_make_synthetic <- function(theta_star,
       c = theta$pred_c,
       h = theta$pred_h,
       scale = theta$pred_scale,
-    gamma = theta$gamma
+      gamma = theta$gamma
     ),
     pre_leak = theta$pre_leak %||% 0,
     mask = mask,
     crop = isTRUE(noise$crop),
     frac = truth_frac,
-    rel0 = truth_rel0
+    rel0 = truth_rel0,
+    dispersal_mode = dispersal_mode,
+    graph = graph
   )
   TX_true <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
   finite_idx <- is.finite(TX_idx_stream)
@@ -217,7 +223,9 @@ exdyn_make_synthetic <- function(theta_star,
       effort_strength = noise$effort_strength,
       pre_leak = theta$pre_leak %||% 0,
       mask = mask_mat,
-      crop = isTRUE(noise$crop)
+      crop = isTRUE(noise$crop),
+      dispersal_mode = dispersal_mode,
+      graph = graph
     )
     counts_mat <- counts_out$counts_mat
     effort_mat <- counts_out$effort_mat

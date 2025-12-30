@@ -229,6 +229,36 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       })
       out_paths
     }, format = "file"),
+    tar_target(synthetic_arrival_realism_cfg, synthetic_cfg$arrival_realism %||% list(enabled = FALSE)),
+    tar_target(synthetic_arrival_realism_comparison, {
+      cfg <- synthetic_arrival_realism_cfg %||% list()
+      if (!isTRUE(cfg$enabled)) {
+        return(tibble::tibble())
+      }
+      exdyn_arrival_realism_comparison(
+        arrivals_real = synthetic_arrivals_real,
+        grid_info = synthetic_grid_info,
+        years_vec = synthetic_years,
+        mask = synthetic_mask,
+        theta_star = synthetic_theta_star,
+        noise_cfg = synthetic_noise_cfg,
+        tx_cfg = synthetic_tx_cfg,
+        screen_cfg = synthetic_screen_cfg,
+        compat_cfg = synthetic_compat_cfg,
+        abc_cfg = synthetic_abc_cfg,
+        coverage_breaks = synthetic_coverage_breaks,
+        recovery_cfg = synthetic_recovery_cfg,
+        cfg = cfg
+      )
+    }),
+    tar_target(synthetic_arrival_realism_comparison_csv, {
+      if (!nrow(synthetic_arrival_realism_comparison)) {
+        return(NA_character_)
+      }
+      out_path <- file.path(synthetic_output_root, "arrival_realism_comparison.csv")
+      readr::write_csv(synthetic_arrival_realism_comparison, out_path)
+      out_path
+    }, format = "file"),
     tar_target(synthetic_rep_grid, exdyn_synthetic_rep_grid(synthetic_recovery_cfg)),
     tar_target(synthetic_theta_lhs, {
       cell_km <- synthetic_grid_info$cell_km %||% 10
@@ -343,7 +373,13 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
         synthetic_grid_info,
         synthetic_output_root
       )
-      extra_paths <- c(synthetic_arrival_diagnostics, synthetic_arrival_plots, synthetic_viability_sweep_csv, synthetic_viability_sweep_plot)
+      extra_paths <- c(
+        synthetic_arrival_diagnostics,
+        synthetic_arrival_plots,
+        synthetic_arrival_realism_comparison_csv,
+        synthetic_viability_sweep_csv,
+        synthetic_viability_sweep_plot
+      )
       extra_paths <- extra_paths[!is.na(extra_paths)]
       c(out_paths, extra_paths)
     }, format = "file"),
