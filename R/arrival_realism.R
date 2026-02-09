@@ -20,7 +20,16 @@ exdyn_arrival_realism_summary_rate <- function(summary_obs, key_metrics = NULL) 
     "cov_curve_3",
     "cov_curve_4"
   )
-  vals <- vapply(key_metrics, function(key) summary_obs[[key]] %||% NA_real_, numeric(1))
+  vals <- vapply(
+    key_metrics,
+    function(key) {
+      if (!is.null(names(summary_obs)) && key %in% names(summary_obs)) {
+        return(summary_obs[[key]])
+      }
+      NA_real_
+    },
+    numeric(1)
+  )
   mean(is.finite(vals))
 }
 

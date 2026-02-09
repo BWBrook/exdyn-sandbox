@@ -5,6 +5,13 @@ test_that("coverage breaks quantile uses TX values with enough points", {
   expect_true(all(brks >= min(TX) & brks <= max(TX)))
 })
 
+test_that("coverage breaks quantile stays within TX range when quantiles duplicate", {
+  TX <- matrix(rep(c(1, 2), 50), nrow = 10)
+  brks <- exdyn_coverage_breaks_quantile(TX, n_breaks = 4, years = 2000:2010, min_points = 5)
+  expect_length(brks, 4)
+  expect_true(all(brks >= min(TX) & brks <= max(TX)))
+})
+
 test_that("coverage breaks quantile falls back to years when sparse", {
   TX <- matrix(c(NA, 1, 1, NA), nrow = 2)
   years <- 2000:2010

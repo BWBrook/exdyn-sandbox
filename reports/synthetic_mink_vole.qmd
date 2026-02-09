@@ -74,7 +74,19 @@ rep_metrics %>%
 if (nrow(param_recovery) && all(c("mode", "abs_bias") %in% names(param_recovery))) {
   param_recovery %>%
     arrange(.data$mode, desc(.data$abs_bias)) %>%
-    select(.data$mode, .data$param, .data$truth, .data$bias, .data$abs_bias, .data$coverage_80, .data$coverage_95, .data$shrinkage_ratio)
+    select(
+      .data$mode,
+      .data$param,
+      .data$truth,
+      .data$bias,
+      .data$rel_bias_median,
+      .data$abs_rel_bias_median,
+      .data$coverage_80,
+      .data$coverage_95,
+      .data$identifiability_status,
+      .data$gate_pass,
+      .data$shrinkage_ratio
+    )
 } else {
   tibble::tibble(note = "No parameter recovery table available (empty or missing columns).")
 }

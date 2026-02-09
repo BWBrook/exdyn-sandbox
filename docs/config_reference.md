@@ -48,6 +48,17 @@ Replicated recovery harness settings:
 - `n_reps`: number of replicated synthetic datasets.
 - `seed`: RNG seed for replicate seeds.
 - `reference_rep`: which replicate is used for maps/plots in the report.
+- `n_cores`: optional parallel workers for recovery replicates (Linux/macOS only).
+
+### `benchmark`
+Benchmark stance and parameter-recovery gate metadata for canonical runs.
+- `stance`: `"strict"` or `"weak_id"` (weak-identifiability declaration mode).
+- `core_params`: parameters that define the core recovery gate
+  (typically `alpha`, `disp_mean_km`).
+- `gate_abs_rel_bias`: absolute relative-bias threshold for core gates.
+- `gate_coverage80`: 80% interval-coverage threshold for core gates.
+- `weak_id_parameters`: parameters explicitly allowed to be marked
+  `weakly_identifiable` under `stance: weak_id`.
 
 ### `pilot_gates`
 Identifiability gate configuration for pilot synthetic runs. When enabled,
@@ -70,6 +81,35 @@ identifiability sensitivity.
 - `graph`: graph-mode settings (`radius`, `include_self`) when
   `dispersal_mode = graph` is used.
 
+### `mask_philosophy`
+Masking philosophy gate (WP-0.3.4.6). Compares hard masking versus a soft
+suitability weighting to assess connectivity and TX coverage.
+- `enabled`: boolean.
+- `arrival_source`: which arrival surface to use (`real` or synthetic override).
+- `hard_mask`: which hard mask to compare (`riparian` or `all`); defaults to
+  the synthetic mask if omitted.
+- `scenarios`: vector of mask scenarios (`hard`, `soft`).
+- `reps`: number of replicates per scenario.
+- `seed`: RNG seed.
+- `dispersal_mode`: `"fft"` or `"graph"` (graph recommended for GB).
+- `graph`: graph settings (`radius`, `include_self`).
+- `soft`: soft‑mask settings:
+  - `method`: `river_km` or `riparian`.
+  - `range`: scaling range applied to suitability weights.
+  - `transform`: `log1p` (default) or `none`.
+
+### `ceiling`
+Information‑rich synthetic ceiling run (WP‑0.3.4.7). Runs a baseline vs
+high‑information observation contrast on the pilot grid.
+- `enabled`: boolean.
+- `arrival_source`: arrival override used for both baseline and ceiling.
+- `reps`: number of replicated datasets.
+- `seed`: RNG seed for replicated datasets.
+- `noise`: observation overrides for the ceiling run (baseline uses the main
+  `noise` block).
+- `screen`: optional overrides for the screen stage (e.g., `n_draws`).
+- `abc`: optional overrides for ABC (e.g., `n_sims`, `lhs.n`, `lhs.keep`).
+
 ### `viability`
 Truth-viability sweep configuration used to tune `theta_star` for
 informative synthetic extirpation patterns.
@@ -85,6 +125,16 @@ Fields include: `po_rate`, `effort_strength`, `missing_years_prob`,
 `keep_counts` (retain count tables in memory). Optional internal fields:
 - `dispersal_mode`: `"fft"` (default) or `"graph"` (land-graph dispersal).
 - `graph`: precomputed graph plan (injected programmatically, not YAML).
+- `scale_matrix`: optional suitability multiplier matrix (injected for soft
+  mask comparisons or global suitability weighting; not a YAML field).
+
+### `suitability`
+Optional global suitability weighting (soft mask) applied via
+`noise.scale_matrix`.
+- `enabled`: boolean.
+- `method`: `river_km` or `riparian`.
+- `range`: scaling range applied to suitability weights.
+- `transform`: `log1p` (default) or `none`.
 
 ### `mask`
 Spatial mask for synthetic runs: `"all"` or `"riparian"`.
@@ -121,6 +171,13 @@ Controls canonical artefact output (WP-0.3.1+).
 - `run_id`: optional explicit run identifier
 - `commands`: list of core commands used (recorded in manifest)
 
+Canonical `manifest.yaml` also records benchmark metadata:
+- `benchmark.stance`
+- `benchmark.core_params`
+- `benchmark.weak_id_parameters_declared`
+- `benchmark.weak_id_parameters_observed`
+- `benchmark.gate_abs_rel_bias`, `benchmark.gate_coverage80`
+
 Environment overrides (optional, for reproducible smoke/canonical runs):
 - `EXDYN_CANONICAL_ENABLED`, `EXDYN_CANONICAL_WP`,
   `EXDYN_CANONICAL_RUN_ID`, `EXDYN_CANONICAL_MILESTONE`,
@@ -128,6 +185,7 @@ Environment overrides (optional, for reproducible smoke/canonical runs):
 - `EXDYN_SYNTHETIC_MODES` (comma-separated, e.g. `ideal,realistic`).
 - `EXDYN_SYNTHETIC_YEARS` (`"pilot"` or `start,end`).
 - `EXDYN_SYNTHETIC_GRID_TYPE` (`pilot` or `toy`).
+- `EXDYN_SYNTHETIC_ARRIVAL_REALISM=0/1` toggles the arrival realism gate.
 - `EXDYN_SYNTHETIC_GRID_NX`, `EXDYN_SYNTHETIC_GRID_NY`,
   `EXDYN_SYNTHETIC_GRID_CELL_KM`, `EXDYN_SYNTHETIC_GRID_RIPARIAN_FRAC`,
   `EXDYN_SYNTHETIC_GRID_REGION_N`,
@@ -137,6 +195,7 @@ Environment overrides (optional, for reproducible smoke/canonical runs):
 - `EXDYN_SYNTHETIC_CROP=1` enables domain cropping for synthetic runs.
 - `EXDYN_SYNTHETIC_SMOKE=1` caps draw counts and simulation sizes.
 - `EXDYN_SYNTHETIC_REPS=<int>` overrides `recovery.n_reps`.
+- `EXDYN_SYNTHETIC_CORES=<int>` overrides `recovery.n_cores`.
 - `EXDYN_SYNTHETIC_SCREEN_DRAWS=<int>` overrides `screen.n_draws`.
 - `EXDYN_SYNTHETIC_ABC_N=<int>` overrides `abc.n_sims`.
 - `EXDYN_SYNTHETIC_ABC_EPS=<num>` overrides `abc.eps`.

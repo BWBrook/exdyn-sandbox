@@ -82,6 +82,7 @@ test_that("analytic summaries match lm-based r2 and slope", {
   compat <- list(min_r2_arrival = 0, lag_range = c(-Inf, Inf), min_coverage = 0)
   score <- exdyn_score(TX_obs, T_P, TX_sim, compat)
   expect_equal(score$r2_arrival, r2_lm, tolerance = 1e-8)
+  expect_equal(score$r2_arrival_obs, r2_lm, tolerance = 1e-8)
 
   T_P_const <- matrix(1, nrow = 5, ncol = 5)
   TX_var <- matrix(stats::rnorm(25), nrow = 5, ncol = 5)

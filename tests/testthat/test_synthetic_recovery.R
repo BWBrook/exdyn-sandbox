@@ -43,7 +43,76 @@ test_that("recovery tables expose required columns", {
     rmax = c(0.2, 0.6)
   )
   abc_cfg <- list(prior = screen_cfg)
-  tables <- exdyn_synthetic_recovery_tables(list(mode_run), screen_cfg, abc_cfg)
+  benchmark_cfg <- list(
+    stance = "weak_id",
+    core_params = c("alpha", "disp_mean_km"),
+    gate_abs_rel_bias = 0.2,
+    gate_coverage80 = 0.6,
+    weak_id_parameters = c("alpha")
+  )
+  tables <- exdyn_synthetic_recovery_tables(list(mode_run), screen_cfg, abc_cfg, benchmark_cfg = benchmark_cfg)
   expect_true(all(c("mode", "replicate", "seed", "n_accept") %in% names(tables$replicate_metrics)))
-  expect_true(all(c("mode", "param", "truth", "coverage_80", "shrinkage_ratio") %in% names(tables$parameter_recovery)))
+  expect_true(all(c("mode", "param", "truth", "coverage_80", "shrinkage_ratio",
+                    "abs_rel_bias_median", "identifiability_status", "gate_pass") %in%
+                    names(tables$parameter_recovery)))
+})
+
+test_that("identifiability status respects weak-id declaration", {
+  status_recoverable <- exdyn_identifiability_status(
+    abs_rel_bias = 0.1,
+    coverage_80 = 0.8,
+    param = "disp_mean_km",
+    benchmark_cfg = list(gate_abs_rel_bias = 0.2, gate_coverage80 = 0.6, weak_id_parameters = "alpha")
+  )
+  status_weak <- exdyn_identifiability_status(
+    abs_rel_bias = 0.4,
+    coverage_80 = 0.7,
+    param = "alpha",
+    benchmark_cfg = list(gate_abs_rel_bias = 0.2, gate_coverage80 = 0.6, weak_id_parameters = "alpha")
+  )
+  status_partial <- exdyn_identifiability_status(
+    abs_rel_bias = 0.3,
+    coverage_80 = 0.6,
+    param = "disp_mean_km",
+    benchmark_cfg = list(gate_abs_rel_bias = 0.2, gate_coverage80 = 0.6, weak_id_parameters = "alpha")
+  )
+  expect_identical(status_recoverable, "recoverable")
+  expect_identical(status_weak, "weakly_identifiable")
+  expect_identical(status_partial, "partially_recoverable")
+})
+
+test_that("replicate metrics respect coverage-aware best_index", {
+  mode_run <- list(
+    mode = "realistic",
+    replicate = 1,
+    seed = 99,
+    best_index = 2,
+    screen_results = tibble::tibble(
+      loss = c(0.1, 0.2),
+      r2_arrival = c(0.9, 0.4),
+      lag_mean = c(5, 10),
+      coverage = c(1.0, 0.35),
+      compatible = c(TRUE, TRUE)
+    ),
+    abc = list(
+      samples = tibble::tibble(alpha = c(0.1)),
+      summaries = tibble::tibble(lag_mean = 10, coverage = 0.35, r2_arrival = 0.4),
+      distances = c(1),
+      eps = 0.5
+    ),
+    summary_counts = list(n_mask = 10, n_TP_finite = 10, n_TX_true = 4, n_TX_obs = 4, n_pairs = 4),
+    abc_summary = tibble::tibble(param = "alpha", median = 0.1, truth = 0.1, p250 = 0.1, p750 = 0.1,
+                                 p100 = 0.1, p900 = 0.1, p025 = 0.1, p975 = 0.1, mean = 0.1, sd = 0.01)
+  )
+  tables <- exdyn_synthetic_recovery_tables(
+    list(mode_run),
+    screen_cfg = list(alpha = c(0, 1), disp_mean_km = c(5, 15), A_over_K = c(0.01, 0.2),
+                      pred_c = c(0.5, 3), pred_h = c(10, 40), ramp_years = c(3, 10),
+                      pred_scale = c(0.5, 2), gamma = c(1, 2), rmax = c(0.2, 0.6)),
+    abc_cfg = list(prior = list(alpha = c(0, 1), disp_mean_km = c(5, 15), A_over_K = c(0.01, 0.2),
+                                pred_c = c(0.5, 3), pred_h = c(10, 40), ramp_years = c(3, 10),
+                                pred_scale = c(0.5, 2), gamma = c(1, 2), rmax = c(0.2, 0.6)))
+  )
+  expect_equal(tables$replicate_metrics$screen_best_loss[[1]], 0.2)
+  expect_equal(tables$replicate_metrics$screen_best_coverage[[1]], 0.35)
 })

@@ -1,0 +1,10 @@
+test_that("freshness guard flags stale outputs", {
+  cfg <- tempfile(fileext = ".yaml")
+  out <- tempfile(fileext = ".png")
+  writeLines("x: 1", cfg)
+  writeLines("stub", out)
+  Sys.setFileTime(out, Sys.time() - 3600)
+  expect_error(exdyn_freshness_guard(out, cfg))
+  Sys.setFileTime(out, Sys.time() + 1)
+  expect_true(exdyn_freshness_guard(out, cfg))
+})

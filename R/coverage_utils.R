@@ -28,10 +28,11 @@ exdyn_coverage_breaks_quantile <- function(TX, n_breaks = 4L, years = NULL, min_
   probs <- probs[2:(n_breaks + 1L)]
   brks <- stats::quantile(vals, probs = probs, na.rm = TRUE, names = FALSE, type = 7)
   brks <- unique(as.numeric(brks))
-  if (length(brks) < n_breaks && !is.null(years)) {
-    return(exdyn_coverage_breaks(years, n_breaks = n_breaks))
+  if (length(brks) < n_breaks) {
+    span <- seq(min(vals), max(vals), length.out = n_breaks + 2L)
+    brks <- span[2:(n_breaks + 1L)]
   }
-  brks
+  as.numeric(brks)
 }
 
 #' Resolve coverage break strategy

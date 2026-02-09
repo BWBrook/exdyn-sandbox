@@ -201,24 +201,41 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL,
   TX_sim_use[!mask_use] <- NA_real_
   T_P_use[!mask_use] <- NA_real_
 
-  idx <- which(is.finite(TX_obs_use) & is.finite(T_P_use))
-  denom <- counts_obs[["n_TP_finite"]]
-  coverage <- if (length(idx) && denom > 0) length(idx) / denom else 0
-  if (length(idx) >= 3) {
-    tx_vals <- TX_obs_use[idx]
-    tp_vals <- T_P_use[idx]
-    var_tp <- stats::var(tp_vals)
-    var_tx <- stats::var(tx_vals)
-    if (!is.finite(var_tp) || var_tp <= 0 || !is.finite(var_tx) || var_tx <= 0) {
-      r2 <- 0
+  paired_stats <- function(TX_mat, n_TP_finite) {
+    idx <- which(is.finite(TX_mat) & is.finite(T_P_use))
+    coverage <- if (length(idx) && n_TP_finite > 0) length(idx) / n_TP_finite else 0
+    if (length(idx) >= 3) {
+      tx_vals <- TX_mat[idx]
+      tp_vals <- T_P_use[idx]
+      var_tp <- stats::var(tp_vals)
+      var_tx <- stats::var(tx_vals)
+      if (!is.finite(var_tp) || var_tp <= 0 || !is.finite(var_tx) || var_tx <= 0) {
+        r2 <- 0
+      } else {
+        r <- suppressWarnings(stats::cor(tx_vals, tp_vals, use = "complete.obs"))
+        r2 <- if (is.finite(r)) max(0, min(1, r^2)) else NA_real_
+      }
     } else {
-      r <- suppressWarnings(stats::cor(tx_vals, tp_vals, use = "complete.obs"))
-      r2 <- if (is.finite(r)) max(0, min(1, r^2)) else NA_real_
+      r2 <- NA_real_
     }
-  } else {
-    r2 <- NA_real_
+    lag_mean <- if (length(idx)) mean(TX_mat[idx] - T_P_use[idx]) else NA_real_
+    list(
+      idx = idx,
+      coverage = coverage,
+      r2 = r2,
+      lag_mean = lag_mean
+    )
   }
-  lag_mean <- if (length(idx)) mean(TX_obs_use[idx] - T_P_use[idx]) else NA_real_
+  obs_stats <- paired_stats(TX_obs_use, counts_obs[["n_TP_finite"]])
+  sim_stats <- paired_stats(TX_sim_use, counts_sim[["n_TP_finite"]])
+
+  coverage_obs <- obs_stats$coverage
+  coverage_sim <- sim_stats$coverage
+  r2_obs <- obs_stats$r2
+  r2_sim <- sim_stats$r2
+  lag_obs <- obs_stats$lag_mean
+  lag_sim <- sim_stats$lag_mean
+
   orient_obs <- tryCatch(exdyn_orientation_metrics(TX_obs_use), error = function(...) list(R = NA_real_))
   orient_sim <- tryCatch(exdyn_orientation_metrics(TX_sim_use), error = function(...) list(R = NA_real_))
   R_obs <- orient_obs$R %||% NA_real_
@@ -232,22 +249,26 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL,
     NA_real_
   }
   w1 <- 0.4; w2 <- 0.2; w3 <- 0.2; w4 <- 0.1; w5 <- 0.1
-  r2_term <- ifelse(is.finite(r2), 1 - r2, 1)
-  coverage_term <- 1 - coverage
+  r2_term <- if (is.finite(r2_obs) && is.finite(r2_sim)) abs(r2_obs - r2_sim) else 1
+  coverage_term <- if (is.finite(coverage_obs) && is.finite(coverage_sim)) {
+    abs(coverage_obs - coverage_sim)
+  } else {
+    1
+  }
   lag_range <- compat_cfg$lag_range %||% c(0, Inf)
-  lag_pen <- if (is.finite(lag_mean)) {
-    if (lag_mean < lag_range[1]) (lag_range[1] - lag_mean) / max(1, diff(lag_range))
-    else if (lag_mean > lag_range[2]) (lag_mean - lag_range[2]) / max(1, diff(lag_range))
+  lag_pen <- if (is.finite(lag_sim)) {
+    if (lag_sim < lag_range[1]) (lag_range[1] - lag_sim) / max(1, diff(lag_range))
+    else if (lag_sim > lag_range[2]) (lag_sim - lag_range[2]) / max(1, diff(lag_range))
     else 0
   } else 1
   anis_term <- ifelse(is.finite(anis_gap), anis_gap, 1)
   curve_term <- ifelse(is.finite(curve_rmse), curve_rmse, 1)
   loss <- w1 * r2_term + w2 * lag_pen + w3 * coverage_term + w4 * anis_term + w5 * curve_term
   compatible <- TRUE
-  compatible <- compatible && is.finite(r2) && r2 >= (compat_cfg$min_r2_arrival %||% 0)
-  compatible <- compatible && is.finite(lag_mean) &&
-    lag_mean >= lag_range[1] && lag_mean <= lag_range[2]
-  compatible <- compatible && coverage >= (compat_cfg$min_coverage %||% 0)
+  compatible <- compatible && is.finite(r2_sim) && r2_sim >= (compat_cfg$min_r2_arrival %||% 0)
+  compatible <- compatible && is.finite(lag_sim) &&
+    lag_sim >= lag_range[1] && lag_sim <= lag_range[2]
+  compatible <- compatible && coverage_sim >= (compat_cfg$min_coverage %||% 0)
 
   tibble::tibble(
     n_mask = counts_obs[["n_mask"]],
@@ -256,9 +277,12 @@ exdyn_score <- function(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL,
     n_TX_sim = counts_sim[["n_TX_finite"]],
     n_pairs_obs = counts_obs[["n_pairs"]],
     n_pairs_sim = counts_sim[["n_pairs"]],
-    r2_arrival = r2,
-    lag_mean = lag_mean,
-    coverage = coverage,
+    r2_arrival = r2_sim,
+    lag_mean = lag_sim,
+    coverage = coverage_sim,
+    r2_arrival_obs = r2_obs,
+    lag_mean_obs = lag_obs,
+    coverage_obs = coverage_obs,
     anisotropy_obs = R_obs,
     anisotropy_sim = R_sim,
     anisotropy_gap = anis_term,

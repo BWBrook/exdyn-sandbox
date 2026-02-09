@@ -97,3 +97,45 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - Pretty maps are not evidence.
 - If the synthetic benchmark is not locked down, interpretation of real-data fits is not credible.
 - Failure to fit real data is a result if we can rule out algorithmic incompetence via the synthetic benchmark.
+
+---
+
+## WP‑0.3.4.6 — Masking philosophy
+- Hard riparian mask on pilot grid is effectively unusable (≈19 active cells; TX_true degenerate).
+- Soft suitability weighting over land produces an informative extirpation wave (n_TX_true ≈ 1215; coverage ≈ 0.33).
+- Summary geometry becomes finite under soft weighting; hard mask leaves NA summaries.
+- Soft weighting appears necessary to avoid artificial isolation at 10 km resolution.
+- Scale matrix mean is ~0.5 with river_km weighting (range 0.5–1.5); consider whether to re-center to mean 1 later.
+- Many-to-many join warnings during arrival processing are benign for now but should be cleaned up.
+
+---
+
+## WP‑0.3.4.7 — Ceiling run
+- Ceiling (rich observations + synthetic_gradient arrivals) yields high ABC r² and coverage, with low coverage-curve RMSE.
+- Baseline realistic still fails to accept (ABC acceptance ≈ 0), highlighting information limits rather than algorithm failure.
+- Graph-mode dispersal is required to make ceiling diagnostics feasible on the pilot grid.
+- Ceiling maps are visually coherent and populated; no empty artefacts.
+- Truncated ABC budgets were used for this diagnostic; directionality is clear but the ceiling is still conservative.
+
+---
+
+## WP‑0.3.5a — Pilot benchmark (graph‑mode, R=20)
+- Pilot gates now pass for both ideal and realistic modes (arrival coverage = 1.0; coverage‑curve mid‑breaks = 4).
+- ABC acceptance rates are low but non‑zero (≈1.7–3%), consistent with informative screens.
+- Final canonical rerun (`syn_20260208_234611_035a_full_bestfix`) confirms the same qualitative story with stronger numerical stability across reps.
+- Ideal core params remain biased under strict thresholds (`alpha rel_bias_median ≈ -0.385`, `disp_mean_km ≈ +0.291`) but are explicitly declared weak-ID in benchmark stance metadata.
+- Realistic predictive gates pass (`median abc_lag_median ≈ 19.19`, `median abc_r2_median ≈ 0.633`), so the benchmark is useful as a calibration/weak-ID map rather than strict unbiased recovery.
+- Best-map selection is now consistent with screen ranking; the earlier tiny-strip best-map artefact was a selection/ranking mismatch, not an ecological signal.
+- The current TX map suite (`TX_true`, `TX_obs`, `TX_best`, `TX_diff`) is visually coherent and no longer exhibits the stale/degenerate output pattern.
+
+---
+
+## WP‑0.3.5b — GB benchmark (graph‑mode, R=20)
+- GB canonical run (`syn_20260209_134622_035b_full_r20`) completed end-to-end with ideal+realistic outputs, report renders, and canonical manifest.
+- All gates pass for all replicates in both modes (`G1`–`G5` all `TRUE`), so this clears the formal benchmark gate.
+- Realistic predictive medians remain above thresholds (`abc_lag_median ≈ 19.19`, `abc_r2_median ≈ 0.633`), matching pilot-benchmark behavior.
+- Weak identifiability is still the dominant story for core front params (`alpha`, `disp_mean_km`); this is now explicitly encoded in canonical benchmark stance metadata.
+- Real-arrival sparsity remains substantial (`frac_finite_TP_in_mask ≈ 0.41`), so the GB synthetic benchmark is still an identifiability calibration under synthetic-plane arrival completeness, not a claim that real arrivals are sufficiently informative.
+- Visual sanity checks pass: `TX_true` is coherent and georeferenced correctly; `TX_obs` is sparse but widespread; `TX_best` recovers broad front geometry with regional smoothing; `TX_diff` shows structured mismatch patterns.
+- Runtime behavior is now tractable under graph mode (wall ~1h11m for `R=20`), but aggregate worker memory is the operative constraint (observed ~75 GB during parallel phase).
+- The parent-process RSS from `time -v` understates parallel memory pressure; resource reporting should continue to include aggregate worker snapshots for large runs.

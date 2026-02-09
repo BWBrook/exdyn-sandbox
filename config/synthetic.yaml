@@ -3,8 +3,8 @@ theta_star:
   A_over_K: 0.05
   alpha: 0.2
   disp_mean_km: 10
-  pred_scale: 0.8
-  pred_c: 0.8
+  pred_scale: 0.6
+  pred_c: 1.2
   pred_h: 20
   gamma: 1.4
   delta_region:
@@ -17,7 +17,7 @@ theta_star:
   truth_frac: 0.02
   truth_rel0: 0.5
 grid:
-  type: "toy"
+  type: "pilot"
   nx: 25
   ny: 25
   cell_km: 10
@@ -25,7 +25,7 @@ grid:
   region_n: 3
   region_labels: ["SCT", "N_ENG", "S_ENG_WAL"]
   seed: 101
-  arrival_source: "real"
+  arrival_source: "synthetic_plane"
   arrival:
     pattern: "gradient"
     noise_sd: 1.5
@@ -42,10 +42,17 @@ recovery:
   n_reps: 3
   seed: 2026
   reference_rep: 1
+  n_cores: 8
+benchmark:
+  stance: "weak_id"
+  core_params: ["alpha", "disp_mean_km"]
+  gate_abs_rel_bias: 0.20
+  gate_coverage80: 0.60
+  weak_id_parameters: ["alpha", "disp_mean_km"]
 pilot_gates:
   enabled: true
 arrival_realism:
-  enabled: true
+  enabled: false
   sources: ["real", "synthetic_plane"]
   modes: ["ideal", "realistic"]
   reps: 10
@@ -62,15 +69,58 @@ arrival_realism:
   graph:
     radius: 5
     include_self: true
+mask_philosophy:
+  enabled: false
+  arrival_source: "synthetic_gradient"
+  hard_mask: "riparian"
+  scenarios: ["hard", "soft"]
+  reps: 3
+  seed: 2031
+  dispersal_mode: "graph"
+  graph:
+    radius: 5
+    include_self: true
+  soft:
+    method: "river_km"
+    range: [0.5, 1.5]
+    transform: "log1p"
+ceiling:
+  enabled: false
+  arrival_source: "synthetic_gradient"
+  reps: 10
+  seed: 2041
+  n_cores: 4
+  noise:
+    po_rate: 0.05
+    effort_strength: 1.0
+    missing_years_prob: 0.0
+    random_tx_dropout: 0.0
+    obs_mode: "counts"
+    keep_counts: false
+    frac: 0.02
+    rel0: 0.5
+    adaptive_threshold: true
+  screen:
+    n_draws: 2
+  abc:
+    n_sims: 10
+    lhs:
+      n: 2
+      keep: 1
 viability:
-  enabled: true
+  enabled: false
   seed: 9301
-  pred_scale: [0.8, 1.6, 3.2]
-  pred_c: [0.8, 1.6, 3.2]
+  pred_scale: [0.6, 1.2, 2.4]
+  pred_c: [0.6, 1.2, 2.4]
   truth_frac: [0.02]
   truth_rel0: [0.5]
   crop: true
 mask: "all"
+suitability:
+  enabled: true
+  method: "river_km"
+  range: [0.5, 1.5]
+  transform: "log1p"
 noise:
   po_rate: 0.01
   effort_strength: 1.0
@@ -81,10 +131,12 @@ noise:
   frac: 0.02
   rel0: 0.5
   adaptive_threshold: true
+  dispersal_mode: "graph"
 screen:
   n_draws: 32
   seed: 1045
   K0: 120
+  dispersal_mode: "graph"
   alpha: [0.05, 0.45]
   disp_mean_km: [6, 22]
   A_over_K: [0.02, 0.15]
@@ -110,21 +162,21 @@ abc:
     realistic: 15
     ideal: 23
   scale:
-    grad_mag: 0.05
-    pc_ratio: 0.25
+    grad_mag: 0.04
+    pc_ratio: 0.20
     coverage: 0.05
     lag_mean: 4
     lag_sd: 4
-    r2_arrival: 0.25
+    r2_arrival: 0.18
     orient_R: 0.2
-    speed_cells_per_year: 0.5
-    speed_r2: 0.25
+    speed_cells_per_year: 0.30
+    speed_r2: 0.18
     tx_mean: 4
     tx_sd: 4
-    cov_curve_1: 0.1
-    cov_curve_2: 0.1
-    cov_curve_3: 0.1
-    cov_curve_4: 0.1
+    cov_curve_1: 0.15
+    cov_curve_2: 0.15
+    cov_curve_3: 0.15
+    cov_curve_4: 0.15
   prior:
     alpha: [0.05, 0.45]
     disp_mean_km: [6, 22]

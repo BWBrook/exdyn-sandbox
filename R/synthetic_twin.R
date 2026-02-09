@@ -66,7 +66,8 @@ exdyn_make_synthetic <- function(theta_star,
     keep_counts = FALSE,
     crop = FALSE,
     dispersal_mode = "fft",
-    graph = NULL
+    graph = NULL,
+    scale_matrix = NULL
   )
   noise <- utils::modifyList(base_noise, noise_cfg)
   obs_mode <- noise$obs_mode %||% "counts"
@@ -105,7 +106,8 @@ exdyn_make_synthetic <- function(theta_star,
     c = theta$pred_c,
     h = theta$pred_h,
     scale = theta$pred_scale,
-    gamma = theta$gamma
+    gamma = theta$gamma,
+    scale_matrix = noise$scale_matrix
   )
   if (identical(obs_mode, "points")) {
     grid_for_fields <- grid_info
@@ -271,7 +273,8 @@ exdyn_make_synthetic <- function(theta_star,
     tx_counts = tx_map$counts,
     po_points = po_points,
     effort_points = effort_points,
-    mask = mask_mat
+    mask = mask_mat,
+    scale_matrix = noise$scale_matrix
   )
 }
 
@@ -283,7 +286,12 @@ exdyn_prepare_arrivals <- function(arrivals) {
   }
   tibble::as_tibble(arrivals) %>%
     dplyr::mutate(arrival_year = dplyr::coalesce(!!!rlang::syms(cols))) %>%
-    dplyr::select(cell_id, arrival_year)
+    dplyr::select(cell_id, arrival_year) %>%
+    dplyr::group_by(.data$cell_id) %>%
+    dplyr::summarise(
+      arrival_year = if (all(!is.finite(.data$arrival_year))) NA_real_ else min(.data$arrival_year, na.rm = TRUE),
+      .groups = "drop"
+    )
 }
 
 #' @keywords internal
@@ -310,7 +318,10 @@ exdyn_synthetic_arrival_table <- function(arrivals,
     ))
   }
   arrivals_tbl <- exdyn_prepare_arrivals(arrivals)
-  lookup <- grid_info$lookup
+  lookup <- grid_info$lookup %>%
+    dplyr::distinct(.data$cell_id, .keep_all = TRUE)
+  arrivals_tbl <- arrivals_tbl %>%
+    dplyr::distinct(.data$cell_id, .keep_all = TRUE)
   df <- dplyr::left_join(lookup, arrivals_tbl, by = "cell_id")
   fit_df <- df[is.finite(df$arrival_year), , drop = FALSE]
   if (nrow(fit_df) < 3) {

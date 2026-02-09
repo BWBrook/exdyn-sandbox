@@ -28,7 +28,8 @@ exdyn_grid_lookup <- function(grid_sf) {
       row = as.integer(round(.data$row)),
       col = as.integer(round(.data$col))
     ) %>%
-    dplyr::filter(!is.na(.data$row), !is.na(.data$col))
+    dplyr::filter(!is.na(.data$row), !is.na(.data$col)) %>%
+    dplyr::distinct(.data$cell_id, .keep_all = TRUE)
   row_levels <- sort(unique(meta$row))
   col_levels <- sort(unique(meta$col))
   meta$row_idx <- match(meta$row, row_levels)

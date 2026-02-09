@@ -138,8 +138,16 @@ exdyn_synthetic_screen_run <- function(theta_tbl,
                                        keep_best_tx = FALSE) {
   delta_cols <- names(theta_tbl)[grepl("^delta_", names(theta_tbl))]
   results <- vector("list", nrow(theta_tbl))
-  best_loss <- Inf
+  best_key <- c(Inf, Inf, Inf)
+  best_row_id <- NA_integer_
   best_tx <- NULL
+  key_better <- function(new_key, old_key) {
+    for (k in seq_along(new_key)) {
+      if (new_key[[k]] < old_key[[k]]) return(TRUE)
+      if (new_key[[k]] > old_key[[k]]) return(FALSE)
+    }
+    FALSE
+  }
   cell_km <- grid_info$cell_km %||% 10
   scale_matrix <- screen_cfg$scale_matrix %||% NULL
   dispersal_mode <- screen_cfg$dispersal_mode %||% "fft"
@@ -195,11 +203,19 @@ exdyn_synthetic_screen_run <- function(theta_tbl,
       mask = mask
     )
     coverage_sim <- if (any(mask)) mean(is.finite(TX_years[mask]), na.rm = TRUE) else NA_real_
+    cov_flag <- if (is.finite(coverage_sim) && coverage_sim >= 0.2) 0 else 1
+    loss_val <- if (is.finite(metrics$loss)) metrics$loss else Inf
+    cov_ord <- if (is.finite(coverage_sim)) -coverage_sim else Inf
+    key <- c(cov_flag, loss_val, cov_ord)
     result_row <- dplyr::bind_cols(theta_row, metrics) %>%
-      dplyr::mutate(coverage_sim = coverage_sim)
+      dplyr::mutate(
+        coverage_sim = coverage_sim,
+        .row_id = i
+      )
     results[[i]] <- result_row
-    if (keep_best_tx && is.finite(metrics$loss) && metrics$loss < best_loss) {
-      best_loss <- metrics$loss
+    if (keep_best_tx && key_better(key, best_key)) {
+      best_key <- key
+      best_row_id <- i
       best_tx <- TX_years
     }
     gc()
@@ -207,9 +223,15 @@ exdyn_synthetic_screen_run <- function(theta_tbl,
   res_df <- dplyr::bind_rows(results) %>%
     dplyr::arrange(coverage_sim < 0.2, loss, dplyr::desc(coverage_sim)) %>%
     dplyr::mutate(rank = dplyr::row_number())
+  best_index <- if (nrow(res_df)) {
+    if (is.finite(best_row_id)) match(best_row_id, res_df$.row_id) else 1L
+  } else {
+    NA_integer_
+  }
+  res_df <- dplyr::select(res_df, -".row_id")
   list(
     results = res_df,
-    best_index = which.min(res_df$loss),
+    best_index = best_index,
     best_tx = best_tx
   )
 }
@@ -647,6 +669,10 @@ exdyn_write_synthetic_outputs <- function(mode_runs, truth, grid_info, output_ro
     true_path <- file.path(mode_dir, "TX_true_syn.png")
     best_path <- file.path(mode_dir, "TX_best_syn.png")
     diff_path <- file.path(mode_dir, "TX_diff_syn.png")
+    if (is.null(run$best_tx)) {
+      if (file.exists(best_path)) unlink(best_path)
+      if (file.exists(diff_path)) unlink(diff_path)
+    }
     out_paths <- c(
       out_paths,
       plot_and_save(truth$TX_obs, "Synthetic TX_obs", obs_path),
@@ -668,7 +694,11 @@ exdyn_recovery_rep_metrics <- function(mode_runs) {
   purrr::map_dfr(mode_runs, function(run) {
     screen <- run$screen_results %||% tibble::tibble()
     if (nrow(screen)) {
-      best <- screen[which.min(screen$loss), , drop = FALSE]
+      idx <- run$best_index %||% 1L
+      if (!is.finite(idx) || idx < 1 || idx > nrow(screen)) {
+        idx <- 1L
+      }
+      best <- screen[idx, , drop = FALSE]
     } else {
       best <- tibble::tibble()
     }
@@ -743,7 +773,30 @@ exdyn_prior_sd_table <- function(screen_cfg, abc_cfg) {
   rows
 }
 
-exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg) {
+exdyn_identifiability_status <- function(abs_rel_bias,
+                                         coverage_80,
+                                         param,
+                                         benchmark_cfg = NULL) {
+  cfg <- benchmark_cfg %||% list()
+  gate_abs <- cfg$gate_abs_rel_bias %||% 0.20
+  gate_cov <- cfg$gate_coverage80 %||% 0.60
+  weak_params <- unique(as.character(cfg$weak_id_parameters %||% character()))
+  if (!is.finite(abs_rel_bias) || !is.finite(coverage_80)) {
+    return("unassessed")
+  }
+  if (abs_rel_bias <= gate_abs && coverage_80 >= gate_cov) {
+    return("recoverable")
+  }
+  if (param %in% weak_params) {
+    return("weakly_identifiable")
+  }
+  if (abs_rel_bias <= max(gate_abs, 0.35) && coverage_80 >= max(gate_cov - 0.10, 0.40)) {
+    return("partially_recoverable")
+  }
+  "weakly_identifiable"
+}
+
+exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg, benchmark_cfg = NULL) {
   if (!length(mode_runs)) {
     return(tibble::tibble())
   }
@@ -759,6 +812,9 @@ exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg) {
     return(tibble::tibble())
   }
   prior_sd <- exdyn_prior_sd_table(screen_cfg, abc_cfg)
+  cfg <- benchmark_cfg %||% list()
+  gate_abs <- cfg$gate_abs_rel_bias %||% 0.20
+  gate_cov <- cfg$gate_coverage80 %||% 0.60
   summaries %>%
     dplyr::group_by(.data$mode, .data$param) %>%
     dplyr::summarise(
@@ -766,6 +822,7 @@ exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg) {
       bias = mean(.data$median - .data$truth, na.rm = TRUE),
       abs_bias = mean(abs(.data$median - .data$truth), na.rm = TRUE),
       rel_bias = mean(ifelse(.data$truth == 0, NA_real_, (.data$median - .data$truth) / abs(.data$truth)), na.rm = TRUE),
+      rel_bias_median = stats::median(ifelse(.data$truth == 0, NA_real_, (.data$median - .data$truth) / abs(.data$truth)), na.rm = TRUE),
       mae = mean(abs(.data$median - .data$truth), na.rm = TRUE),
       coverage_50 = mean(.data$truth >= .data$p250 & .data$truth <= .data$p750, na.rm = TRUE),
       coverage_80 = mean(.data$truth >= .data$p100 & .data$truth <= .data$p900, na.rm = TRUE),
@@ -775,13 +832,24 @@ exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg) {
       .groups = "drop"
     ) %>%
     dplyr::left_join(prior_sd, by = "param") %>%
-    dplyr::mutate(shrinkage_ratio = .data$posterior_sd_median / .data$prior_sd)
+    dplyr::mutate(
+      shrinkage_ratio = .data$posterior_sd_median / .data$prior_sd,
+      abs_rel_bias_median = abs(.data$rel_bias_median),
+      gate_abs_rel_bias = gate_abs,
+      gate_coverage80 = gate_cov,
+      identifiability_status = purrr::pmap_chr(
+        list(.data$abs_rel_bias_median, .data$coverage_80, .data$param),
+        ~ exdyn_identifiability_status(..1, ..2, ..3, benchmark_cfg = cfg)
+      ),
+      gate_pass = .data$abs_rel_bias_median <= .data$gate_abs_rel_bias &
+        .data$coverage_80 >= .data$gate_coverage80
+    )
 }
 
-exdyn_synthetic_recovery_tables <- function(mode_runs, screen_cfg, abc_cfg) {
+exdyn_synthetic_recovery_tables <- function(mode_runs, screen_cfg, abc_cfg, benchmark_cfg = NULL) {
   list(
     replicate_metrics = exdyn_recovery_rep_metrics(mode_runs),
-    parameter_recovery = exdyn_recovery_param_table(mode_runs, screen_cfg, abc_cfg),
+    parameter_recovery = exdyn_recovery_param_table(mode_runs, screen_cfg, abc_cfg, benchmark_cfg = benchmark_cfg),
     pilot_gates = exdyn_pilot_gate_table(mode_runs)
   )
 }

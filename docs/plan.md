@@ -100,9 +100,20 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - Performance hardening: vectorised orientation metrics, analytic r²/slope, streaming counts‑mode truth generation.
 - Re‑measured GB counts preflight (streaming counts): ~42.5 s wall, ~1.0 GB RSS (pilot grid, direct sim+obs+TX).
 - Full‑pipeline counts preflight (screen + ABC + report, pilot grid, crop enabled): ~3:01 wall, ~1.2 GB RSS; canonical size ~192 kB.
-- WP‑0.3.5 pilot‑scale run (3 reps, ideal+realistic, counts, pilot grid): ~1h14m wall, ~1.3 GB RSS; coverage metrics degenerate due to sparse TX.
+- WP‑0.3.5a pilot benchmark (R=20, graph‑mode, synthetic_plane arrivals) completed with canonical artefacts:
+  - `outputs/canonical/0.3/WP-0.3.5a/syn_20260208_234611_035a_full_bestfix/`
+  - all pilot gates (G1–G5) pass for ideal and realistic modes.
+  - realistic predictive medians: `abc_lag_median ≈ 19.19`, `abc_r2_median ≈ 0.633`.
+- Added replicate‑level parallelism (`recovery.n_cores`) and improved coverage‑break fallback within TX range.
+- Patched `make synthetic` to include `synthetic_canonical_manifest` so canonical packaging is emitted in the default synthetic workflow when enabled.
+- WP‑0.3.5b GB benchmark (R=20, graph‑mode, synthetic_plane arrivals) completed with canonical artefacts:
+  - `outputs/canonical/0.3/WP-0.3.5b/syn_20260209_134622_035b_full_r20/`
+  - all benchmark gates (G1–G5) pass across all replicates for ideal and realistic modes.
+  - realistic predictive medians remain above gate thresholds (`abc_lag_median ≈ 19.19`, `abc_r2_median ≈ 0.633`).
+  - real-arrival diagnostics retained (`frac_finite_TP_in_mask ≈ 0.41`) for transferability context.
 
 ### Next steps (short queue)
-- Execute the performance ladder (toy → small → medium) starting with Stage A TX-only simulation on the toy grid.
-- Record runtime/RSS in `docs/log/031_perf_ladder.md` and `outputs/perf/ladder/` for every stage.
-- Use ladder results to decide if/when to restart WP‑0.3.5 pilot/full GB runs.
+- Milestone checkpoint action: record internal QA summary after LARGE WP completion (WP‑0.3.5b), with canonical artefacts and sanity notes.
+- Proceed to WP‑0.3.6 identifiability stress mini‑sweep unless redirected by the human.
+- Prepare an external PI review bundle only when explicitly requested by the human.
+- Keep visual sanity review as a hard gate for each new canonical run (TX_true/TX_obs/TX_best/TX_diff + coverage curves).

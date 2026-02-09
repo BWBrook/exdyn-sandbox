@@ -67,7 +67,8 @@ exdyn_perf_arrival_table <- function(grid_info, years, pattern = "gradient",
   start <- min(years)
   end <- max(years)
   span <- max(1, round((end - start) * span_frac))
-  lookup <- grid_info$lookup
+  lookup <- grid_info$lookup %>%
+    dplyr::distinct(.data$cell_id, .keep_all = TRUE)
   pattern <- match.arg(pattern, c("gradient", "row", "col"))
   scale_vals <- switch(
     pattern,

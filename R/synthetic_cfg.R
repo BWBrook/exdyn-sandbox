@@ -23,6 +23,7 @@ exdyn_synthetic_env_snapshot <- function() {
     grid_region_n = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_N", unset = ""),
     grid_region_labels = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_LABELS", unset = ""),
     arrival_source = Sys.getenv("EXDYN_SYNTHETIC_ARRIVAL_SOURCE", unset = ""),
+    arrival_realism = Sys.getenv("EXDYN_SYNTHETIC_ARRIVAL_REALISM", unset = ""),
     viability = Sys.getenv("EXDYN_SYNTHETIC_VIABILITY", unset = ""),
     pilot_gates = Sys.getenv("EXDYN_SYNTHETIC_PILOT_GATES", unset = ""),
     obs_mode = Sys.getenv("EXDYN_SYNTHETIC_OBS_MODE", unset = ""),
@@ -35,7 +36,8 @@ exdyn_synthetic_env_snapshot <- function() {
     abc_eps_tight = Sys.getenv("EXDYN_SYNTHETIC_ABC_EPS_TIGHT", unset = ""),
     abc_lhs_n = Sys.getenv("EXDYN_SYNTHETIC_ABC_LHS_N", unset = ""),
     abc_lhs_keep = Sys.getenv("EXDYN_SYNTHETIC_ABC_LHS_KEEP", unset = ""),
-    abc_refine = Sys.getenv("EXDYN_SYNTHETIC_ABC_REFINE", unset = "")
+    abc_refine = Sys.getenv("EXDYN_SYNTHETIC_ABC_REFINE", unset = ""),
+    recovery_cores = Sys.getenv("EXDYN_SYNTHETIC_CORES", unset = "")
   )
 }
 
@@ -96,6 +98,10 @@ exdyn_synthetic_cfg_apply_overrides <- function(cfg, env = NULL) {
   if (nzchar(env$arrival_source)) {
     cfg$grid$arrival_source <- env$arrival_source
   }
+  if (nzchar(env$arrival_realism)) {
+    cfg$arrival_realism <- cfg$arrival_realism %||% list()
+    cfg$arrival_realism$enabled <- exdyn_env_flag(env$arrival_realism, default = FALSE)
+  }
   if (nzchar(env$viability)) {
     cfg$viability <- cfg$viability %||% list()
     cfg$viability$enabled <- exdyn_env_flag(env$viability, default = FALSE)
@@ -141,6 +147,12 @@ exdyn_synthetic_cfg_apply_overrides <- function(cfg, env = NULL) {
     reps <- suppressWarnings(as.integer(env$reps))
     if (is.finite(reps) && reps > 0) {
       cfg$recovery$n_reps <- reps
+    }
+  }
+  if (nzchar(env$recovery_cores)) {
+    cores <- suppressWarnings(as.integer(env$recovery_cores))
+    if (is.finite(cores) && cores > 0) {
+      cfg$recovery$n_cores <- cores
     }
   }
   if (nzchar(env$screen_draws)) {

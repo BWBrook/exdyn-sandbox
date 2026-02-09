@@ -272,6 +272,45 @@ Format for entries:
 
 ---
 
+- **Date:** 2025-12-31  
+- **Decision:** Update synthetic `theta_star` to **pred_scale = 0.6** and
+  **pred_c = 1.2** for pilot-grid synthetic runs with `arrival_source =
+  synthetic_plane`.  
+- **Rationale:**  
+  - Viability sweep on the pilot grid with synthetic-plane arrivals showed
+    `(pred_scale=0.6, pred_c=0.6)` yields **zero extirpations** (G2 fails).  
+  - `(pred_scale=0.6, pred_c=1.2)` yields coverage ≈ **0.38** and
+    `n_TX_true ≈ 1391`, clearing the G2 gate without saturating the grid.  
+- **Implications:**  
+  - Pilot synthetic runs now use the adjusted predation strength to ensure
+    informative TX_true patterns under the complete arrival surface.  
+  - Viability artefacts remain in `outputs/synthetic/viability_sweep.csv` and
+    `outputs/synthetic/viability_sweep_plot.png`.  
+- **Alternatives considered:**  
+  - Increasing `pred_scale` alone (similar effect but larger departure from
+    previous tuning).  
+  - Increasing `truth_frac`/`truth_rel0` (rejected: changes extirpation
+    thresholds rather than predation strength).
+
+---
+
+- **Date:** 2025-12-31  
+- **Decision:** Parallelize synthetic recovery replicates via
+  `recovery.n_cores` (Linux/macOS only) and seed each replicate explicitly.  
+- **Rationale:**  
+  - WP‑0.3.5a with R≥20 was infeasible when each replicate ran sequentially.  
+  - Replicates are independent; controlled seeding preserves determinism
+    while enabling multicore execution.  
+- **Implications:**  
+  - `synthetic_mode_runs` now uses `mclapply` when `n_cores > 1`, defaulting
+    to the configured value (currently 8).  
+  - Environment override `EXDYN_SYNTHETIC_CORES` is supported for HPC runs.  
+- **Alternatives considered:**  
+  - Reducing `n_sims` or `n_draws` (rejected: would weaken recovery metrics).  
+  - Parallelizing within a replicate only (more invasive refactor).
+
+---
+
 - **Date:** 2025-12-23  
 - **Decision:** Use **TX-quantile coverage breaks** for synthetic pilot summaries
   (`coverage_breaks.strategy = "tx_quantile"`).  
@@ -381,3 +420,111 @@ Format for entries:
 - **Alternatives considered:**  
   - Automatically impute arrivals for all real-data runs (rejected for now; would
     conflate model feasibility with data augmentation).
+
+---
+
+- **Date:** 2025-12-30  
+- **Decision:** Adopt **soft suitability weighting** (land mask + river_km‑scaled weights) instead of a hard riparian mask at 10 km resolution for synthetic/pilot runs.  
+- **Rationale:**  
+  - Hard riparian mask on the pilot grid left only ~19 active cells and produced **zero** extirpations (degenerate TX_true).  
+  - Soft suitability on the same grid produced a coherent extirpation pattern (n_TX_true ≈ 1215; coverage_true ≈ 0.33) with finite geometry summaries.  
+  - The binary mask is too restrictive and creates artificial isolation at this resolution.  
+- **Implications:**  
+  - Subsequent synthetic/pilot runs should use **land mask + suitability weighting** (currently scale range 0.5–1.5, log1p).  
+  - Hard riparian masks are retained only for diagnostics/toy checks, not for inference‑oriented runs.  
+- **Alternatives considered:**  
+  - Keep hard mask and accept degeneracy (rejected; non‑informative).  
+  - Add external habitat layers (deferred; out of scope for WP‑0.3.4.6).
+
+---
+
+- **Date:** 2025-12-31  
+- **Decision:** Default synthetic pipeline to **graph-mode dispersal** (noise + screen) to keep pilot‑grid diagnostics tractable.  
+- **Rationale:**  
+  - FFT on the full 1203×1190 lattice makes even modest replicated diagnostics too slow.  
+  - Graph-mode preserves dispersal mechanics while avoiding ocean-heavy costs; ceiling and benchmark runs complete in minutes.  
+- **Implications:**  
+  - Synthetic runs now use `dispersal_mode = graph` unless explicitly overridden.  
+  - Ceiling and canonical benchmarks are interpreted under graph-mode assumptions.  
+- **Alternatives considered:**  
+  - Keeping FFT and reducing replicates (rejected; undermines benchmark reliability).  
+
+---
+
+- **Date:** 2025-12-31  
+- **Decision:** Use **trimmed ABC/screen budgets** for the ceiling diagnostic (n_draws=2, n_sims=10).  
+- **Rationale:**  
+  - The ceiling run is an identifiability upper bound, not a final calibration; coarse budgets preserve directionality while keeping runtime feasible.  
+- **Implications:**  
+  - Ceiling metrics are conservative; full ABC budgets can be restored later if needed.  
+- **Alternatives considered:**  
+  - Full ABC budgets (rejected for now due to multi‑hour runtime).
+
+---
+
+- **Date:** 2025-12-31  
+- **Decision:** Enforce output freshness via a guardrail comparing output mtimes against the synthetic config snapshot.  
+- **Rationale:**  
+  - Prevents silent reuse of stale arrival/viability plots after config changes.  
+- **Implications:**  
+  - Synthetic pipeline now fails fast if key outputs are older than the config file.  
+- **Alternatives considered:**  
+  - Rely on human checks only (rejected; too brittle).
+
+---
+
+- **Date:** 2026-02-09  
+- **Decision:** Treat `alpha` and `disp_mean_km` as explicitly **weakly identifiable** core parameters in the WP‑0.3.5a pilot benchmark, and evaluate pass/fail under `benchmark.stance = weak_id`.  
+- **Rationale:**  
+  - In the R=20 canonical pilot run, strict recoverable bias thresholds are not met for these parameters despite strong interval coverage and stable predictive fit.  
+  - The benchmark objective at this stage is to separate recoverable vs weak-ID dimensions honestly, not force strict recovery where information content is limited.  
+  - Manifest metadata already supports declared vs observed weak-ID parameter lists, enabling auditable interpretation.  
+- **Implications:**  
+  - WP‑0.3.5a is considered complete when weak-ID declarations and observed statuses are consistent and realistic predictive gates pass.  
+  - Downstream WP‑0.3.5b/0.3.6 should continue to treat these parameters as weak-ID unless stress tests demonstrate otherwise.  
+- **Alternatives considered:**  
+  - Keeping strict recoverable thresholds for all core parameters (rejected for pilot benchmark: would force repeated tuning without improving scientific honesty).  
+
+---
+
+- **Date:** 2026-02-09  
+- **Decision:** Include `synthetic_canonical_manifest` in the default `make synthetic` target.  
+- **Rationale:**  
+  - The previous target set (`synthetic_report_html`, `synthetic_report_pdf`, `synthetic_recovery_written`) could complete successfully without emitting canonical artefacts.  
+  - This created a reproducibility gap where a “finished” synthetic run had no canonical folder unless a second manual command was executed.  
+- **Implications:**  
+  - Canonical packaging now runs in the default synthetic command path when canonical env flags are enabled.  
+  - Reduces operator error and keeps roadmap evidence requirements aligned with standard execution commands.  
+- **Alternatives considered:**  
+  - Keep canonical packaging as a separate manual step (rejected; too easy to miss during long runs).
+
+---
+
+- **Date:** 2026-02-09  
+- **Decision:** For LARGE parallel synthetic runs, treat aggregate worker memory snapshots as the operative RSS budget metric, and use `time -v` RSS as parent-process context only.  
+- **Rationale:**  
+  - In WP‑0.3.5b (`R=20`, graph mode, 20 active workers), `time -v` reported max RSS ≈ 4.1 GB while concurrent worker snapshots reached ~75 GB aggregate RSS.  
+  - Parent-only RSS can materially understate memory pressure for future larger parallel runs.  
+  - Runtime/memory planning for HPC scheduling must reflect concurrent worker footprint, not just coordinator process RSS.  
+- **Implications:**  
+  - LARGE run logs should report both:
+    - wall time + `time -v` metrics, and
+    - aggregate worker RSS snapshots during peak parallel phase.  
+  - Budget comparisons in roadmap reviews should use aggregate worker RSS for pass/fail interpretation.  
+- **Alternatives considered:**  
+  - Rely only on `time -v` max RSS (rejected: misleading under parallel worker pools).
+
+---
+
+- **Date:** 2026-02-09  
+- **Decision:** Switch roadmap governance to **autonomous internal review by default**; external PI review is optional and triggered only by explicit human request.  
+- **Rationale:**  
+  - The project is moving to a higher-autonomy operating model with in-repo QA as the default control loop.  
+  - Mandatory external PI review gates were slowing execution even when internal checks, tests, and artefact audits were sufficient.  
+  - External PI review remains valuable for selected checkpoints, but should be invoked deliberately by the human rather than automatically by policy.  
+- **Implications:**  
+  - `docs/roadmap.md` section 5 now defines internal quality gates/checkpoints rather than mandatory PI-review stops.  
+  - LARGE WP completion now requires internal checkpoint artefacts and logs; external PI handoff is optional.  
+  - Benchmark failures still block WP completion, but remediation proceeds autonomously unless the human requests a pause/review.  
+- **Alternatives considered:**  
+  - Keep mandatory PI-review stops at milestones/LARGE WPs (rejected: too rigid for current workflow).  

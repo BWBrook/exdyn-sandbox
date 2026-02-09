@@ -49,4 +49,4 @@ graph-parallel:
 		Rscript outputs/perf/ladder/gb_land_graph/run_gb_land_graph_parallel_runner.R
 
 synthetic:
-	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("synthetic_report_html","synthetic_report_pdf","synthetic_recovery_written"))'
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("synthetic_report_html","synthetic_report_pdf","synthetic_recovery_written","synthetic_canonical_manifest"))'
