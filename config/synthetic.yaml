@@ -107,6 +107,28 @@ ceiling:
     lhs:
       n: 2
       keep: 1
+stress:
+  enabled: true
+  mode: "realistic"
+  reps: 10
+  seed: 3051
+  n_cores: 8
+  arrival_sources: ["synthetic_plane", "real"]
+  obs_multiplier: [0.5, 1.5]
+  pred_scale_multiplier: [0.7, 1.0, 1.3]
+  dropout_add: [0.0]
+  screen:
+    n_draws: 4
+    crop: true
+    dispersal_mode: "graph"
+  abc:
+    n_sims: 80
+    eps: 18
+    eps_tight: 9
+    refine: false
+    lhs:
+      n: 8
+      keep: 4
 viability:
   enabled: false
   seed: 9301

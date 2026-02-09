@@ -24,6 +24,11 @@ recovery <- tar_read(synthetic_recovery_tables)
 rep_metrics <- recovery$replicate_metrics
 param_recovery <- recovery$parameter_recovery
 pilot_gates <- recovery$pilot_gates %||% tibble::tibble()
+stress_outputs <- tryCatch(tar_read(synthetic_stress_outputs), error = function(...) list())
+stress_scenarios <- stress_outputs$scenarios %||% tibble::tibble()
+stress_gate_pass <- stress_outputs$gate_pass %||% tibble::tibble()
+stress_scenario_pass <- stress_outputs$scenario_pass %||% tibble::tibble()
+stress_metrics <- stress_outputs$metrics %||% tibble::tibble()
 grid_info <- tar_read(synthetic_grid_info)
 recovery_cfg <- tar_read(synthetic_recovery_cfg)
 plot_surface <- function(mat, title) exdyn_plot_surface(mat, grid_info, title)
@@ -113,6 +118,78 @@ if (nrow(pilot_gates)) {
     mutate(pass = ifelse(.data$pass, "PASS", "FAIL"))
 } else {
   tibble::tibble(note = "No pilot gate table available for this run.")
+}
+```
+
+## Failure regimes (stress mini-sweep)
+
+```{r stress-config}
+if (nrow(stress_scenarios)) {
+  stress_scenarios %>%
+    count(arrival_source, obs_multiplier, pred_scale_multiplier, name = "n_scenarios") %>%
+    arrange(arrival_source, obs_multiplier, pred_scale_multiplier)
+} else {
+  tibble::tibble(note = "Stress sweep not enabled for this run.")
+}
+```
+
+```{r stress-pass-rates}
+if (nrow(stress_scenario_pass)) {
+  stress_scenario_pass %>%
+    arrange(arrival_source, obs_multiplier, pred_scale_multiplier) %>%
+    select(arrival_source, obs_multiplier, pred_scale_multiplier, pass_rate_all_gates, n_reps)
+} else {
+  tibble::tibble(note = "No stress scenario pass-rate table available.")
+}
+```
+
+```{r stress-gates}
+if (nrow(stress_gate_pass)) {
+  stress_gate_pass %>%
+    arrange(gate, arrival_source, obs_multiplier, pred_scale_multiplier) %>%
+    select(gate, arrival_source, obs_multiplier, pred_scale_multiplier, pass_rate, n)
+} else {
+  tibble::tibble(note = "No stress gate pass-rate table available.")
+}
+```
+
+```{r stress-interpretation}
+if (nrow(stress_metrics)) {
+  stress_metrics %>%
+    group_by(arrival_source, obs_multiplier, pred_scale_multiplier) %>%
+    summarise(
+      n_reps = dplyr::n(),
+      median_n_accept = median(n_accept, na.rm = TRUE),
+      median_abc_r2 = median(abc_r2_median, na.rm = TRUE),
+      median_abc_lag = median(abc_lag_median, na.rm = TRUE),
+      median_screen_cov = median(screen_best_coverage, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(arrival_source, obs_multiplier, pred_scale_multiplier)
+} else {
+  tibble::tibble(note = "No stress replicate metrics available.")
+}
+```
+
+```{r stress-plot}
+if (nrow(stress_scenario_pass)) {
+  ggplot(stress_scenario_pass, aes(
+    x = factor(obs_multiplier),
+    y = factor(pred_scale_multiplier),
+    fill = pass_rate_all_gates
+  )) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = sprintf("%.2f", pass_rate_all_gates)), size = 3) +
+    facet_wrap(~arrival_source) +
+    scale_fill_viridis_c(option = "C", limits = c(0, 1), na.value = "grey85") +
+    labs(
+      title = "Failure regimes: all-gate pass rate",
+      subtitle = "Lower values indicate identifiability collapse",
+      x = "Observation multiplier (po_rate)",
+      y = "Predation scale multiplier",
+      fill = "Pass rate"
+    ) +
+    theme_minimal()
 }
 ```
 

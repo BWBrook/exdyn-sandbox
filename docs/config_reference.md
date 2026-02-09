@@ -110,6 +110,25 @@ high‑information observation contrast on the pilot grid.
 - `screen`: optional overrides for the screen stage (e.g., `n_draws`).
 - `abc`: optional overrides for ABC (e.g., `n_sims`, `lhs.n`, `lhs.keep`).
 
+### `stress`
+Identifiability stress mini‑sweep (WP‑0.3.6). Runs a small factorial over
+information and process-strength axes and reports gate pass-rates.
+- `enabled`: boolean.
+- `mode`: synthetic mode used for stress runs (`realistic` default).
+- `reps`: replicated datasets per stress scenario.
+- `seed`: RNG seed for scenario/replicate generation.
+- `n_cores`: optional multicore workers for scenario execution.
+- `arrival_sources`: arrival variants to compare (typically `synthetic_plane`,
+  `real`).
+- `obs_multiplier`: multipliers applied to `noise.po_rate`.
+- `pred_scale_multiplier`: multipliers applied to `theta_star.pred_scale`.
+- `dropout_add`: additive increase to `noise.random_tx_dropout`.
+- `screen`: optional screen overrides (e.g., `n_draws`, `crop`,
+  `dispersal_mode`).
+- `abc`: optional ABC overrides (`n_sims`, `eps`, `eps_tight`,
+  `lhs.n`, `lhs.keep`, `refine`).
+- `compat`: optional compatibility-threshold overrides.
+
 ### `viability`
 Truth-viability sweep configuration used to tune `theta_star` for
 informative synthetic extirpation patterns.
@@ -186,6 +205,7 @@ Environment overrides (optional, for reproducible smoke/canonical runs):
 - `EXDYN_SYNTHETIC_YEARS` (`"pilot"` or `start,end`).
 - `EXDYN_SYNTHETIC_GRID_TYPE` (`pilot` or `toy`).
 - `EXDYN_SYNTHETIC_ARRIVAL_REALISM=0/1` toggles the arrival realism gate.
+- `EXDYN_SYNTHETIC_STRESS=0/1` toggles the WP‑0.3.6 stress mini-sweep.
 - `EXDYN_SYNTHETIC_GRID_NX`, `EXDYN_SYNTHETIC_GRID_NY`,
   `EXDYN_SYNTHETIC_GRID_CELL_KM`, `EXDYN_SYNTHETIC_GRID_RIPARIAN_FRAC`,
   `EXDYN_SYNTHETIC_GRID_REGION_N`,
@@ -249,10 +269,19 @@ Optimisation comparison configuration: `profile` (e.g., `smoke`),
 ## `config/realdata.yaml` (pilot mink→vole)
 
 Key sections (high level):
-- `pilot.analysis_unit`: representation choice (`segment` vs grid options)
+- `pilot.analysis_unit`: representation choice (`segment`, `grid_riparian`, `grid_all`)
+- `pilot.unit_min_tx_obs`: minimum TX_obs units required for the representation gate
 - `pilot.years`: start/end year range
 - `pilot.mink_P`: arrival field controls (ramp, scale, gamma, delta bounds)
 - `pilot.vole`: TX estimator settings and effort normalisation
 - `pilot.screen` / `pilot.abc`: screen + ABC settings
+- `pilot.ablation`: WP‑0.4.2 settings for δ‑only vs δ+RE comparison
+  (`enabled`, `n_draws`, `n_cores`, `seed`)
+  - Runtime overrides:
+    - `EXDYN_ABLATION_CORES=<int>` caps ablation worker count without editing YAML.
+    - `EXDYN_ABLATION_DRAWS=<int>` caps ablation draw count without editing YAML.
+- `pilot.ppc`: posterior predictive check settings (`n_draws`, `seed`)
+- `pilot.canonical`: canonical bundle controls for WP‑0.4.3+
+  (`enabled`, `root`, `milestone`, `wp_id`, `run_id`, `commands`)
 
 (See `config/realdata.yaml` for full parameter lists.)

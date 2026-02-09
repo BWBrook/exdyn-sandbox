@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.25">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="ExtDyn Team">
+<meta name="dcterms.date" content="2026-02-09">
+
+<title>Reconstructing Predator-Driven Extirpation Dynamics from Response-Only Signals</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="mink_vole_manuscript_files/libs/clipboard/clipboard.min.js"></script>
+<script src="mink_vole_manuscript_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="mink_vole_manuscript_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="mink_vole_manuscript_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="mink_vole_manuscript_files/libs/quarto-html/popper.min.js"></script>
+<script src="mink_vole_manuscript_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="mink_vole_manuscript_files/libs/quarto-html/anchor.min.js"></script>
+<link href="mink_vole_manuscript_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="mink_vole_manuscript_files/libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="mink_vole_manuscript_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="mink_vole_manuscript_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="mink_vole_manuscript_files/libs/bootstrap/bootstrap-c2d1ed32bd32f1da90b151f68b047b38.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#abstract" id="toc-abstract" class="nav-link active" data-scroll-target="#abstract"><span class="header-section-number">0.1</span> Abstract</a></li>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link" data-scroll-target="#introduction"><span class="header-section-number">1</span> Introduction</a></li>
+  <li><a href="#methods" id="toc-methods" class="nav-link" data-scroll-target="#methods"><span class="header-section-number">2</span> Methods</a>
+  <ul class="collapse">
+  <li><a href="#process-model-and-extirpation-timing" id="toc-process-model-and-extirpation-timing" class="nav-link" data-scroll-target="#process-model-and-extirpation-timing"><span class="header-section-number">2.1</span> Process model and extirpation timing</a></li>
+  <li><a href="#observation-layer-and-tx-estimator" id="toc-observation-layer-and-tx-estimator" class="nav-link" data-scroll-target="#observation-layer-and-tx-estimator"><span class="header-section-number">2.2</span> Observation layer and TX estimator</a></li>
+  <li><a href="#summary-based-calibration-screen-abc" id="toc-summary-based-calibration-screen-abc" class="nav-link" data-scroll-target="#summary-based-calibration-screen-abc"><span class="header-section-number">2.3</span> Summary-based calibration (screen + ABC)</a></li>
+  <li><a href="#quality-gates-and-canonical-discipline" id="toc-quality-gates-and-canonical-discipline" class="nav-link" data-scroll-target="#quality-gates-and-canonical-discipline"><span class="header-section-number">2.4</span> Quality gates and canonical discipline</a></li>
+  </ul></li>
+  <li><a href="#results" id="toc-results" class="nav-link" data-scroll-target="#results"><span class="header-section-number">3</span> Results</a>
+  <ul class="collapse">
+  <li><a href="#synthetic-benchmark-lock-down" id="toc-synthetic-benchmark-lock-down" class="nav-link" data-scroll-target="#synthetic-benchmark-lock-down"><span class="header-section-number">3.1</span> Synthetic benchmark lock-down</a></li>
+  <li><a href="#stress-regimes-and-identifiability-limits" id="toc-stress-regimes-and-identifiability-limits" class="nav-link" data-scroll-target="#stress-regimes-and-identifiability-limits"><span class="header-section-number">3.2</span> Stress regimes and identifiability limits</a></li>
+  <li><a href="#synthetic-interpretation-stance" id="toc-synthetic-interpretation-stance" class="nav-link" data-scroll-target="#synthetic-interpretation-stance"><span class="header-section-number">3.3</span> Synthetic interpretation stance</a></li>
+  <li><a href="#real-data-information-audit-and-representation-triage" id="toc-real-data-information-audit-and-representation-triage" class="nav-link" data-scroll-target="#real-data-information-audit-and-representation-triage"><span class="header-section-number">3.4</span> Real-data information audit and representation triage</a></li>
+  <li><a href="#constrained-inference-and-ablation" id="toc-constrained-inference-and-ablation" class="nav-link" data-scroll-target="#constrained-inference-and-ablation"><span class="header-section-number">3.5</span> Constrained inference and ablation</a></li>
+  <li><a href="#case-study-verdict" id="toc-case-study-verdict" class="nav-link" data-scroll-target="#case-study-verdict"><span class="header-section-number">3.6</span> Case-study verdict</a></li>
+  </ul></li>
+  <li><a href="#discussion" id="toc-discussion" class="nav-link" data-scroll-target="#discussion"><span class="header-section-number">4</span> Discussion</a></li>
+  <li><a href="#reproducibility" id="toc-reproducibility" class="nav-link" data-scroll-target="#reproducibility"><span class="header-section-number">5</span> Reproducibility</a>
+  <ul class="collapse">
+  <li><a href="#canonical-artefact-policy" id="toc-canonical-artefact-policy" class="nav-link" data-scroll-target="#canonical-artefact-policy"><span class="header-section-number">5.1</span> Canonical artefact policy</a></li>
+  <li><a href="#build-commands" id="toc-build-commands" class="nav-link" data-scroll-target="#build-commands"><span class="header-section-number">5.2</span> Build commands</a></li>
+  <li><a href="#figure-and-table-manifest" id="toc-figure-and-table-manifest" class="nav-link" data-scroll-target="#figure-and-table-manifest"><span class="header-section-number">5.3</span> Figure and table manifest</a></li>
+  <li><a href="#freeze-checklist" id="toc-freeze-checklist" class="nav-link" data-scroll-target="#freeze-checklist"><span class="header-section-number">5.4</span> Freeze checklist</a></li>
+  </ul></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="mink_vole_manuscript.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Reconstructing Predator-Driven Extirpation Dynamics from Response-Only Signals</h1>
+<p class="subtitle lead">Synthetic benchmark and constrained mink→vole case study</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>ExtDyn Team </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">February 9, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="abstract" class="level2" data-number="0.1">
+<h2 data-number="0.1" class="anchored" data-anchor-id="abstract"><span class="header-section-number">0.1</span> Abstract</h2>
+<p>We developed and validated a process-explicit, pattern-oriented framework for reconstructing prey extirpation timing from response-only data under sparse and biased observation. A synthetic mink→vole twin was used to separate ideal algorithmic identifiability (<code>TX_true</code>) from realistic inference after an observation model and first-passage TX estimation (<code>TX_obs</code>). We then applied the constrained model to the real mink–water-vole case.</p>
+<p>The synthetic benchmark demonstrates where recovery is robust and where it breaks under low-information regimes. Stress sweeps expose failure regimes driven primarily by arrival-surface incompleteness and summary compatibility collapse. In the real-data case study, information audits and representation diagnostics quantify whether inference is supported at the chosen analysis unit.</p>
+<p>All figures and tables are pinned to canonical artefact bundles, and the full workflow is reproducible via <code>targets</code>, <code>renv</code>, and Quarto.</p>
+</section>
+<section id="introduction" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Introduction</h1>
+<p>This manuscript targets a recurring applied challenge: reconstructing predator front dynamics and prey extirpation timing when direct predator abundance data are sparse, noisy, or unavailable. We use a response-only strategy based on prey extirpation timing (<code>TX</code>) derived from presence-only records and calibrate process parameters against pattern-oriented summaries.</p>
+<p>The key scientific risk is confounding ecological signal with observation artifacts. To address this, we require a locked synthetic benchmark before any real-data claim. The benchmark quantifies what is recoverable under known truth and explicitly maps weak-identifiability and failure regimes.</p>
+<p>The current focal system is invasive American mink (<em>Neovison vison</em>) and water vole (<em>Arvicola amphibius</em>) on a British National Grid representation. We treat this as both an ecological case and a methodological stress-test for response-only inference.</p>
+</section>
+<section id="methods" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> Methods</h1>
+<section id="process-model-and-extirpation-timing" class="level2" data-number="2.1">
+<h2 data-number="2.1" class="anchored" data-anchor-id="process-model-and-extirpation-timing"><span class="header-section-number">2.1</span> Process model and extirpation timing</h2>
+<p>The simulation core is a streaming TX-only engine that avoids storing full <code>N[x,y,t]</code> abundance cubes for large grids. Extirpation time is defined by a first-passage rule, and this definition is shared between synthetic generation and inference summaries.</p>
+<p>Predator arrival is represented as a year surface <code>T_P(x)</code>. Predation intensity ramps after arrival and combines with local growth and dispersal dynamics to produce extirpation timing <code>TX(x)</code>.</p>
+</section>
+<section id="observation-layer-and-tx-estimator" class="level2" data-number="2.2">
+<h2 data-number="2.2" class="anchored" data-anchor-id="observation-layer-and-tx-estimator"><span class="header-section-number">2.2</span> Observation layer and TX estimator</h2>
+<p>Synthetic realistic mode converts latent dynamics into observation-limited signals and reconstructs <code>TX_obs</code> using the same first-passage estimator used in real data. This creates a strict separation between:</p>
+<ul>
+<li>ideal identifiability (<code>TX_true</code>),</li>
+<li>realistic identifiability (<code>TX_obs</code>).</li>
+</ul>
+</section>
+<section id="summary-based-calibration-screen-abc" class="level2" data-number="2.3">
+<h2 data-number="2.3" class="anchored" data-anchor-id="summary-based-calibration-screen-abc"><span class="header-section-number">2.3</span> Summary-based calibration (screen + ABC)</h2>
+<p>Inference uses response-oriented summary vectors describing coverage, lag, geometry, and coverage curves. A screen stage filters parameter draws by loss and compatibility criteria, then rejection ABC refines around shortlist regions.</p>
+</section>
+<section id="quality-gates-and-canonical-discipline" class="level2" data-number="2.4">
+<h2 data-number="2.4" class="anchored" data-anchor-id="quality-gates-and-canonical-discipline"><span class="header-section-number">2.4</span> Quality gates and canonical discipline</h2>
+<p>Every major run is validated with explicit gates and packaged in canonical artefact folders containing:</p>
+<ul>
+<li><code>manifest.yaml</code> (schema version, commit SHA, config snapshots, seeds),</li>
+<li>rendered reports and primary tables/figures,</li>
+<li>session information.</li>
+</ul>
+<p>These gates are treated as scientific safeguards, not only engineering checks.</p>
+</section>
+</section>
+<section id="results" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> Results</h1>
+<section id="synthetic-benchmark-lock-down" class="level2" data-number="3.1">
+<h2 data-number="3.1" class="anchored" data-anchor-id="synthetic-benchmark-lock-down"><span class="header-section-number">3.1</span> Synthetic benchmark lock-down</h2>
+<p>The synthetic benchmark was completed in two canonical stages:</p>
+<ul>
+<li>pilot-grid benchmark (<code>WP-0.3.5a</code>),</li>
+<li>GB-grid benchmark (<code>WP-0.3.5b</code>, graph mode).</li>
+</ul>
+<p>Both runs include ideal and realistic modes with replicated recovery metrics and posterior predictive checks.</p>
+<p>The GB-scale canonical run (<code>WP-0.3.5b</code>) passed all configured benchmark gates across replicates (<code>G1</code>–<code>G5</code>). In realistic mode, predictive summaries remained above gate thresholds, while core front parameters (<code>alpha</code>, <code>disp_mean_km</code>) were retained as weakly identifiable under the declared benchmark stance.</p>
+</section>
+<section id="stress-regimes-and-identifiability-limits" class="level2" data-number="3.2">
+<h2 data-number="3.2" class="anchored" data-anchor-id="stress-regimes-and-identifiability-limits"><span class="header-section-number">3.2</span> Stress regimes and identifiability limits</h2>
+<p><code>WP-0.3.6</code> adds a compact stress grid over arrival realism, observation intensity, and predation strength multipliers. The resulting heatmap and gate tables identify where recovery collapses, with failures concentrated in arrival coverage and screen/ABC compatibility gates.</p>
+<p>The stress sweep showed a sharp regime split: scenarios using <code>arrival_source = real</code> failed all-gate criteria (pass rate 0), while <code>arrival_source = synthetic_plane</code> with moderate observation intensity remained identifiable. This provides an explicit “information-limited failure map” for interpreting real-data outcomes.</p>
+</section>
+<section id="synthetic-interpretation-stance" class="level2" data-number="3.3">
+<h2 data-number="3.3" class="anchored" data-anchor-id="synthetic-interpretation-stance"><span class="header-section-number">3.3</span> Synthetic interpretation stance</h2>
+<p>The synthetic package is used as an identifiability map: it distinguishes recoverable from weakly identified parameters and sets expectations for real-data transfer under sparse arrival coverage.</p>
+</section>
+<section id="real-data-information-audit-and-representation-triage" class="level2" data-number="3.4">
+<h2 data-number="3.4" class="anchored" data-anchor-id="real-data-information-audit-and-representation-triage"><span class="header-section-number">3.4</span> Real-data information audit and representation triage</h2>
+<p>The real-data workflow begins with an information audit (<code>WP-0.4.0</code>) and representation audit (<code>WP-0.4.1</code>) before full constrained inference. This prevents over-interpreting runs with inadequate overlap between reconstructed <code>TX_obs</code> and finite predator-arrival support.</p>
+<p>For the selected representation (<code>grid_all</code>), the audit indicates:</p>
+<ul>
+<li><code>n_units = 3621</code></li>
+<li><code>n_TX_obs = 569</code> (<code>coverage_obs ≈ 0.157</code>)</li>
+<li><code>n_TP_finite = 7</code></li>
+<li><code>n_pairs = 1</code> (<code>TX_obs</code> and <code>T_P</code> jointly finite)</li>
+</ul>
+<p>So the unit-count gate passes, but arrival/response overlap is extremely sparse.</p>
+</section>
+<section id="constrained-inference-and-ablation" class="level2" data-number="3.5">
+<h2 data-number="3.5" class="anchored" data-anchor-id="constrained-inference-and-ablation"><span class="header-section-number">3.5</span> Constrained inference and ablation</h2>
+<p>The constrained real run (<code>WP-0.4.3</code>) combines screen, ABC, and posterior predictive checks, with ablation diagnostics (<code>WP-0.4.2</code>) used to decide whether optional random-effects structure materially improves fit.</p>
+<p>The ablation showed no practical gain from adding <code>pred_scale</code> random effects: both <code>delta_only</code> and <code>delta_plus_re</code> produced zero compatible draws at the tested budget, with near-identical median loss and coverage.</p>
+</section>
+<section id="case-study-verdict" class="level2" data-number="3.6">
+<h2 data-number="3.6" class="anchored" data-anchor-id="case-study-verdict"><span class="header-section-number">3.6</span> Case-study verdict</h2>
+<p>Gate outcomes for the constrained run were uniformly negative (<code>best_r2 = NA</code>, <code>best_lag = NA</code>, <code>best_coverage ≈ 2.8e-4</code>, <code>abc_accept_rate = 0</code>), and no ABC posterior was retained under the configured thresholds.</p>
+<p>The corresponding verdict is therefore <strong>data-limited/mechanism-incomplete at this representation</strong>, not a positive confirmation of predation-only sufficiency. This negative result is still informative because it is grounded in explicit audits, gates, and canonical artefacts rather than post hoc rationalisation.</p>
+</section>
+</section>
+<section id="discussion" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> Discussion</h1>
+<p>The central outcome of this workflow is not merely a fitted model; it is a transparent map of where inference is and is not supported.</p>
+<p>Three practical lessons emerge:</p>
+<ul>
+<li>performance tractability must be engineered explicitly for large spatial domains;</li>
+<li>identifiability must be demonstrated under synthetic truth before ecological claims on real data;</li>
+<li>low-information real-data outcomes are scientifically meaningful when failure modes are diagnosed and documented.</li>
+</ul>
+<p>Future extensions can add habitat covariates and alternative analysis-unit representations, but only after preserving the same canonical and gate-driven discipline.</p>
+</section>
+<section id="reproducibility" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> Reproducibility</h1>
+<section id="canonical-artefact-policy" class="level2" data-number="5.1">
+<h2 data-number="5.1" class="anchored" data-anchor-id="canonical-artefact-policy"><span class="header-section-number">5.1</span> Canonical artefact policy</h2>
+<p>Primary manuscript claims must link to canonical bundles under <code>outputs/canonical/</code>, with run manifests carrying commit SHA, configuration snapshots, and seeds.</p>
+<p>For this draft, synthetic claims are pinned to:</p>
+<ul>
+<li><code>outputs/canonical/0.3/WP-0.3.5b/syn_20260209_134622_035b_full_r20/</code></li>
+<li><code>outputs/canonical/0.3/WP-0.3.6/syn_20260209_154821_0099/</code></li>
+</ul>
+<p>Real-case claims are pinned to:</p>
+<ul>
+<li><code>outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/</code></li>
+</ul>
+</section>
+<section id="build-commands" class="level2" data-number="5.2">
+<h2 data-number="5.2" class="anchored" data-anchor-id="build-commands"><span class="header-section-number">5.2</span> Build commands</h2>
+<ul>
+<li>Synthetic benchmark/report: <code>make synthetic</code></li>
+<li>Real pilot/report: <code>make pilot</code></li>
+<li>Test suite: <code>make test</code></li>
+<li>Manuscript render: <code>quarto render manuscript/mink_vole_manuscript.qmd</code></li>
+</ul>
+</section>
+<section id="figure-and-table-manifest" class="level2" data-number="5.3">
+<h2 data-number="5.3" class="anchored" data-anchor-id="figure-and-table-manifest"><span class="header-section-number">5.3</span> Figure and table manifest</h2>
+<p>See <code>manuscript/figure_table_manifest.csv</code> for explicit pointers from manuscript items to canonical artefacts.</p>
+</section>
+<section id="freeze-checklist" class="level2" data-number="5.4">
+<h2 data-number="5.4" class="anchored" data-anchor-id="freeze-checklist"><span class="header-section-number">5.4</span> Freeze checklist</h2>
+<p>Release-freeze and handoff checks are tracked in <code>manuscript/reproducibility_freeze.md</code>.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

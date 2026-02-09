@@ -185,7 +185,6 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     wo8_log_start_target,
     tar_target_raw("pilot_cfg_file", rlang::expr(!!cfg_path), format = "file"),
     tar_target(pilot_cfg, {
-      wo8_log_start
       yaml::read_yaml(pilot_cfg_file)
     }),
     tar_target(pilot_years, seq.int(pilot_cfg$pilot$years[1], pilot_cfg$pilot$years[2])),
@@ -306,9 +305,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       force = isTRUE(pilot_cfg$cache$force_redownload)
     )),
     tar_target(pilot_mammal_cells, {
-      cells <- exdyn_points_to_grid(pilot_mammal_gbif, pilot_grid_riparian)
-      riparian_ids <- pilot_riparian_table$cell_id[pilot_riparian_table$riparian]
-      dplyr::semi_join(cells, tibble::tibble(cell_id = riparian_ids), by = "cell_id")
+      exdyn_points_to_grid(pilot_mammal_gbif, pilot_grid_riparian)
     }, deployment = "main"),
     tar_target(pilot_vole_gbif, exdyn_gbif_species(
       sci = pilot_cfg$species$vole$scientific_name,
@@ -320,11 +317,12 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       force = isTRUE(pilot_cfg$cache$force_redownload)
     )),
     tar_target(pilot_vole_cells, {
-      cells <- exdyn_points_to_grid(pilot_vole_gbif, pilot_grid_riparian)
-      riparian_ids <- pilot_riparian_table$cell_id[pilot_riparian_table$riparian]
-      dplyr::semi_join(cells, tibble::tibble(cell_id = riparian_ids), by = "cell_id")
+      exdyn_points_to_grid(pilot_vole_gbif, pilot_grid_riparian)
     }, deployment = "main"),
-    tar_target(pilot_vole_tx, exdyn_tx_map(
+    tar_target(pilot_analysis_unit_pref, {
+      tolower(pilot_cfg$pilot$analysis_unit %||% "segment")
+    }),
+    tar_target(pilot_vole_tx_riparian, exdyn_tx_map(
       pilot_vole_cells,
       pilot_cfg$pilot$years,
       pilot_cfg$pilot$vole,
@@ -332,6 +330,21 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       effort_cells = pilot_mammal_cells,
       mask = pilot_grid_info[["riparian_matrix"]]
     )),
+    tar_target(pilot_vole_tx_all, exdyn_tx_map(
+      pilot_vole_cells,
+      pilot_cfg$pilot$years,
+      pilot_cfg$pilot$vole,
+      pilot_grid_info,
+      effort_cells = pilot_mammal_cells,
+      mask = exdyn_land_mask_from_lookup(pilot_grid_info)
+    )),
+    tar_target(pilot_vole_tx, {
+      if (identical(pilot_analysis_unit_pref, "grid_all")) {
+        pilot_vole_tx_all
+      } else {
+        pilot_vole_tx_riparian
+      }
+    }),
     tar_target(pilot_vole_tx_qc, {
       counts <- pilot_vole_tx$counts
       if (!nrow(counts)) {
@@ -561,17 +574,106 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       readr::write_csv(pilot_segment_tx, file.path(pilot_triage_dir, "segment_tx.csv"))
       pilot_segment_tx
     }),
+    tar_target(pilot_unit_min_tx_obs, {
+      as.integer(pilot_cfg$pilot$unit_min_tx_obs %||% 50L)
+    }),
     tar_target(pilot_unit_structure, {
-      preferred <- pilot_cfg$pilot$analysis_unit %||% "segment"
+      preferred <- pilot_analysis_unit_pref
       years_vec <- pilot_years
       coverage_breaks <- exdyn_coverage_breaks(years_vec)
-      make_mask <- function(lookup) {
+      unit_min <- pilot_unit_min_tx_obs %||% 50L
+      make_mask <- function(lookup_tbl) {
         mask <- matrix(FALSE, nrow = pilot_grid_info$nx, ncol = pilot_grid_info$ny)
-        if (nrow(lookup)) {
-          idx <- cbind(lookup$row_idx, lookup$col_idx)
+        if (nrow(lookup_tbl)) {
+          idx <- cbind(lookup_tbl$row_idx, lookup_tbl$col_idx)
           mask[idx] <- TRUE
         }
         mask
+      }
+      build_cell_adjacency <- function(lookup_tbl) {
+        if (!nrow(lookup_tbl)) {
+          return(tibble::tibble(unit_i = character(), unit_j = character()))
+        }
+        base <- lookup_tbl %>%
+          dplyr::distinct(.data$unit_id, .data$row_idx, .data$col_idx)
+        shifts <- tibble::tribble(
+          ~dr, ~dc,
+          1L, 0L,
+          -1L, 0L,
+          0L, 1L,
+          0L, -1L
+        )
+        nbr <- purrr::pmap_dfr(shifts, function(dr, dc) {
+          base %>%
+            dplyr::transmute(
+              unit_i = .data$unit_id,
+              row_idx = .data$row_idx + dr,
+              col_idx = .data$col_idx + dc
+            ) %>%
+            dplyr::inner_join(
+              base %>% dplyr::transmute(unit_j = .data$unit_id, row_idx, col_idx),
+              by = c("row_idx", "col_idx")
+            )
+        })
+        if (!nrow(nbr)) {
+          return(tibble::tibble(unit_i = character(), unit_j = character()))
+        }
+        nbr %>%
+          dplyr::filter(.data$unit_i != .data$unit_j) %>%
+          dplyr::mutate(
+            pair_min = pmin(.data$unit_i, .data$unit_j),
+            pair_max = pmax(.data$unit_i, .data$unit_j)
+          ) %>%
+          dplyr::distinct(.data$pair_min, .data$pair_max) %>%
+          dplyr::transmute(unit_i = .data$pair_min, unit_j = .data$pair_max)
+      }
+      build_grid_units <- function(grid_mode = c("grid_all", "grid_riparian")) {
+        grid_mode <- match.arg(grid_mode)
+        tx_src <- if (identical(grid_mode, "grid_all")) pilot_vole_tx_all else pilot_vole_tx_riparian
+        tx_tbl <- tx_src$table %||% tibble::tibble()
+        if (!nrow(tx_tbl)) {
+          return(NULL)
+        }
+        rip_tbl <- pilot_riparian_table %>%
+          dplyr::select(
+            cell_id,
+            river_km_join = river_km,
+            riparian_join = riparian,
+            region_join = region
+          )
+        lookup <- pilot_grid_info$lookup %>%
+          dplyr::left_join(rip_tbl, by = "cell_id") %>%
+          dplyr::mutate(
+            riparian = dplyr::coalesce(.data$riparian_join, .data$riparian, FALSE),
+            river_km = dplyr::coalesce(.data$river_km_join, .data$river_km, 0),
+            region = dplyr::coalesce(.data$region_join, .data$region, "UNKNOWN")
+          )
+        if (identical(grid_mode, "grid_riparian")) {
+          lookup <- lookup %>% dplyr::filter(.data$riparian)
+        }
+        lookup <- lookup %>%
+          dplyr::filter(!is.na(.data$row_idx), !is.na(.data$col_idx)) %>%
+          dplyr::mutate(unit_id = paste0("cell_", .data$cell_id))
+        tx_tbl <- lookup %>%
+          dplyr::select(cell_id, unit_id_lookup = unit_id, region_lookup = region) %>%
+          dplyr::left_join(tx_tbl, by = "cell_id") %>%
+          dplyr::mutate(
+            unit_id = .data$unit_id_lookup,
+            region = dplyr::coalesce(.data$region_lookup, .data$region, "UNKNOWN")
+          ) %>%
+          dplyr::select(-dplyr::any_of(c("unit_id_lookup", "region_lookup")))
+        list(
+          type = grid_mode,
+          lookup = lookup %>% dplyr::select(row_idx, col_idx, unit_id, region, cell_id),
+          mask = make_mask(lookup),
+          adjacency = build_cell_adjacency(lookup),
+          tx_table = tx_tbl,
+          unit_ids = sort(unique(lookup$unit_id)),
+          n_units = dplyr::n_distinct(lookup$unit_id),
+          n_tx_obs = sum(is.finite(tx_tbl$tx_obs)),
+          region_lookup = lookup %>%
+            dplyr::distinct(unit_id, region, .keep_all = FALSE)
+        )
       }
       build_segment_units <- function() {
         comp_tbl <- pilot_riparian_components$table
@@ -632,26 +734,230 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
             dplyr::select(unit_id, region)
         )
       }
-      unit_info <- build_segment_units()
+      unit_info <- switch(
+        preferred,
+        segment = build_segment_units(),
+        grid_all = build_grid_units("grid_all"),
+        grid_riparian = build_grid_units("grid_riparian"),
+        build_segment_units()
+      )
       if (is.null(unit_info)) {
         stop("Failed to build analysis units for configuration: ", preferred)
       }
       unit_info$coverage_breaks <- coverage_breaks
       unit_info$preferred <- preferred
-      unit_info$unit_threshold_met <- unit_info$n_tx_obs >= 50
+      unit_info$unit_threshold <- unit_min
+      unit_info$unit_threshold_met <- unit_info$n_tx_obs >= unit_min
       dir.create("logs", showWarnings = FALSE)
       log_line <- sprintf(
-        "[%s] Analysis units=%s n_units=%d n_tx_obs=%d threshold_met=%s",
+        "[%s] Analysis units=%s preferred=%s n_units=%d n_tx_obs=%d threshold=%d met=%s",
         format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
         unit_info$type,
+        preferred,
         unit_info$n_units,
         unit_info$n_tx_obs,
+        unit_min,
         unit_info$unit_threshold_met
       )
       cat(log_line, "\n", file = file.path("logs", "wo9.log"), append = TRUE)
       cat(log_line, "\n", file = file.path("logs", "wo9b.log"), append = TRUE)
       cat(log_line, "\n", file = file.path("logs", "wo9d.log"), append = TRUE)
       unit_info
+    }),
+    tar_target(pilot_information_audit, {
+      unit_info <- pilot_unit_structure
+      unit_mask <- unit_info$mask %||% matrix(TRUE, nrow = pilot_grid_info$nx, ncol = pilot_grid_info$ny)
+      T_P <- pilot_mink_field_default$T_P
+      TX_obs <- pilot_vole_tx$matrix
+      arrival_stats <- exdyn_arrival_coverage_stats(T_P, mask = unit_mask)
+      counts <- exdyn_summary_counts(TX_obs, T_P, mask = unit_mask)
+      effort_tbl <- pilot_mammal_cells %||% tibble::tibble()
+      unit_cells <- unit_info$lookup %>%
+        dplyr::distinct(.data$cell_id) %>%
+        dplyr::filter(!is.na(.data$cell_id))
+      effort_subset <- if (nrow(effort_tbl) && nrow(unit_cells)) {
+        effort_tbl %>% dplyr::semi_join(unit_cells, by = "cell_id")
+      } else {
+        tibble::tibble()
+      }
+      tx_vals <- TX_obs[is.finite(TX_obs) & unit_mask]
+      tx_span <- if (length(tx_vals) >= 2) diff(range(tx_vals)) else NA_real_
+      audit <- tibble::tibble(
+        analysis_unit = unit_info$type %||% pilot_analysis_unit_pref,
+        preferred_unit = pilot_analysis_unit_pref,
+        n_units = unit_info$n_units %||% NA_integer_,
+        n_TX_obs = counts[["n_TX_finite"]] %||% 0,
+        coverage_obs = if ((counts[["n_mask"]] %||% 0) > 0) (counts[["n_TX_finite"]] %||% 0) / (counts[["n_mask"]] %||% 1) else NA_real_,
+        frac_finite_TP_in_mask = arrival_stats$frac_finite_mask %||% NA_real_,
+        n_pairs = counts[["n_pairs"]] %||% 0,
+        n_TP_finite = counts[["n_TP_finite"]] %||% 0,
+        years_span_TX_obs = tx_span,
+        effort_records = nrow(effort_subset),
+        effort_cells = dplyr::n_distinct(effort_subset$cell_id),
+        effort_years = dplyr::n_distinct(effort_subset$year),
+        unit_min_threshold = unit_info$unit_threshold %||% (pilot_unit_min_tx_obs %||% 50L),
+        meets_unit_gate = (unit_info$n_tx_obs %||% 0) >= (unit_info$unit_threshold %||% (pilot_unit_min_tx_obs %||% 50L))
+      )
+      readr::write_csv(audit, file.path("outputs", "realdata", "information_audit.csv"))
+      audit
+    }),
+    tar_target(pilot_representation_audit, {
+      arrival_tbl <- pilot_grid_info$lookup %>%
+        dplyr::mutate(T_P = pilot_mink_field_default$T_P[cbind(.data$row_idx, .data$col_idx)])
+      metric_from_tbl <- function(tbl, unit_col = "cell_id", tx_col = "tx_obs", tp_col = "T_P",
+                                  label, class = "grid") {
+        if (!nrow(tbl)) {
+          return(tibble::tibble(
+            representation = label,
+            class = class,
+            n_units = 0L,
+            n_TX_obs = 0L,
+            coverage_obs = NA_real_,
+            n_pairs = 0L,
+            frac_finite_TP = NA_real_,
+            years_span_TX_obs = NA_real_,
+            r2_arrival = NA_real_,
+            lag_mean = NA_real_
+          ))
+        }
+        cols_needed <- c(unit_col, tx_col, tp_col)
+        if (!all(cols_needed %in% names(tbl))) {
+          missing <- paste(setdiff(cols_needed, names(tbl)), collapse = ", ")
+          stop("metric_from_tbl missing required columns: ", missing)
+        }
+        tbl_u <- tibble::as_tibble(tbl[, cols_needed, drop = FALSE])
+        names(tbl_u) <- c("unit_id", "tx_obs_raw", "tp_raw")
+        tbl_u <- tbl_u %>%
+          dplyr::group_by(.data$unit_id) %>%
+          dplyr::summarise(
+            tx_obs = {
+              vals <- .data$tx_obs_raw
+              vals <- vals[is.finite(vals)]
+              if (length(vals)) vals[1] else NA_real_
+            },
+            T_P = {
+              vals <- .data$tp_raw
+              vals <- vals[is.finite(vals)]
+              if (length(vals)) vals[1] else NA_real_
+            },
+            .groups = "drop"
+          )
+        unit_vec <- tbl_u$unit_id
+        tx_vec <- tbl_u$tx_obs
+        tp_vec <- tbl_u$T_P
+        n_units <- dplyr::n_distinct(unit_vec)
+        n_tx <- sum(is.finite(tx_vec))
+        n_tp <- sum(is.finite(tp_vec))
+        n_pairs <- sum(is.finite(tx_vec) & is.finite(tp_vec))
+        valid <- is.finite(tx_vec) & is.finite(tp_vec)
+        r2 <- NA_real_
+        lag <- NA_real_
+        if (sum(valid) >= 3) {
+          tx_ok <- tx_vec[valid]
+          tp_ok <- tp_vec[valid]
+          r <- suppressWarnings(stats::cor(tx_ok, tp_ok, use = "complete.obs"))
+          r2 <- if (is.finite(r)) max(0, min(1, r^2)) else NA_real_
+          lag <- mean(tx_ok - tp_ok, na.rm = TRUE)
+        }
+        tx_ok <- tx_vec[is.finite(tx_vec)]
+        tx_span <- if (length(tx_ok) >= 2) diff(range(tx_ok)) else NA_real_
+        tibble::tibble(
+          representation = label,
+          class = class,
+          n_units = n_units,
+          n_TX_obs = n_tx,
+          coverage_obs = if (n_units > 0) n_tx / n_units else NA_real_,
+          n_pairs = n_pairs,
+          frac_finite_TP = if (n_units > 0) n_tp / n_units else NA_real_,
+          years_span_TX_obs = tx_span,
+          r2_arrival = r2,
+          lag_mean = lag
+        )
+      }
+
+      grid_all_tbl <- arrival_tbl %>%
+        dplyr::select(cell_id, T_P) %>%
+        dplyr::left_join(
+          pilot_vole_tx_all$table %>% dplyr::select(cell_id, tx_obs),
+          by = "cell_id"
+        )
+      riparian_ids <- pilot_riparian_table %>%
+        dplyr::filter(.data$riparian) %>%
+        dplyr::distinct(cell_id)
+      grid_rip_tbl <- arrival_tbl %>%
+        dplyr::semi_join(riparian_ids, by = "cell_id") %>%
+        dplyr::select(cell_id, T_P) %>%
+        dplyr::left_join(
+          pilot_vole_tx_riparian$table %>% dplyr::select(cell_id, tx_obs),
+          by = "cell_id"
+        )
+
+      comp_lookup <- pilot_riparian_components$table %>%
+        dplyr::filter(!is.na(.data$cell_id)) %>%
+        dplyr::select(cell_id, comp_id)
+      segment_arrivals <- comp_lookup %>%
+        dplyr::left_join(arrival_tbl %>% dplyr::select(cell_id, T_P), by = "cell_id") %>%
+        dplyr::group_by(comp_id) %>%
+        dplyr::summarise(T_P = mean(.data$T_P, na.rm = TRUE), .groups = "drop")
+      segment_tbl <- comp_lookup %>%
+        dplyr::distinct(comp_id) %>%
+        dplyr::left_join(segment_arrivals, by = "comp_id") %>%
+        dplyr::left_join(
+          pilot_segment_tx %>% dplyr::select(comp_id, tx_obs),
+          by = "comp_id"
+        ) %>%
+        dplyr::mutate(unit_id = paste0("seg_", .data$comp_id))
+
+      audit <- dplyr::bind_rows(
+        metric_from_tbl(grid_all_tbl, unit_col = "cell_id", label = "grid_all", class = "grid"),
+        metric_from_tbl(grid_rip_tbl, unit_col = "cell_id", label = "grid_riparian", class = "grid"),
+        metric_from_tbl(segment_tbl, unit_col = "unit_id", label = "segment", class = "segment")
+      ) %>%
+        dplyr::mutate(
+          unit_min_threshold = pilot_unit_min_tx_obs %||% 50L,
+          meets_unit_gate = .data$n_TX_obs >= .data$unit_min_threshold,
+          preferred = .data$representation == pilot_analysis_unit_pref
+        ) %>%
+        dplyr::arrange(dplyr::desc(.data$meets_unit_gate), dplyr::desc(.data$n_TX_obs))
+      readr::write_csv(audit, file.path("outputs", "realdata", "representation_audit.csv"))
+      audit
+    }),
+    tar_target(pilot_representation_choice, {
+      audit <- pilot_representation_audit
+      if (!nrow(audit)) {
+        return(tibble::tibble(
+          selected_representation = pilot_analysis_unit_pref,
+          selected_reason = "no_audit_rows",
+          meets_unit_gate = FALSE
+        ))
+      }
+      preferred_row <- audit %>%
+        dplyr::filter(.data$representation == pilot_analysis_unit_pref) %>%
+        dplyr::slice_head(n = 1)
+      if (nrow(preferred_row) && isTRUE(preferred_row$meets_unit_gate[[1]])) {
+        return(preferred_row %>%
+          dplyr::transmute(
+            selected_representation = .data$representation,
+            selected_reason = "preferred_meets_gate",
+            meets_unit_gate = .data$meets_unit_gate
+          ))
+      }
+      fallback <- audit %>%
+        dplyr::filter(.data$meets_unit_gate) %>%
+        dplyr::arrange(dplyr::desc(.data$n_TX_obs), dplyr::desc(.data$coverage_obs)) %>%
+        dplyr::slice_head(n = 1)
+      if (!nrow(fallback)) {
+        fallback <- audit %>% dplyr::slice_head(n = 1)
+        reason <- "no_representation_meets_gate"
+      } else {
+        reason <- "fallback_to_gate_passing_representation"
+      }
+      fallback %>%
+        dplyr::transmute(
+          selected_representation = .data$representation,
+          selected_reason = reason,
+          meets_unit_gate = .data$meets_unit_gate
+        )
     }),
     tar_target(pilot_mink_field_default, {
       delta_cfg <- pilot_cfg$pilot$mink_P$delta_region %||% list()
@@ -1178,6 +1484,263 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     tar_target(pilot_abc_final, {
       if (is.null(pilot_abc_stage2$samples)) pilot_abc_stage1 else pilot_abc_stage2
     }),
+    tar_target(pilot_ablation_cfg, {
+      pilot_cfg$pilot$ablation %||% list(enabled = TRUE, n_draws = NULL, n_cores = 4, seed = 8201)
+    }),
+    tar_target(pilot_ablation_theta, {
+      cfg <- pilot_ablation_cfg
+      if (!isTRUE(cfg$enabled)) {
+        return(tibble::tibble())
+      }
+      draws_env <- suppressWarnings(as.integer(Sys.getenv("EXDYN_ABLATION_DRAWS", NA_character_)))
+      n_draws_cfg <- cfg$n_draws %||% nrow(pilot_theta)
+      n_draws <- if (is.finite(draws_env) && draws_env > 0) draws_env else n_draws_cfg
+      n_draws <- min(nrow(pilot_theta), max(1L, as.integer(n_draws)))
+      pilot_theta %>% dplyr::arrange(.data$draw) %>% dplyr::slice_head(n = n_draws)
+    }),
+    tar_target(pilot_ablation_results, {
+      cfg <- pilot_ablation_cfg
+      if (!isTRUE(cfg$enabled) || !nrow(pilot_ablation_theta)) {
+        return(tibble::tibble())
+      }
+      cores_env <- suppressWarnings(as.integer(Sys.getenv("EXDYN_ABLATION_CORES", NA_character_)))
+      n_cores_cfg <- cfg$n_cores %||% 4L
+      n_cores <- if (is.finite(cores_env) && cores_env > 0) cores_env else n_cores_cfg
+      seed_base <- cfg$seed %||% 8201L
+      delta_penalty_cfg <- pilot_cfg$pilot$delta_penalty %||% list(lambda_mag = 0, lambda_tv = 0)
+      base_args <- list(
+        theta_tbl = pilot_ablation_theta,
+        grid_info = pilot_grid_info,
+        years_vec = pilot_years,
+        T_P_base = pilot_mink_field_default$T_P,
+        TX_obs = pilot_vole_tx$matrix,
+        unit_info = pilot_unit_structure,
+        mink_cfg = pilot_cfg$pilot$mink_P,
+        compat_cfg = pilot_cfg$pilot$compat,
+        delta_penalty_cfg = delta_penalty_cfg,
+        n_cores = n_cores,
+        log_mem = FALSE
+      )
+      delta_only <- do.call(
+        exdyn_real_ablation_screen,
+        c(base_args, list(use_re = FALSE, seed_base = seed_base))
+      )
+      delta_plus_re <- do.call(
+        exdyn_real_ablation_screen,
+        c(base_args, list(use_re = TRUE, seed_base = seed_base + 100000L))
+      )
+      dplyr::bind_rows(delta_only, delta_plus_re)
+    }, deployment = "main"),
+    tar_target(pilot_ablation_summary, {
+      exdyn_real_ablation_summary(pilot_ablation_results)
+    }),
+    tar_target(pilot_ablation_written, {
+      if (!nrow(pilot_ablation_results)) {
+        return(character())
+      }
+      out_dir <- pilot_output_dir
+      detail_path <- file.path(out_dir, "ablation_delta_re.csv")
+      summary_path <- file.path(out_dir, "ablation_delta_re_summary.csv")
+      plot_path <- file.path(out_dir, "ablation_delta_re.png")
+      readr::write_csv(pilot_ablation_results, detail_path)
+      readr::write_csv(pilot_ablation_summary, summary_path)
+      p <- pilot_ablation_results %>%
+        dplyr::mutate(model = factor(.data$model, levels = c("delta_only", "delta_plus_re"))) %>%
+        ggplot2::ggplot(ggplot2::aes(x = .data$model, y = .data$loss, fill = .data$model)) +
+        ggplot2::geom_boxplot(outlier.alpha = 0.2) +
+        ggplot2::theme_minimal() +
+        ggplot2::scale_fill_manual(values = c("#4c78a8", "#f58518")) +
+        ggplot2::labs(
+          title = "Ablation: delta regularisation only vs + pred_scale RE",
+          x = "Condition",
+          y = "Screen loss"
+        )
+      ggplot2::ggsave(plot_path, p, width = 6.5, height = 4.5, dpi = 150)
+      c(detail_path, summary_path, plot_path)
+    }, format = "file"),
+    tar_target(pilot_ppc_cfg, {
+      pilot_cfg$pilot$ppc %||% list(n_draws = 20, seed = 9103)
+    }),
+    tar_target(pilot_posterior_predictive, {
+      abc_samples <- pilot_abc_final$samples %||% tibble::tibble()
+      if (!nrow(abc_samples)) {
+        return(list(curves = tibble::tibble(), summaries = tibble::tibble(), q50 = NULL))
+      }
+      cfg <- pilot_ppc_cfg
+      n_draws <- min(nrow(abc_samples), max(1L, as.integer(cfg$n_draws %||% 20L)))
+      set.seed(cfg$seed %||% 9103L)
+      pick <- sample.int(nrow(abc_samples), n_draws)
+      draws <- abc_samples[pick, , drop = FALSE]
+      curves <- vector("list", n_draws)
+      summaries <- vector("list", n_draws)
+      tx_stack <- array(NA_real_, dim = c(pilot_grid_info$nx, pilot_grid_info$ny, n_draws))
+      for (i in seq_len(n_draws)) {
+        theta <- draws[i, , drop = FALSE]
+        sim <- exdyn_real_simulate_tx(
+          theta = theta,
+          grid_info = pilot_grid_info,
+          years_vec = pilot_years,
+          T_P_base = pilot_mink_field_default$T_P,
+          unit_lookup = pilot_unit_structure$lookup,
+          unit_mask = pilot_unit_structure$mask,
+          mink_cfg = pilot_cfg$pilot$mink_P,
+          sigma_override = NULL,
+          seed = (cfg$seed %||% 9103L) + i,
+          log_mem = FALSE,
+          log_tag = sprintf("ppc draw %02d", i)
+        )
+        tx_stack[, , i] <- sim$TX_sim
+        sum_i <- exdyn_summary_tx_response(
+          sim$TX_sim,
+          sim$T_P_adj,
+          years = pilot_years,
+          coverage_breaks = pilot_unit_structure$coverage_breaks,
+          mask = pilot_unit_structure$mask
+        )
+        summaries[[i]] <- tibble::enframe(sum_i, name = "stat", value = "value") %>%
+          dplyr::mutate(draw = i)
+        curve_vals <- sum_i[grepl("^cov_curve_", names(sum_i))]
+        curves[[i]] <- tibble::tibble(
+          draw = i,
+          break_id = seq_along(curve_vals),
+          value = as.numeric(curve_vals)
+        )
+      }
+      q50 <- apply(tx_stack, c(1, 2), function(x) stats::quantile(x, probs = 0.5, na.rm = TRUE))
+      list(
+        curves = dplyr::bind_rows(curves),
+        summaries = dplyr::bind_rows(summaries),
+        q50 = q50
+      )
+    }, deployment = "main"),
+    tar_target(pilot_posterior_predictive_written, {
+      out_dir <- pilot_output_dir
+      curves <- pilot_posterior_predictive$curves %||% tibble::tibble()
+      summaries <- pilot_posterior_predictive$summaries %||% tibble::tibble()
+      q50 <- pilot_posterior_predictive$q50
+      curve_obs <- exdyn_summary_tx_response(
+        pilot_vole_tx$matrix,
+        pilot_mink_field_default$T_P,
+        years = pilot_years,
+        coverage_breaks = pilot_unit_structure$coverage_breaks,
+        mask = pilot_unit_structure$mask
+      )
+      obs_vals <- curve_obs[grepl("^cov_curve_", names(curve_obs))]
+      n_breaks <- length(obs_vals)
+      if (n_breaks == 0L) {
+        n_breaks <- length(pilot_unit_structure$coverage_breaks) + 2L
+      }
+      curve_env <- if (nrow(curves)) {
+        curves %>%
+          dplyr::group_by(.data$break_id) %>%
+          dplyr::summarise(
+            q05 = stats::quantile(.data$value, 0.05, na.rm = TRUE),
+            q50 = stats::quantile(.data$value, 0.50, na.rm = TRUE),
+            q95 = stats::quantile(.data$value, 0.95, na.rm = TRUE),
+            .groups = "drop"
+          ) %>%
+          dplyr::mutate(obs = obs_vals[.data$break_id])
+      } else {
+        tibble::tibble(
+          break_id = seq_len(n_breaks),
+          q05 = NA_real_,
+          q50 = NA_real_,
+          q95 = NA_real_,
+          obs = obs_vals[seq_len(n_breaks)]
+        )
+      }
+      curve_path <- file.path(out_dir, "posterior_predictive_coverage.csv")
+      summary_path <- file.path(out_dir, "posterior_predictive_summaries.csv")
+      curve_plot_path <- file.path(out_dir, "posterior_predictive_coverage.png")
+      map_path <- file.path(out_dir, "posterior_predictive_tx_q50.png")
+      readr::write_csv(curve_env, curve_path)
+      readr::write_csv(summaries, summary_path)
+      if (nrow(curves)) {
+        p_curve <- ggplot2::ggplot(curve_env, ggplot2::aes(x = .data$break_id)) +
+          ggplot2::geom_ribbon(ggplot2::aes(ymin = .data$q05, ymax = .data$q95), fill = "#a6cee3", alpha = 0.35) +
+          ggplot2::geom_line(ggplot2::aes(y = .data$q50), color = "#1f78b4", linewidth = 1) +
+          ggplot2::geom_point(ggplot2::aes(y = .data$obs), color = "#e31a1c", size = 2) +
+          ggplot2::theme_minimal() +
+          ggplot2::labs(
+            title = "Posterior predictive coverage curve",
+            x = "Coverage breakpoint index",
+            y = "Cumulative coverage"
+          )
+      } else {
+        p_curve <- ggplot2::ggplot(curve_env, ggplot2::aes(x = .data$break_id, y = .data$obs)) +
+          ggplot2::geom_point(color = "#e31a1c", size = 2) +
+          ggplot2::geom_line(color = "#e31a1c", linewidth = 0.8) +
+          ggplot2::theme_minimal() +
+          ggplot2::labs(
+            title = "Posterior predictive coverage curve (no accepted ABC draws)",
+            subtitle = "Observed curve shown; envelope unavailable",
+            x = "Coverage breakpoint index",
+            y = "Cumulative coverage"
+          )
+      }
+      ggplot2::ggsave(curve_plot_path, p_curve, width = 6.5, height = 4.5, dpi = 150)
+      out_paths <- c(curve_path, summary_path, curve_plot_path)
+      if (!is.null(q50)) {
+        p_map <- exdyn_plot_surface(
+          q50,
+          pilot_grid_info,
+          "Posterior predictive TX (median)",
+          "Year"
+        )
+        ggplot2::ggsave(map_path, p_map, width = 6.5, height = 6.0, dpi = 150)
+        out_paths <- c(out_paths, map_path)
+      }
+      out_paths
+    }, format = "file"),
+    tar_target(pilot_gate_evaluation, {
+      best <- pilot_screen %>% dplyr::arrange(.data$rank) %>% dplyr::slice_head(n = 1)
+      best_val <- function(col) {
+        if (!nrow(best) || !(col %in% names(best))) return(NA_real_)
+        val <- best[[col]][[1]]
+        if (is.null(val)) NA_real_ else as.numeric(val)
+      }
+      abc_samples <- pilot_abc_final$samples %||% tibble::tibble()
+      abc_summ <- pilot_abc_final$summaries %||% tibble::tibble()
+      n_sims <- pilot_cfg$pilot$abc$n_stage2 %||% pilot_cfg$pilot$abc$n_stage1 %||% NA_real_
+      accept_rate <- if (is.finite(n_sims) && n_sims > 0) nrow(abc_samples) / n_sims else NA_real_
+      best_r2 <- best_val("r2_arrival")
+      best_lag <- best_val("lag_mean")
+      best_cov <- best_val("coverage")
+      gate_tbl <- tibble::tibble(
+        gate = c("best_r2", "best_lag", "best_coverage", "abc_accept_rate"),
+        value = c(best_r2, best_lag, best_cov, accept_rate),
+        threshold = c(">=0.20", "[2,25]", ">=0.15", "0<rate<0.20"),
+        pass = c(
+          is.finite(best_r2) && best_r2 >= 0.20,
+          is.finite(best_lag) && best_lag >= 2 && best_lag <= 25,
+          is.finite(best_cov) && best_cov >= 0.15,
+          is.finite(accept_rate) && accept_rate > 0 && accept_rate < 0.20
+        )
+      )
+      posterior_tbl <- if (!nrow(abc_summ)) {
+        tibble::tibble(
+          metric = c("abc_r2_median", "abc_lag_median", "abc_coverage_median"),
+          value = NA_real_
+        )
+      } else {
+        tibble::tibble(
+          metric = c("abc_r2_median", "abc_lag_median", "abc_coverage_median"),
+          value = c(
+            stats::median(abc_summ$r2_arrival, na.rm = TRUE),
+            stats::median(abc_summ$lag_mean, na.rm = TRUE),
+            stats::median(abc_summ$coverage, na.rm = TRUE)
+          )
+        )
+      }
+      list(gates = gate_tbl, posterior = posterior_tbl)
+    }),
+    tar_target(pilot_gate_evaluation_csv, {
+      gate_path <- file.path(pilot_output_dir, "gate_evaluation.csv")
+      post_path <- file.path(pilot_output_dir, "posterior_metrics.csv")
+      readr::write_csv(pilot_gate_evaluation$gates %||% tibble::tibble(), gate_path)
+      readr::write_csv(pilot_gate_evaluation$posterior %||% tibble::tibble(), post_path)
+      c(gate_path, post_path)
+    }, format = "file"),
     tar_target(pilot_tables_written, {
       dir.create(pilot_output_dir, recursive = TRUE, showWarnings = FALSE)
       vole_table <- pilot_vole_tx$table %>%
@@ -1232,11 +1795,18 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       pilot_mink_field_default
       pilot_shortlist
       pilot_abc_final
+      pilot_information_audit
+      pilot_representation_audit
+      pilot_representation_choice
+      pilot_ablation_written
+      pilot_gate_evaluation_csv
+      pilot_posterior_predictive_written
       pilot_output_dir
       pilot_tables_written
       pilot_maps_written
       pilot_scatter_path
       quarto::quarto_render("reports/pilot_mink_vole.qmd", output_format = "html")
+      file.path("reports", "pilot_mink_vole.html")
     }, format = "file"),
     tar_target(pilot_report_pdf, {
       pilot_scores
@@ -1247,11 +1817,18 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       pilot_mink_field_default
       pilot_shortlist
       pilot_abc_final
+      pilot_information_audit
+      pilot_representation_audit
+      pilot_representation_choice
+      pilot_ablation_written
+      pilot_gate_evaluation_csv
+      pilot_posterior_predictive_written
       pilot_output_dir
       pilot_tables_written
       pilot_maps_written
       pilot_scatter_path
       quarto::quarto_render("reports/pilot_mink_vole.qmd", output_format = "pdf")
+      file.path("reports", "pilot_mink_vole.pdf")
     }, format = "file"),
     tar_target(pilot_summary, {
       best <- dplyr::arrange(pilot_screen, .data$rank) %>% dplyr::slice_head(n = 1)
@@ -1288,6 +1865,62 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       cat(log_line, "\n", file = file.path("logs", "wo9b.log"), append = TRUE)
       cat(log_line, "\n", file = file.path("logs", "wo9d.log"), append = TRUE)
       summary
-    }, deployment = "main")
+    }, deployment = "main"),
+    tar_target(pilot_canonical_cfg, {
+      pilot_cfg$pilot$canonical %||% list(enabled = FALSE)
+    }),
+    tar_target(pilot_canonical_dir, {
+      cfg <- pilot_canonical_cfg
+      if (!isTRUE(cfg$enabled)) {
+        return(NULL)
+      }
+      root <- cfg$root %||% file.path("outputs", "canonical")
+      milestone <- cfg$milestone %||% "0.4"
+      wp_id <- cfg$wp_id %||% "WP-0.4.3"
+      run_id <- cfg$run_id %||% exdyn_make_run_id("real")
+      exdyn_canonical_run_dir(root, milestone, wp_id, run_id)
+    }),
+    tar_target(pilot_canonical_manifest, {
+      cfg <- pilot_canonical_cfg
+      canonical_dir <- pilot_canonical_dir
+      if (is.null(canonical_dir)) {
+        return(NULL)
+      }
+      snapshot_path <- file.path(canonical_dir, "config", "realdata.yaml")
+      exdyn_write_config_snapshot(pilot_cfg, snapshot_path)
+      session_path <- file.path(canonical_dir, "session_info.txt")
+      exdyn_write_session_info(session_path)
+      outputs <- c(
+        pilot_report_html,
+        pilot_report_pdf,
+        pilot_tables_written,
+        pilot_maps_written,
+        pilot_scatter_path,
+        pilot_ablation_written,
+        pilot_gate_evaluation_csv,
+        pilot_posterior_predictive_written,
+        file.path("outputs", "realdata", "information_audit.csv"),
+        file.path("outputs", "realdata", "representation_audit.csv")
+      )
+      copied <- exdyn_copy_to_canonical(outputs, canonical_dir)
+      manifest <- list(
+        schema_version = exdyn_schema_version(),
+        commit_sha = exdyn_git_sha(),
+        run_id = basename(canonical_dir),
+        run_timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+        milestone = cfg$milestone %||% "0.4",
+        wp_id = cfg$wp_id %||% "WP-0.4.3",
+        config_snapshots = list(realdata = exdyn_relative_path(snapshot_path, canonical_dir)),
+        seeds = list(
+          screen_seed = 42L,
+          abc_seed = pilot_cfg$pilot$abc$seed %||% NA_integer_,
+          ppc_seed = pilot_ppc_cfg$seed %||% NA_integer_,
+          ablation_seed = pilot_ablation_cfg$seed %||% NA_integer_
+        ),
+        commands = cfg$commands %||% c("make pilot")
+      )
+      manifest$outputs <- sort(unique(exdyn_relative_path(copied, canonical_dir)))
+      exdyn_write_manifest(manifest, file.path(canonical_dir, "manifest.yaml"))
+    }, format = "file")
   )
 }

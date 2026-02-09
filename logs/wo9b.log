@@ -298,3 +298,28 @@
 [2026-02-09 11:51:47] WO9d pilot start 
 [2026-02-09 12:27:06] WO9d pilot start 
 [2026-02-09 13:46:46] WO9d pilot start 
+[2026-02-09 15:47:24] WO9d pilot start 
+[2026-02-09 16:05:24] WO9d pilot start 
+[2026-02-09 17:08:46] WO9d pilot start 
+[2026-02-09 17:11:27] WO9d pilot start 
+[2026-02-09 17:13:37] WO9d pilot start 
+[2026-02-09 17:13:40] Analysis units=grid_all preferred=grid_all n_units=3621 n_tx_obs=569 threshold=50 met=TRUE 
+[2026-02-09 17:16:50] Vole TX normalisation mode=taxa taxa=4: spearman=0.973 changed_cells=0 
+[2026-02-09 17:19:01] WO9d pilot start 
+[2026-02-09 17:19:16] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2026-02-09 17:27:28] Guard attempt 1 coverage=0.4177 
+[2026-02-09 17:31:04] WO9d pilot start 
+[2026-02-09 18:10:58] WO9d pilot start 
+[2026-02-09 18:40:59] WO9b summary: n_mink_cells=7 n_vole_cells=569 baseline_units=1711 baseline_tx=569 r2=NA lag=NA coverage=0.000 best_draw=88 PNGs=outputs/realdata/pilot_mink_vole/TX_obs_riparian_map.png;outputs/realdata/pilot_mink_vole/TX_sim_rank01.png;outputs/realdata/pilot_mink_vole/TX_diff_rank01.png;outputs/realdata/pilot_mink_vole/TX_sim_rank02.png;outputs/realdata/pilot_mink_vole/TX_sim_rank03.png 
+[2026-02-09 19:27:18] WO9d pilot start 
+[2026-02-09 19:30:08] WO9d pilot start 
+[2026-02-09 19:33:27] Vole TX normalisation mode=taxa taxa=4: spearman=0.973 changed_cells=0 
+[2026-02-09 19:33:33] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2026-02-09 19:41:14] Guard attempt 1 coverage=0.4177 
+[2026-02-09 19:47:30] Vole TX normalisation mode=taxa taxa=4: spearman=0.973 changed_cells=0 
+[2026-02-09 19:47:45] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2026-02-09 19:55:26] Guard attempt 1 coverage=0.4177 
+[2026-02-09 20:37:18] Vole TX normalisation mode=taxa taxa=4: spearman=0.973 changed_cells=0 
+[2026-02-09 20:37:32] c* quantiles p25=1.517 p50=1.517 p75=1.517 p90=1.517; pred_c bounds=[0.910, 3.000] 
+[2026-02-09 20:45:07] Guard attempt 1 coverage=0.4177 
+[2026-02-09 21:31:32] WO9b summary: n_mink_cells=7 n_vole_cells=569 baseline_units=1711 baseline_tx=569 r2=NA lag=NA coverage=0.000 best_draw=6 PNGs=outputs/realdata/pilot_mink_vole/TX_obs_riparian_map.png;outputs/realdata/pilot_mink_vole/TX_sim_rank01.png;outputs/realdata/pilot_mink_vole/TX_diff_rank01.png;outputs/realdata/pilot_mink_vole/TX_sim_rank02.png;outputs/realdata/pilot_mink_vole/TX_sim_rank03.png 

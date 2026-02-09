@@ -47,18 +47,81 @@ pilot_riparian_mask <- tar_read(pilot_riparian_mask)
 pilot_riparian_table <- tar_read(pilot_riparian_table)
 pilot_effort_years <- tar_read(pilot_effort_years)
 pilot_effort_max_records <- tar_read(pilot_effort_max_records)
+pilot_information_audit <- tar_read(pilot_information_audit)
+pilot_representation_audit <- tar_read(pilot_representation_audit)
+pilot_representation_choice <- tar_read(pilot_representation_choice)
+pilot_ablation_results <- tar_read(pilot_ablation_results)
+pilot_ablation_summary <- tar_read(pilot_ablation_summary)
+pilot_gate_evaluation <- tar_read(pilot_gate_evaluation)
+pilot_posterior_predictive <- tar_read(pilot_posterior_predictive)
 compat_cfg <- pilot_cfg$pilot$compat
-mask_summary <- tar_read(pilot_mask_summary)
-mask_results_tbl <- tar_read(pilot_mask_results_csv)
-mask_matrices <- tar_read(pilot_mask_matrices)
-tx_hyper_results <- tar_read(pilot_tx_sweep)$results
-tx_hyper_summary <- tar_read(pilot_tx_hyper_summary)
-resolution_sweep <- tar_read(pilot_resolution_sweep)
+safe_tar_read <- function(name, default) {
+  tryCatch(
+    targets::tar_read_raw(name),
+    error = function(e) default
+  )
+}
+mask_summary <- safe_tar_read(
+  "pilot_mask_summary",
+  tibble::tibble(
+    tau_km = numeric(),
+    n_cells_riparian = integer(),
+    n_tx_obs = integer(),
+    coverage = numeric()
+  )
+)
+mask_results_tbl <- safe_tar_read(
+  "pilot_mask_results_csv",
+  tibble::tibble(
+    cell_id = character(),
+    tau_km = numeric(),
+    tx_obs = numeric(),
+    reason = character()
+  )
+)
+mask_matrices <- safe_tar_read("pilot_mask_matrices", list())
+tx_sweep <- safe_tar_read(
+  "pilot_tx_sweep",
+  list(
+    results = tibble::tibble(
+      cell_id = character(),
+      baseline_window = numeric(),
+      hold_years = numeric(),
+      drop_fraction = numeric(),
+      tx_obs = numeric(),
+      reason = character()
+    ),
+    funnels = tibble::tibble()
+  )
+)
+tx_hyper_results <- tx_sweep$results
+tx_hyper_summary <- safe_tar_read("pilot_tx_hyper_summary", tibble::tibble())
+resolution_sweep <- safe_tar_read(
+  "pilot_resolution_sweep",
+  list(
+    summary = tibble::tibble(
+      resolution_km = numeric(),
+      n_units = numeric(),
+      n_tx_obs = numeric(),
+      coverage = numeric(),
+      r2_arrival = numeric(),
+      lag_mean = numeric()
+    ),
+    details = list()
+  )
+)
 resolution_summary <- resolution_sweep$summary
 resolution_details <- resolution_sweep$details
-baseline_funnel <- tar_read(pilot_baseline_funnel)
-segment_tx <- tar_read(pilot_segment_tx)
-segment_cell_tx <- tar_read(pilot_segment_cell_tx)
+baseline_funnel <- safe_tar_read("pilot_baseline_funnel", tibble::tibble(stage = character(), n_units = numeric()))
+segment_tx <- safe_tar_read(
+  "pilot_segment_tx",
+  tibble::tibble(comp_id = character(), n_cells = numeric(), tx_obs = numeric(), reason = character())
+)
+segment_cell_tx <- safe_tar_read(
+  "pilot_segment_cell_tx",
+  tibble::tibble(cell_id = character(), comp_id = character(), tx_obs = numeric(), reason = character())
+)
+pilot_unit_structure <- tar_read(pilot_unit_structure)
 
 compat_top <- pilot_scores %>% arrange(loss) %>% slice_head(n = 10)
 pilot_bounds <- tibble::tibble(
@@ -164,7 +227,10 @@ if (pilot_vole_tx_qc$n_changed > 0) {
 
 ```{r triage-metrics-setup}
 arrival_tbl <- pilot_grid_info$lookup %>%
-  dplyr::mutate(T_P = pilot_mink_field_default$T_P[cbind(.data$row_idx, .data$col_idx)])
+  dplyr::mutate(
+    cell_id = as.character(.data$cell_id),
+    T_P = pilot_mink_field_default$T_P[cbind(.data$row_idx, .data$col_idx)]
+  )
 
 metrics_from_df <- function(df) {
   n_units <- nrow(df)
@@ -187,10 +253,12 @@ metrics_from_df <- function(df) {
 }
 
 baseline_tbl <- pilot_vole_tx$table %>%
+  dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
   dplyr::left_join(arrival_tbl, by = "cell_id")
 baseline_metrics <- metrics_from_df(baseline_tbl)
 
 mask_metrics <- mask_results_tbl %>%
+  dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
   dplyr::left_join(arrival_tbl, by = "cell_id")
 mask_groups <- if (nrow(mask_metrics)) dplyr::group_split(mask_metrics, tau_km) else list()
 mask_metrics <- if (length(mask_groups)) {
@@ -212,6 +280,7 @@ mask_metrics <- if (length(mask_groups)) {
 }
 
 hyper_metrics <- tx_hyper_results %>%
+  dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
   dplyr::left_join(arrival_tbl, by = "cell_id")
 hyper_groups <- if (nrow(hyper_metrics)) {
   dplyr::group_split(hyper_metrics, baseline_window, hold_years, drop_fraction)
@@ -249,7 +318,8 @@ resolution_metrics <- resolution_summary %>%
   dplyr::select(resolution_km, n_units, n_tx, coverage, r2_arrival, lag_mean)
 
 comp_lookup <- tar_read(pilot_riparian_components)$table %>%
-  dplyr::select(cell_id, comp_id, n_cells_comp)
+  dplyr::select(cell_id, comp_id, n_cells_comp) %>%
+  dplyr::mutate(cell_id = as.character(.data$cell_id))
 segment_arrivals <- comp_lookup %>%
   dplyr::left_join(arrival_tbl, by = "cell_id") %>%
   dplyr::group_by(comp_id) %>%
@@ -321,26 +391,40 @@ knitr::kable(mask_metrics, digits = 3, caption = "Mask threshold sweep (τ in km
 ```
 
 ```{r mask-maps, fig.width=7, fig.height=6}
-mask_plots <- purrr::imap(mask_matrices, function(mat, tau) {
-  tau_num <- as.numeric(tau)
-  mask_df <- pilot_grid_info$lookup |>
-    dplyr::mutate(mask = mat[cbind(.data$row_idx, .data$col_idx)]) |>
-    dplyr::filter(.data$mask) |>
-    dplyr::left_join(mask_results_tbl |> dplyr::filter(tau_km == tau_num) |> dplyr::select(cell_id, tx_obs), by = "cell_id") |>
-    dplyr::mutate(has_tx = !is.na(.data$tx_obs))
-  grid_plot <- pilot_grid |>
-    dplyr::left_join(mask_df |> dplyr::select(cell_id, has_tx), by = "cell_id")
-  ggplot(grid_plot) +
-    geom_sf(aes(fill = has_tx), colour = NA) +
-    scale_fill_manual(values = c("grey90", "#b2182b"), na.value = "grey95", name = "TX obs", labels = c("No", "Yes")) +
-    coord_sf() +
-    theme_minimal() +
-    labs(title = sprintf("τ = %s km", tau), subtitle = sprintf("TX cells: %d", sum(mask_df$has_tx, na.rm = TRUE)))
-})
-if (has_patchwork) {
-  patchwork::wrap_plots(mask_plots)
+if (!length(mask_matrices)) {
+  ggplot() +
+    theme_void() +
+    labs(title = "Mask sweep maps unavailable in this constrained run")
 } else {
-  mask_plots[[1]]
+  mask_plots <- purrr::imap(mask_matrices, function(mat, tau) {
+    tau_num <- as.numeric(tau)
+    mask_df <- pilot_grid_info$lookup |>
+      dplyr::mutate(cell_id = as.character(.data$cell_id)) |>
+      dplyr::mutate(mask = mat[cbind(.data$row_idx, .data$col_idx)]) |>
+      dplyr::filter(.data$mask) |>
+      dplyr::left_join(
+        mask_results_tbl |>
+          dplyr::mutate(cell_id = as.character(.data$cell_id)) |>
+          dplyr::filter(tau_km == tau_num) |>
+          dplyr::select(cell_id, tx_obs),
+        by = "cell_id"
+      ) |>
+      dplyr::mutate(has_tx = !is.na(.data$tx_obs))
+    grid_plot <- pilot_grid |>
+      dplyr::mutate(cell_id = as.character(.data$cell_id)) |>
+      dplyr::left_join(mask_df |> dplyr::select(cell_id, has_tx), by = "cell_id")
+    ggplot(grid_plot) +
+      geom_sf(aes(fill = has_tx), colour = NA) +
+      scale_fill_manual(values = c("grey90", "#b2182b"), na.value = "grey95", name = "TX obs", labels = c("No", "Yes")) +
+      coord_sf() +
+      theme_minimal() +
+      labs(title = sprintf("τ = %s km", tau), subtitle = sprintf("TX cells: %d", sum(mask_df$has_tx, na.rm = TRUE)))
+  })
+  if (has_patchwork && length(mask_plots) > 1) {
+    patchwork::wrap_plots(mask_plots)
+  } else {
+    mask_plots[[1]]
+  }
 }
 ```
 
@@ -367,13 +451,16 @@ if (is.null(best_hyper) || !nrow(best_hyper)) {
     drop_fraction = best_h$drop_fraction
   )
   best_h_cells <- tx_hyper_results %>%
+    dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
     dplyr::filter(
       baseline_window == best_h_params$baseline_window,
       hold_years == best_h_params$hold_years,
       drop_fraction == best_h_params$drop_fraction
     ) %>%
     dplyr::select(cell_id, tx_obs)
-  grid_hyper <- pilot_grid %>% dplyr::left_join(best_h_cells, by = "cell_id")
+  grid_hyper <- pilot_grid %>%
+    dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
+    dplyr::left_join(best_h_cells, by = "cell_id")
   ggplot(grid_hyper) +
     geom_sf(aes(fill = !is.na(tx_obs)), colour = NA) +
     scale_fill_manual(values = c("grey90", "#1b9e77"), name = "TX obs", labels = c("No", "Yes")) +
@@ -400,7 +487,14 @@ if (is.null(best_resolution) || !nrow(best_resolution) || is.na(best_resolution$
   best_res <- best_resolution$resolution_km[1]
   res_detail <- resolution_details[[as.character(best_res)]]
   agg_grid <- exdyn_aggregate_grid(pilot_grid, best_res)
-  grid_res <- agg_grid$grid %>% dplyr::left_join(res_detail %>% dplyr::select(cell_id, tx_obs), by = "cell_id")
+  grid_res <- agg_grid$grid %>%
+    dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
+    dplyr::left_join(
+      res_detail %>%
+        dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
+        dplyr::select(cell_id, tx_obs),
+      by = "cell_id"
+    )
   ggplot(grid_res) +
     geom_sf(aes(fill = !is.na(tx_obs)), colour = NA) +
     scale_fill_manual(values = c("grey90", "#7570b3"), name = "TX obs", labels = c("No", "Yes")) +
@@ -425,13 +519,150 @@ knitr::kable(
 
 ```{r segment-map, fig.width=6.5, fig.height=6}
 segment_map <- pilot_grid %>%
-  dplyr::left_join(segment_cell_tx %>% dplyr::select(cell_id, tx_obs), by = "cell_id")
+  dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
+  dplyr::left_join(
+    segment_cell_tx %>%
+      dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
+      dplyr::select(cell_id, tx_obs),
+    by = "cell_id"
+  )
 ggplot(segment_map) +
   geom_sf(aes(fill = !is.na(tx_obs)), colour = NA) +
   scale_fill_manual(values = c("grey90", "#d95f02"), name = "TX obs", labels = c("No", "Yes")) +
   coord_sf() +
   theme_minimal() +
   labs(title = "Segment-level extirpation (components)")
+```
+
+## Information gate (WP-0.4.0)
+
+```{r information-audit}
+knitr::kable(
+  pilot_information_audit,
+  digits = 3,
+  caption = "Real-data information audit (go/no-go metrics)"
+)
+```
+
+The current information gate status is:
+
+```{r information-verdict}
+gate_flag <- pilot_information_audit$meets_unit_gate[[1]] %||% FALSE
+label <- if (isTRUE(gate_flag)) "GO: enough information to attempt constrained inference." else "NO-GO: representation underpowered; inference likely data-limited."
+tibble::tibble(status = label)
+```
+
+## Representation audit (WP-0.4.1)
+
+```{r representation-audit}
+knitr::kable(
+  pilot_representation_audit %>%
+    dplyr::arrange(dplyr::desc(.data$meets_unit_gate), dplyr::desc(.data$n_TX_obs)),
+  digits = 3,
+  caption = "Representation audit across candidate unit systems"
+)
+```
+
+```{r representation-choice}
+knitr::kable(
+  pilot_representation_choice,
+  caption = "Selected representation for constrained run"
+)
+```
+
+## Ablation: δ regularisation vs + pred_scale RE (WP-0.4.2)
+
+```{r ablation-summary}
+if (nrow(pilot_ablation_summary)) {
+  knitr::kable(
+    pilot_ablation_summary,
+    digits = 3,
+    caption = "Ablation summary (same draws, two conditions)"
+  )
+} else {
+  knitr::kable(tibble::tibble(note = "Ablation not enabled or no draws were produced."))
+}
+```
+
+```{r ablation-plot, fig.width=6.8, fig.height=4.6}
+if (nrow(pilot_ablation_results)) {
+  pilot_ablation_results %>%
+    dplyr::mutate(model = factor(.data$model, levels = c("delta_only", "delta_plus_re"))) %>%
+    ggplot(aes(x = .data$model, y = .data$loss, fill = .data$model)) +
+    geom_boxplot(outlier.alpha = 0.2) +
+    scale_fill_manual(values = c("#4c78a8", "#f58518")) +
+    theme_minimal() +
+    labs(title = "Ablation comparison", x = "Condition", y = "Loss")
+} else {
+  ggplot() + theme_void() + labs(title = "No ablation results available.")
+}
+```
+
+## Constrained run gates + posterior predictive (WP-0.4.3)
+
+```{r gate-table}
+knitr::kable(
+  pilot_gate_evaluation$gates,
+  digits = 3,
+  caption = "Constrained-run gate evaluation"
+)
+```
+
+```{r posterior-table}
+knitr::kable(
+  pilot_gate_evaluation$posterior,
+  digits = 3,
+  caption = "Posterior predictive summary metrics"
+)
+```
+
+```{r posterior-coverage, fig.width=6.8, fig.height=4.8}
+ppc_curves <- pilot_posterior_predictive$curves %||% tibble::tibble()
+if (nrow(ppc_curves)) {
+  curve_obs <- exdyn_summary_tx_response(
+    pilot_vole_tx$matrix,
+    pilot_mink_field_default$T_P,
+    years = pilot_years,
+    coverage_breaks = pilot_unit_structure$coverage_breaks,
+    mask = pilot_unit_structure$mask
+  )
+  obs_vals <- curve_obs[grepl("^cov_curve_", names(curve_obs))]
+  ppc_env <- ppc_curves %>%
+    dplyr::group_by(.data$break_id) %>%
+    dplyr::summarise(
+      q05 = stats::quantile(.data$value, 0.05, na.rm = TRUE),
+      q50 = stats::quantile(.data$value, 0.50, na.rm = TRUE),
+      q95 = stats::quantile(.data$value, 0.95, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::mutate(obs = obs_vals[.data$break_id])
+  ggplot(ppc_env, aes(x = .data$break_id)) +
+    geom_ribbon(aes(ymin = .data$q05, ymax = .data$q95), fill = "#a6cee3", alpha = 0.35) +
+    geom_line(aes(y = .data$q50), color = "#1f78b4", linewidth = 1) +
+    geom_point(aes(y = .data$obs), color = "#e31a1c", size = 2) +
+    theme_minimal() +
+    labs(
+      title = "Posterior predictive coverage curve",
+      x = "Coverage breakpoint index",
+      y = "Cumulative coverage"
+    )
+} else {
+  ggplot() + theme_void() + labs(title = "No posterior predictive draws accepted.")
+}
+```
+
+## Verdict (WP-0.4.4)
+
+```{r verdict}
+gate_tbl <- pilot_gate_evaluation$gates %||% tibble::tibble()
+all_pass <- nrow(gate_tbl) > 0 && all(gate_tbl$pass)
+rep_choice <- pilot_representation_choice$selected_representation[[1]] %||% NA_character_
+msg <- if (isTRUE(all_pass)) {
+  sprintf("Predation-only constrained model passes the defined gates at representation '%s'.", rep_choice)
+} else {
+  sprintf("Predation-only constrained model does not pass all gates at representation '%s'; treat as data-limited and/or mechanism-incomplete.", rep_choice)
+}
+tibble::tibble(verdict = msg)
 ```
 
 ## Calibration diagnostics

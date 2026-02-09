@@ -272,6 +272,28 @@ Format for entries:
 
 ---
 
+- **Date:** 2026-02-09
+- **Decision:** Use bounded, explicitly diagnostic real-data budgets for WP‑0.4.x and enforce memory-safe ablation execution overrides.
+- **Rationale:**
+  - Full pilot ABC settings (`screen=200`, `ABC=2000+2000`) produced impractically long runs for iterative model diagnosis.
+  - Nested parallelism (`tar_make_future` outer workers + ablation inner workers) caused high RSS pressure and swap usage.
+  - Real-data information audit already indicates very sparse TP/TX overlap, so expensive inference should be treated as diagnostic rather than high-precision estimation.
+- **Implications:**
+  - `config/realdata.yaml` pilot defaults now use bounded settings:
+    - `pilot.screen.n_draws = 40`
+    - `pilot.abc.n_stage1 = 30`, `pilot.abc.n_stage2 = 30`, `pilot.abc.shortlist = 40`
+    - `pilot.ablation.n_draws = 40` (with runtime override support)
+    - `pilot.ppc.n_draws = 10`
+  - Added env overrides in the pilot pipeline:
+    - `EXDYN_ABLATION_CORES`
+    - `EXDYN_ABLATION_DRAWS`
+  - Removed the `wo8_log_start` dependency from `pilot_cfg` so the `always` log target does not invalidate the full pilot graph on each run.
+- **Alternatives considered:**
+  - Keeping original large budgets (rejected: too slow for iterative R&D at current information content).
+  - Running `pilot-future` with unrestricted nested parallelism (rejected: high memory risk).
+
+---
+
 - **Date:** 2025-12-31  
 - **Decision:** Update synthetic `theta_star` to **pred_scale = 0.6** and
   **pred_c = 1.2** for pilot-grid synthetic runs with `arrival_source =
@@ -528,3 +550,44 @@ Format for entries:
   - Benchmark failures still block WP completion, but remediation proceeds autonomously unless the human requests a pause/review.  
 - **Alternatives considered:**  
   - Keep mandatory PI-review stops at milestones/LARGE WPs (rejected: too rigid for current workflow).  
+
+---
+
+- **Date:** 2026-02-09  
+- **Decision:** Use `grid_all` as the real-data representation for constrained inference while treating overlap scarcity as the primary limitation.  
+- **Rationale:**  
+  - Representation audit shows `grid_all` is the only candidate that meets the unit-count gate (`n_units=3621`, `n_TX_obs=569`).  
+  - Segment and riparian-only representations fail minimum unit thresholds in the current data state.  
+  - Even under `grid_all`, overlap is critically sparse (`n_TP_finite=7`, `n_pairs=1`), so selection is pragmatic rather than evidentially rich.  
+- **Implications:**  
+  - Real constrained runs continue with `analysis_unit = grid_all`.  
+  - Conclusions must emphasize overlap-limited inference and avoid overclaiming mechanism sufficiency.  
+- **Alternatives considered:**  
+  - `segment` and `grid_riparian` as primary representations (rejected: underpowered at current thresholds).  
+
+---
+
+- **Date:** 2026-02-09  
+- **Decision:** Keep random effects on `pred_scale` disabled for the real constrained baseline and retain `delta_only` as the default interpretive model.  
+- **Rationale:**  
+  - Ablation (`delta_only` vs `delta_plus_re`) produced zero compatible draws in both settings at matched draw budgets, with near-identical median loss.  
+  - Adding RE increased complexity without measurable fit gains under current information constraints.  
+- **Implications:**  
+  - Real-case interpretation focuses on signal limits and baseline constrained model behavior.  
+  - RE can be revisited only if future data/representation choices materially improve overlap.  
+- **Alternatives considered:**  
+  - Keeping RE enabled by default (rejected: no demonstrated benefit in current run).  
+
+---
+
+- **Date:** 2026-02-09  
+- **Decision:** Treat the current real mink→vole result as a documented **data-limited/mechanism-incomplete** verdict, not a positive predation-only confirmation.  
+- **Rationale:**  
+  - Gate evaluation fails across all key checks (`best_r2`, `best_lag`, `best_coverage`, `abc_accept_rate`).  
+  - No ABC posterior samples were accepted at configured thresholds; posterior summary metrics are `NA`.  
+  - Visual diagnostics agree with gate outcomes (simulated extirpations are far sparser than observed pattern).  
+- **Implications:**  
+  - Manuscript and report language must present this as a negative-but-informative finding grounded in explicit diagnostics.  
+  - Next scientific progress should target representation/data enrichment rather than tuning the same constrained run harder.  
+- **Alternatives considered:**  
+  - Relaxing thresholds until acceptance appears (rejected for this milestone: would weaken inferential honesty).  

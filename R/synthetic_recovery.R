@@ -691,6 +691,13 @@ exdyn_recovery_rep_metrics <- function(mode_runs) {
   if (!length(mode_runs)) {
     return(tibble::tibble())
   }
+  scalar_col <- function(tbl, col, default = NA_real_) {
+    if (is.null(tbl) || !nrow(tbl) || !(col %in% names(tbl))) {
+      return(default)
+    }
+    val <- tbl[[col]][[1]]
+    if (!length(val)) default else val
+  }
   purrr::map_dfr(mode_runs, function(run) {
     screen <- run$screen_results %||% tibble::tibble()
     if (nrow(screen)) {
@@ -715,10 +722,10 @@ exdyn_recovery_rep_metrics <- function(mode_runs) {
       n_pairs = counts[["n_pairs"]] %||% NA_real_,
       n_accept = nrow(run$abc$samples %||% tibble::tibble()),
       eps = run$abc$eps %||% NA_real_,
-      screen_best_loss = best$loss %||% NA_real_,
-      screen_best_r2 = best$r2_arrival %||% NA_real_,
-      screen_best_lag = best$lag_mean %||% NA_real_,
-      screen_best_coverage = best$coverage %||% NA_real_,
+      screen_best_loss = scalar_col(best, "loss"),
+      screen_best_r2 = scalar_col(best, "r2_arrival"),
+      screen_best_lag = scalar_col(best, "lag_mean"),
+      screen_best_coverage = scalar_col(best, "coverage"),
       abc_distance_median = if (length(run$abc$distances)) stats::median(run$abc$distances) else NA_real_,
       abc_lag_median = if (nrow(summaries) && "lag_mean" %in% names(summaries)) stats::median(summaries$lag_mean, na.rm = TRUE) else NA_real_,
       abc_coverage_median = if (nrow(summaries) && "coverage" %in% names(summaries)) stats::median(summaries$coverage, na.rm = TRUE) else NA_real_,

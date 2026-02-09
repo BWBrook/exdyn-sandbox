@@ -63,12 +63,14 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 
 ## 5) Roadmap to “manuscript ready”
 
-| Phase | Name                                     | Goal                                                          | Key deliverables                   | Status  |
-| ----: | ---------------------------------------- | ------------------------------------------------------------- | ---------------------------------- | ------- |
-|   000 | Takeover + harness                       | Add AI-for-Science harness; standardise logs/entrypoints      | AGENTS + docs + log                | pending |
-|   010 | Synthetic recovery benchmark (WO-SYN-01) | Replicated parameter recovery; ideal vs realistic modes       | recovery tables + updated report   | pending |
-|   020 | Real mink→vole triage + constrained fits | Choose units/resolution; run screen+ABC with δ regularisation | updated pilot report + verdict     | pending |
-|   040 | Manuscript packaging                     | Draft paper with figures/tables from code                     | `manuscript/` + reproduce commands | pending |
+| Phase | Name                                     | Goal                                                          | Key deliverables                   | Status    |
+| ----: | ---------------------------------------- | ------------------------------------------------------------- | ---------------------------------- | --------- |
+|   000 | Takeover + harness                       | Add AI-for-Science harness; standardise logs/entrypoints      | AGENTS + docs + log                | complete  |
+|   010 | Synthetic recovery benchmark (WO-SYN-01) | Replicated parameter recovery; ideal vs realistic modes       | recovery tables + updated report   | complete  |
+|   020 | Real mink→vole triage + constrained fits | Choose units/resolution; run screen+ABC with δ regularisation | updated pilot report + verdict     | complete* |
+|   040 | Manuscript packaging                     | Draft paper with figures/tables from code                     | `manuscript/` + reproduce commands | complete  |
+
+`*` Complete with a data-limited/method-limited verdict under current representation, not a positive predation-only confirmation.
 
 ---
 
@@ -86,7 +88,7 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 ## 7) Current status and next steps (to be maintained by Codex)
 
 ### Current phase
-- Phase 030 — Synthetic benchmark lock‑down (WP‑0.3.x)
+- Phase 040 — Manuscript-ready package and reproducibility freeze (roadmap closure)
 
 ### Recently completed
 - Phase 000 — Takeover + harness (docs + README + Makefile refresh).
@@ -111,9 +113,19 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
   - all benchmark gates (G1–G5) pass across all replicates for ideal and realistic modes.
   - realistic predictive medians remain above gate thresholds (`abc_lag_median ≈ 19.19`, `abc_r2_median ≈ 0.633`).
   - real-arrival diagnostics retained (`frac_finite_TP_in_mask ≈ 0.41`) for transferability context.
+- WP‑0.3.6 stress mini‑sweep completed with canonical artefacts:
+  - `outputs/canonical/0.3/WP-0.3.6/syn_20260209_154821_0099/`
+  - 12 scenarios (`arrival_source × obs_multiplier × pred_scale_multiplier`, R=10 each).
+  - failure regimes are explicit: all `arrival_source=real` scenarios fail all-gate criteria; `G1` and `G5` dominate collapse.
+- WP‑0.4.0 → WP‑0.4.4 completed:
+  - information/representation audits, ablation, constrained run, posterior predictive outputs, and canonical real-data bundle.
+  - canonical run: `outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/`.
+  - verdict: constrained predation-only run is data-limited/mechanism-incomplete at current representation.
+- WP‑0.5.1 → WP‑0.5.5 completed:
+  - manuscript scaffold + section drafts + canonical figure/table manifest linkage.
+  - reproducibility checklist and render commands in place.
 
 ### Next steps (short queue)
-- Milestone checkpoint action: record internal QA summary after LARGE WP completion (WP‑0.3.5b), with canonical artefacts and sanity notes.
-- Proceed to WP‑0.3.6 identifiability stress mini‑sweep unless redirected by the human.
-- Prepare an external PI review bundle only when explicitly requested by the human.
-- Keep visual sanity review as a hard gate for each new canonical run (TX_true/TX_obs/TX_best/TX_diff + coverage curves).
+- Priority queue is now fully completed through WP‑0.5.5.
+- Future work requires promotion of new WPs into `docs/roadmap.md` (e.g., representation redesign, additional mechanisms, or manuscript polishing passes).
+- Keep visual sanity review as a hard gate for any new canonical run (maps and key summary tables).

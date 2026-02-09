@@ -24,6 +24,7 @@ exdyn_synthetic_env_snapshot <- function() {
     grid_region_labels = Sys.getenv("EXDYN_SYNTHETIC_GRID_REGION_LABELS", unset = ""),
     arrival_source = Sys.getenv("EXDYN_SYNTHETIC_ARRIVAL_SOURCE", unset = ""),
     arrival_realism = Sys.getenv("EXDYN_SYNTHETIC_ARRIVAL_REALISM", unset = ""),
+    stress = Sys.getenv("EXDYN_SYNTHETIC_STRESS", unset = ""),
     viability = Sys.getenv("EXDYN_SYNTHETIC_VIABILITY", unset = ""),
     pilot_gates = Sys.getenv("EXDYN_SYNTHETIC_PILOT_GATES", unset = ""),
     obs_mode = Sys.getenv("EXDYN_SYNTHETIC_OBS_MODE", unset = ""),
@@ -101,6 +102,10 @@ exdyn_synthetic_cfg_apply_overrides <- function(cfg, env = NULL) {
   if (nzchar(env$arrival_realism)) {
     cfg$arrival_realism <- cfg$arrival_realism %||% list()
     cfg$arrival_realism$enabled <- exdyn_env_flag(env$arrival_realism, default = FALSE)
+  }
+  if (nzchar(env$stress)) {
+    cfg$stress <- cfg$stress %||% list()
+    cfg$stress$enabled <- exdyn_env_flag(env$stress, default = FALSE)
   }
   if (nzchar(env$viability)) {
     cfg$viability <- cfg$viability %||% list()

@@ -1,0 +1,32 @@
+---
+title: "Reconstructing Predator-Driven Extirpation Dynamics from Response-Only Signals"
+subtitle: "Synthetic benchmark and constrained mink→vole case study"
+author:
+  - name: "ExtDyn Team"
+date: "2026-02-09"
+---
+
+{{< include sections/00_abstract.md >}}
+
+# Introduction
+
+{{< include sections/01_introduction.md >}}
+
+# Methods
+
+{{< include sections/02_methods.md >}}
+
+# Results
+
+{{< include sections/03_results_synthetic.md >}}
+
+{{< include sections/04_results_real.md >}}
+
+# Discussion
+
+{{< include sections/05_discussion.md >}}
+
+# Reproducibility
+
+{{< include sections/06_reproducibility.md >}}
+

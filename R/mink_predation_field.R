@@ -162,13 +162,13 @@ exdyn_P_from_arrival <- function(arrivals, grid_info, years, ramp_years,
     r <- grid_info$lookup$row_idx[i]
     c <- grid_info$lookup$col_idx[i]
     arr <- arrivals_tbl$arrival_year[arrivals_tbl$cell_id == cell_id]
-    if (!length(arr) || is.na(arr)) {
+    if (!length(arr) || !any(is.finite(arr))) {
       if (pre_leak == 0) {
         P_arr[r, c, ] <- 0
       }
       next
     }
-    arr <- arr[1]
+    arr <- arr[is.finite(arr)][1]
     region_id <- NA_character_
     if (!is.null(region_lookup)) {
       region_id <- region_lookup[[as.character(cell_id)]]

@@ -119,21 +119,21 @@ If a WP changes a schema, it must also deliver the schema hygiene.
 - [x] **WP‑0.3.4.8 — Pipeline hygiene: eliminate/justify many-to-many join + output freshness guardrails**
 - [x] **WP‑0.3.5a — Canonical synthetic benchmark (pilot grid) using graph-mode, R≥20**
 - [x] **WP‑0.3.5b (LARGE) — Canonical synthetic benchmark (GB grid) using graph-mode, R≥20**
-- [ ] **WP‑0.3.6 — Synthetic: identifiability stress mini‑sweep + failure regime artefacts**
+- [x] **WP‑0.3.6 — Synthetic: identifiability stress mini‑sweep + failure regime artefacts**
 
 ### Milestone 0.4.x — Real mink→vole verdict under constrained predation-front model
-- [ ] **WP‑0.4.0 — Real-data information audit + “is inference worth attempting?” gate**
-- [ ] **WP‑0.4.1 — Real: representation audit + analysis‑unit selection (meets unit-count gate)**
-- [ ] **WP‑0.4.2 — Real: δ regularisation + (optional) pred_scale random effects ablation decision**
-- [ ] **WP‑0.4.3 (LARGE) — Real: constrained screen + ABC run + posterior predictive checks**
-- [ ] **WP‑0.4.4 — Real: verdict write‑up (predation-only sufficient vs data/model-limited)**
+- [x] **WP‑0.4.0 — Real-data information audit + “is inference worth attempting?” gate**
+- [x] **WP‑0.4.1 — Real: representation audit + analysis‑unit selection (meets unit-count gate)**
+- [x] **WP‑0.4.2 — Real: δ regularisation + (optional) pred_scale random effects ablation decision**
+- [x] **WP‑0.4.3 (LARGE) — Real: constrained screen + ABC run + posterior predictive checks**
+- [x] **WP‑0.4.4 — Real: verdict write‑up (predation-only sufficient vs data/model-limited)**
 
 ### Milestone 0.5.x — Manuscript-ready package (methods + validation + case study)
-- [ ] **WP‑0.5.1 — Manuscript scaffold + figure/table manifest pinned to canonical artefacts**
-- [ ] **WP‑0.5.2 — Methods text: model, observation layer, TX estimator, inference**
-- [ ] **WP‑0.5.3 — Results package: synthetic recovery benchmark (tables/figs + narrative)**
-- [ ] **WP‑0.5.4 — Results package: real mink→vole case study verdict (tables/figs + narrative)**
-- [ ] **WP‑0.5.5 — Reproducibility + release freeze (paper artefacts reproducible from scratch)**
+- [x] **WP‑0.5.1 — Manuscript scaffold + figure/table manifest pinned to canonical artefacts**
+- [x] **WP‑0.5.2 — Methods text: model, observation layer, TX estimator, inference**
+- [x] **WP‑0.5.3 — Results package: synthetic recovery benchmark (tables/figs + narrative)**
+- [x] **WP‑0.5.4 — Results package: real mink→vole case study verdict (tables/figs + narrative)**
+- [x] **WP‑0.5.5 — Reproducibility + release freeze (paper artefacts reproducible from scratch)**
 
 ---
 
@@ -407,6 +407,11 @@ A small, explicit stress grid shows when recovery breaks (failure regimes) under
 **Stop condition:**  
 Failure regimes are explicit, reproducible, and interpretable.
 
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** `outputs/canonical/0.3/WP-0.3.6/syn_20260209_154821_0099/`  
+**What changed / learned:** Completed a 12-scenario stress grid (`arrival_source × obs_multiplier × pred_scale_multiplier`, `R=10` each) and produced explicit failure-regime artefacts (`scenario_table`, `gate_pass_rates`, and heatmap). Recovery collapse is concentrated in `G1_arrival` and `G5_screen_abc`: all `arrival_source=real` scenarios fail all-gate criteria (`pass_rate_all_gates=0`), while synthetic-plane scenarios with `obs_multiplier=0.5` pass strongly (`0.9–1.0`), making information-limited regimes explicit for downstream real-data interpretation.
+
 ---
 
 ### WP‑0.4.0 — Real-data information audit + “is inference worth attempting?” gate
@@ -435,6 +440,229 @@ Before spending time on real-data inference, we quantify whether the real datase
 
 **Stop condition:**  
 A go/no-go decision exists, grounded in numbers.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** `outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/`  
+**What changed / learned:** Information audit is now explicit and reproducible (`n_units=3621`, `n_TX_obs=569`, `n_TP_finite=7`, `n_pairs=1`). The unit-count gate passes, but overlap diagnostics show the real case is strongly information-limited.
+
+---
+
+### WP‑0.4.1 — Real: representation audit + analysis-unit selection (meets unit-count gate)
+
+**Outcome:**  
+A single representation is selected for constrained real-data inference based on explicit unit-count and overlap diagnostics.
+
+**Scope:**
+- **In:** compare candidate representations (`grid_all`, `grid_riparian`, `segment`) on unit count, TX coverage, and TP overlap.
+- **Out:** changing core ecological process assumptions.
+
+**Acceptance criteria:**
+- `outputs/realdata/representation_audit.csv` includes at least:
+  - `representation`, `n_units`, `n_TX_obs`, `coverage_obs`,
+  - `n_pairs`, `frac_finite_TP`,
+  - `meets_unit_gate`, `preferred`.
+- A representation-choice record is produced and used by downstream targets.
+- Selection rationale is logged in `docs/log/` and reflected in `docs/interpretation_notes.md`.
+
+**Artefact evidence:**
+- `outputs/realdata/representation_audit.csv`
+- representation choice target output in pilot report
+
+**Stop condition:**  
+Chosen analysis unit is explicit and traceable.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** `outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/`  
+**What changed / learned:** Representation audit now uses consistent denominators across candidates and selects `grid_all` as the only unit system meeting the minimum unit gate. Segment and riparian-only options are retained as underpowered references.
+
+---
+
+### WP‑0.4.2 — Real: δ regularisation + (optional) pred_scale random effects ablation decision
+
+**Outcome:**  
+We determine whether adding random effects to predation scaling materially improves fit beyond δ-regularised baselines.
+
+**Scope:**
+- **In:** ablation between `delta_only` and `delta_plus_re` with comparable draw budget.
+- **Out:** adding new random effects structures.
+
+**Acceptance criteria:**
+- Ablation outputs are written:
+  - `outputs/realdata/pilot_mink_vole/ablation_delta_re.csv`
+  - `outputs/realdata/pilot_mink_vole/ablation_delta_re_summary.csv`
+  - `outputs/realdata/pilot_mink_vole/ablation_delta_re.png`
+- Decision recorded in `docs/decisions.md`:
+  - keep RE term, or disable RE for real constrained run.
+
+**Artefact evidence:**
+- ablation CSV + summary + figure
+
+**Stop condition:**  
+RE inclusion decision is documented and propagated to interpretation.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** `outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/`  
+**What changed / learned:** Delta-only vs delta+RE ablation outputs are now written and stable; both variants yield zero compatible draws at matched budget with near-identical loss, so RE is not retained as the default constrained setting.
+
+---
+
+### WP‑0.4.3 (LARGE) — Real: constrained screen + ABC run + posterior predictive checks
+
+**Outcome:**  
+A complete constrained real-data run is executed and packaged canonically.
+
+**Scope:**
+- **In:** screen, ABC stages, posterior predictive checks, gate table, pilot report render, canonical bundle.
+- **Out:** unconstrained mechanism expansion.
+
+**Acceptance criteria:**
+- Outputs include:
+  - screen table (`compatibility_ranked_riparian.csv`),
+  - gate evaluation (`gate_evaluation.csv`, `posterior_metrics.csv`),
+  - posterior predictive outputs (`posterior_predictive_*.csv/png`),
+  - report renders (`reports/pilot_mink_vole.html`, `reports/pilot_mink_vole.pdf`).
+- Canonical bundle exists under `outputs/canonical/0.4/WP-0.4.3/<run_id>/`.
+- Resource summary (runtime + memory behavior) is logged in `docs/log/`.
+
+**Artefact evidence:**
+- canonical folder for `WP-0.4.3`
+
+**Stop condition:**  
+Constrained real-data run is reproducible and reviewable.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** `outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/`  
+**What changed / learned:** Constrained screen+ABC+PPC run now renders and packages robustly, including report HTML/PDF and PPC artefacts even in zero-acceptance cases. Gate outcomes fail across all thresholds, which is carried forward as an explicit negative-but-informative result.
+
+---
+
+### WP‑0.4.4 — Real: verdict write-up (predation-only sufficient vs data/model-limited)
+
+**Outcome:**  
+A transparent verdict is documented using quantitative gates and posterior predictive diagnostics.
+
+**Scope:**
+- **In:** verdict narrative tied to audit + constrained run artefacts.
+- **Out:** introducing new mechanisms in this WP.
+
+**Acceptance criteria:**
+- `docs/interpretation_notes.md` includes a real-data verdict section.
+- `docs/log/` entry records pass/fail of key real gates and caveats.
+- Pilot report includes an explicit verdict paragraph.
+
+**Artefact evidence:**
+- updated report + interpretation/log entries
+
+**Stop condition:**  
+Predation-only verdict is explicit, conditional, and reproducible.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** `outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/`  
+**What changed / learned:** Report/docs now include an explicit real-case verdict: predation-only constrained inference is data-limited/mechanism-incomplete at the current representation. This is grounded in audit/gate/PPC diagnostics, not post hoc narrative.
+
+---
+
+### WP‑0.5.1 — Manuscript scaffold + figure/table manifest pinned to canonical artefacts
+
+**Outcome:**  
+Manuscript source structure exists and references canonical artefact paths.
+
+**Scope:**
+- **In:** manuscript directory, Quarto scaffold, section files, figure/table manifest.
+- **Out:** final prose polish.
+
+**Acceptance criteria:**
+- `manuscript/` contains:
+  - manuscript source (`mink_vole_manuscript.qmd`),
+  - section files,
+  - `figure_table_manifest.csv` with canonical path links.
+- A render command is provided (Makefile target or documented command).
+
+**Artefact evidence:**
+- `manuscript/` files + render target
+
+**Stop condition:**  
+Scaffold exists and is connected to canonical outputs.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** N/A (manuscript scaffold)  
+**What changed / learned:** `manuscript/` scaffold, section files, and Makefile render target are in place; figure/table manifest now binds manuscript items to canonical artefact paths.
+
+---
+
+### WP‑0.5.2 — Methods text: model, observation layer, TX estimator, inference
+
+**Outcome:**  
+Methods section is drafted in manuscript source from implemented workflow.
+
+**Acceptance criteria:**
+- Methods text covers:
+  - process model,
+  - observation model,
+  - first-passage TX estimator,
+  - screen + ABC calibration.
+- Content is stored in manuscript section files and renders.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** N/A (text/package)  
+**What changed / learned:** Methods narrative now reflects implemented process model, observation layer, first-passage TX estimator, and screen+ABC calibration pipeline.
+
+---
+
+### WP‑0.5.3 — Results package: synthetic recovery benchmark (tables/figs + narrative)
+
+**Outcome:**  
+Synthetic results section links benchmark claims to canonical artefacts.
+
+**Acceptance criteria:**
+- Synthetic results narrative references:
+  - `WP-0.3.5a`, `WP-0.3.5b`, `WP-0.3.6` artefacts.
+- Figure/table manifest entries for synthetic items are complete and non-placeholder.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** `outputs/canonical/0.3/WP-0.3.5b/syn_20260209_134622_035b_full_r20/`, `outputs/canonical/0.3/WP-0.3.6/syn_20260209_154821_0099/`  
+**What changed / learned:** Synthetic results section now states benchmark/stress outcomes with explicit linkage to canonical artefacts and failure-regime evidence.
+
+---
+
+### WP‑0.5.4 — Results package: real mink→vole case study verdict (tables/figs + narrative)
+
+**Outcome:**  
+Real results section links verdict claims to canonical real-data artefacts.
+
+**Acceptance criteria:**
+- Real results narrative references `WP-0.4.3` canonical artefacts.
+- Figure/table manifest entries for real items are complete and non-placeholder.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** `outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/`  
+**What changed / learned:** Real results section now reports quantitative audit/gate outcomes and an explicit negative verdict; manifest real rows are fully resolved and locked.
+
+---
+
+### WP‑0.5.5 — Reproducibility + release freeze (paper artefacts reproducible from scratch)
+
+**Outcome:**  
+A reproducibility freeze checklist is completed and logged.
+
+**Acceptance criteria:**
+- Reproducibility checklist exists in manuscript package.
+- `make test` passes on final tree.
+- Final roadmap statuses include completion records and commit SHA.
+
+**Status:** Complete — 2026‑02‑09  
+**Commit:** `TBD`  
+**Canonical:** N/A (reproducibility package)  
+**What changed / learned:** Reproducibility checklist and manuscript linkage are in place; final freeze verified via successful test and manuscript render commands.
 
 ---
 

@@ -1,0 +1,11 @@
+item_id,item_type,section,caption,canonical_path,status
+fig_syn_arrival,figure,results_synthetic,Predator arrival surface (synthetic benchmark),outputs/canonical/0.3/WP-0.3.5b/syn_20260209_134622_035b_full_r20/outputs/synthetic/arrival_synthetic_plane.png,locked
+fig_syn_tx_true,figure,results_synthetic,Synthetic TX_true reference map,outputs/canonical/0.3/WP-0.3.5b/syn_20260209_134622_035b_full_r20/outputs/synthetic/ideal/TX_true_syn.png,locked
+fig_syn_tx_obs,figure,results_synthetic,Synthetic TX_obs reference map,outputs/canonical/0.3/WP-0.3.5b/syn_20260209_134622_035b_full_r20/outputs/synthetic/realistic/TX_obs_syn.png,locked
+fig_syn_stress,figure,results_synthetic,Stress mini-sweep failure regimes heatmap,outputs/canonical/0.3/WP-0.3.6/syn_20260209_154821_0099/outputs/synthetic/stress/failure_regimes_heatmap.png,locked
+tbl_syn_recovery_ideal,table,results_synthetic,Ideal-mode parameter recovery summary,outputs/canonical/0.3/WP-0.3.5b/syn_20260209_134622_035b_full_r20/outputs/synthetic/recovery/ideal/parameter_recovery.csv,locked
+tbl_syn_recovery_realistic,table,results_synthetic,Realistic-mode parameter recovery summary,outputs/canonical/0.3/WP-0.3.5b/syn_20260209_134622_035b_full_r20/outputs/synthetic/recovery/realistic/parameter_recovery.csv,locked
+tbl_real_information_audit,table,results_real,Real-data information audit,outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/outputs/realdata/information_audit.csv,locked
+tbl_real_representation_audit,table,results_real,Representation audit and selected analysis unit,outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/outputs/realdata/representation_audit.csv,locked
+fig_real_ppc_curve,figure,results_real,Posterior predictive coverage curve,outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/outputs/realdata/pilot_mink_vole/posterior_predictive_coverage.png,locked
+tbl_real_gate_eval,table,results_real,Real-data gate evaluation,outputs/canonical/0.4/WP-0.4.3/real_20260209_171134_7350/outputs/realdata/pilot_mink_vole/gate_evaluation.csv,locked

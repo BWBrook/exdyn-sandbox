@@ -139,3 +139,28 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - Visual sanity checks pass: `TX_true` is coherent and georeferenced correctly; `TX_obs` is sparse but widespread; `TX_best` recovers broad front geometry with regional smoothing; `TX_diff` shows structured mismatch patterns.
 - Runtime behavior is now tractable under graph mode (wall ~1h11m for `R=20`), but aggregate worker memory is the operative constraint (observed ~75 GB during parallel phase).
 - The parent-process RSS from `time -v` understates parallel memory pressure; resource reporting should continue to include aggregate worker snapshots for large runs.
+
+## WP‑0.3.6 — Identifiability stress mini-sweep
+- Stress grid (`arrival_source × obs_multiplier × pred_scale_multiplier`) yields an explicit regime map rather than diffuse degradation.
+- `G1_arrival` and `G5_screen_abc` are the primary failure gates; `G2`–`G4` remained stable in this sweep.
+- All `arrival_source=real` scenarios fail all-gate criteria (`pass_rate_all_gates = 0`), reinforcing arrival coverage as the main bottleneck for transfer to real-data inference.
+- Under `arrival_source=synthetic_plane`, low observation intensity (`obs_multiplier=0.5`) still supports recovery (`pass_rate_all_gates ≈ 0.9–1.0`).
+- The `obs_multiplier=1.5` synthetic-plane scenarios failing under current thresholds indicates gate behavior depends on summary/compat scaling, not just “more data is always better”.
+- Stress outputs are now suitable as a “failure regimes” figure/table for the synthetic benchmark section.
+
+## WP‑0.4.x — Real-data constrained verdict
+- Information audit shows severe overlap scarcity: `n_TP_finite = 7` and `n_pairs = 1` despite `n_TX_obs = 569`.
+- Representation gate selects `grid_all` by unit count, but this does not imply usable inferential overlap.
+- Ablation (`delta_only` vs `delta_plus_re`) yields near-identical losses and zero compatible draws; RE adds complexity without gain under current signal.
+- Constrained-run gates all fail (`best_r2`, `best_lag`, `best_coverage`, and `abc_accept_rate`).
+- No ABC posterior is retained at current thresholds; posterior metrics are `NA`.
+- Simulated top-ranked TX map is far sparser than observed TX map, consistent with gate failure.
+- PPC now emits explicit “no accepted ABC draws” diagnostics instead of missing files, improving interpretability.
+- Current real-data conclusion should remain explicitly data-limited/mechanism-incomplete, not cast as model success.
+
+## WP‑0.5.x — Manuscript package
+- Manuscript scaffold now mirrors the full method arc (synthetic benchmark first, real verdict second).
+- Figure/table manifest is now fully pinned to canonical paths (synthetic + real).
+- Real-case narrative explicitly reports negative gate outcomes to avoid overclaiming.
+- Reproducibility section now names canonical run IDs and standard commands (`make synthetic`, `make pilot`, `make manuscript`, `make test`).
+- Remaining manuscript risk is inferential depth, not build/reproducibility plumbing.

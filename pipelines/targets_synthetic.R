@@ -364,6 +364,42 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       }
       csv[1]
     }, format = "file"),
+    tar_target(synthetic_stress_cfg, synthetic_cfg$stress %||% list(enabled = FALSE)),
+    tar_target(synthetic_stress_outputs, {
+      cfg <- synthetic_stress_cfg %||% list()
+      if (!isTRUE(cfg$enabled)) {
+        return(list(
+          scenarios = tibble::tibble(),
+          gate_table = tibble::tibble(),
+          gate_pass = tibble::tibble(),
+          scenario_pass = tibble::tibble(),
+          metrics = tibble::tibble(),
+          outputs = character()
+        ))
+      }
+      exdyn_synthetic_stress_sweep(
+        cfg = cfg,
+        arrivals_real = synthetic_arrivals_real,
+        grid_info = synthetic_grid_info,
+        years_vec = synthetic_years,
+        theta_star = synthetic_theta_star,
+        noise_cfg = synthetic_noise_cfg,
+        tx_cfg = synthetic_tx_cfg,
+        screen_cfg = synthetic_screen_cfg,
+        compat_cfg = synthetic_compat_cfg,
+        abc_cfg = synthetic_abc_cfg,
+        coverage_breaks = synthetic_coverage_breaks,
+        mask = synthetic_mask,
+        output_root = synthetic_output_root
+      )
+    }),
+    tar_target(synthetic_stress_files, {
+      paths <- synthetic_stress_outputs$outputs %||% character()
+      if (!length(paths)) {
+        return(character())
+      }
+      paths
+    }, format = "file"),
     tar_target(synthetic_rep_grid, exdyn_synthetic_rep_grid(synthetic_recovery_cfg)),
     tar_target(synthetic_theta_lhs, {
       cell_km <- synthetic_grid_info$cell_km %||% 10
@@ -499,7 +535,8 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
         synthetic_arrival_realism_comparison_csv,
         synthetic_mask_philosophy_csv,
         synthetic_viability_sweep_csv,
-        synthetic_viability_sweep_plot
+        synthetic_viability_sweep_plot,
+        synthetic_stress_files
       )
       ceiling_paths <- synthetic_ceiling_outputs$outputs %||% character()
       extra_paths <- c(extra_paths, ceiling_paths)

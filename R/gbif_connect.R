@@ -6,6 +6,28 @@
 #' @name gbif_connect
 NULL
 
+#' Coerce raw GBIF occurrence columns to stable types
+#'
+#' @keywords internal
+exdyn_gbif_normalise_raw_types <- function(df) {
+  if (is.null(df) || !nrow(df)) return(df)
+  chr_cols <- c(
+    "basisOfRecord", "occurrenceID", "catalogNumber", "recordedBy",
+    "issue", "issues"
+  )
+  num_cols <- c(
+    "decimalLongitude", "decimalLatitude", "year", "month", "day",
+    "coordinateUncertaintyInMeters"
+  )
+  for (nm in intersect(chr_cols, names(df))) {
+    df[[nm]] <- as.character(df[[nm]])
+  }
+  for (nm in intersect(num_cols, names(df))) {
+    df[[nm]] <- suppressWarnings(as.numeric(df[[nm]]))
+  }
+  df
+}
+
 #' Lookup a GBIF usage key for a scientific name
 #'
 #' @param sci Scientific name as a character string.
@@ -45,6 +67,7 @@ exdyn_gbif_fetch <- function(key, country, year_min, year_max,
     dfs <- lapply(country, function(ctry) {
       exdyn_gbif_fetch(key, ctry, year_min, year_max, cache_dir, max_records, force)
     })
+    dfs <- lapply(dfs, exdyn_gbif_normalise_raw_types)
     return(dplyr::bind_rows(dfs))
   }
   dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
@@ -57,7 +80,7 @@ exdyn_gbif_fetch <- function(key, country, year_min, year_max,
   if (!force && file.exists(cache_file)) {
     message("Reading GBIF cache: ", cache_file)
     raw <- readr::read_csv(cache_file, show_col_types = FALSE)
-    return(raw)
+    return(exdyn_gbif_normalise_raw_types(raw))
   }
 
   message("Downloading GBIF occurrences for key ", key, " (", country, ")")
@@ -113,6 +136,7 @@ exdyn_gbif_fetch <- function(key, country, year_min, year_max,
   }
 
   raw <- dplyr::bind_rows(out)
+  raw <- exdyn_gbif_normalise_raw_types(raw)
 
   if (nrow(raw) > max_records) {
     message("Trimming records from ", nrow(raw), " to ", max_records, " (per-year sampling)")

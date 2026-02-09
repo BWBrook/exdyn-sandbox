@@ -1,4 +1,4 @@
-.PHONY: init test run report report-leak report-qa exp report-id report-sens pilot pilot-future synthetic graph-parallel
+.PHONY: init test run report report-leak report-qa exp report-id report-sens pilot pilot-future synthetic graph-parallel manuscript
 
 EXDYN_WORKERS ?= 8
 EXDYN_DRAWS ?= 64
@@ -39,10 +39,10 @@ report-sens:
 	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("reports/sensitivity.qmd", output_format="pdf")'
 
 pilot:
-	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("pilot_screen","pilot_report_html","pilot_report_pdf","pilot_summary"))'
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("pilot_screen","pilot_report_html","pilot_report_pdf","pilot_summary","pilot_canonical_manifest"))'
 
 pilot-future:
-	R --vanilla -e 'source("renv/activate.R"); targets::tar_make_future(names=c("pilot_screen","pilot_report_html","pilot_report_pdf","pilot_summary"), workers=6)'
+	R --vanilla -e 'source("renv/activate.R"); targets::tar_make_future(names=c("pilot_screen","pilot_report_html","pilot_report_pdf","pilot_summary","pilot_canonical_manifest"), workers=6)'
 
 graph-parallel:
 	EXDYN_WORKERS=$(EXDYN_WORKERS) EXDYN_DRAWS=$(EXDYN_DRAWS) EXDYN_SIMS=$(EXDYN_SIMS) EXDYN_MODE=$(EXDYN_MODE) EXDYN_SEED=$(EXDYN_SEED) \
@@ -50,3 +50,7 @@ graph-parallel:
 
 synthetic:
 	R --vanilla -e 'source("renv/activate.R"); targets::tar_make(names=c("synthetic_report_html","synthetic_report_pdf","synthetic_recovery_written","synthetic_canonical_manifest"))'
+
+manuscript:
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("manuscript/mink_vole_manuscript.qmd", output_format="html")'
+	R --vanilla -e 'source("renv/activate.R"); quarto::quarto_render("manuscript/mink_vole_manuscript.qmd", output_format="pdf")'
