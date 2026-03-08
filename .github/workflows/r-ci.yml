@@ -20,6 +20,9 @@ jobs:
           r-version: renv
           use-public-rspm: true
 
+      - name: Install GLPK system dependency
+        run: sudo apt-get update && sudo apt-get install -y libglpk-dev
+
       - name: Setup renv
         uses: r-lib/actions/setup-renv@v2
 
