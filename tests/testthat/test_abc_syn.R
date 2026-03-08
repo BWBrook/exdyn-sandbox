@@ -31,7 +31,7 @@ test_that("coverage curve summaries are emitted when breaks provided", {
   T_P <- matrix(rep(1950:1951, each = 2), nrow = 2)
   TX <- T_P + matrix(c(0, 5, 10, 15), nrow = 2)
   breaks <- c(1955, 1960)
-  S <- exdyn_summary_tx_response(TX, T_P, coverage_breaks = breaks)
+  S <- suppressWarnings(exdyn_summary_tx_response(TX, T_P, coverage_breaks = breaks))
   expect_true(all(c("cov_curve_1", "cov_curve_2") %in% names(S)))
   expect_true(S["cov_curve_2"] >= S["cov_curve_1"])
 })

@@ -591,3 +591,33 @@ Format for entries:
   - Next scientific progress should target representation/data enrichment rather than tuning the same constrained run harder.  
 - **Alternatives considered:**  
   - Relaxing thresholds until acceptance appears (rejected for this milestone: would weaken inferential honesty).  
+
+---
+
+- **Date:** 2026-03-08  
+- **Decision:** Separate fresh-checkout bootstrap from maintainer-side environment mutation, and require target execution to use a pre-restored environment rather than self-install missing packages.  
+- **Rationale:**  
+  - `make init` previously mixed restore, documentation regeneration, and lockfile snapshotting, which made a nominal bootstrap command mutate tracked state.  
+  - `_targets.R` previously attempted to install `qs` on the fly, which hid environment drift and weakened reproducibility guarantees.  
+  - A clear `make setup` path is safer for contributors and CI.  
+- **Implications:**  
+  - `make setup` is now the default non-mutating restore path.  
+  - `make init` remains available as the explicit maintainer workflow.  
+  - `_targets.R` now fails fast if required packages are missing instead of altering the environment.  
+- **Alternatives considered:**  
+  - Keep bootstrap and maintenance coupled, and keep self-install fallback in `_targets.R` (rejected: too easy to mask environment problems).  
+
+---
+
+- **Date:** 2026-03-08  
+- **Decision:** Replace live-network GBIF helper testing with local mocked coverage and require the core suite to run warning-clean.  
+- **Rationale:**  
+  - Network-dependent tests are nondeterministic and unsuitable as a reliable baseline for CI/refactoring.  
+  - Persistent warning noise makes regressions harder to spot during aggressive internal cleanup.  
+  - Characterization tests are more valuable than brittle live-service smoke checks for this repo’s current phase.  
+- **Implications:**  
+  - CI can now rely on the package test suite without internet-sensitive GBIF lookup behaviour.  
+  - Expected-warning cases are explicitly suppressed or rewritten so new warnings stand out.  
+  - New characterization coverage now protects ABC non-finite-summary behaviour, real-loss aggregation, and multicore determinism.  
+- **Alternatives considered:**  
+  - Keep live GBIF tests and tolerate warning-heavy output (rejected: poor signal for the refactor phase).  

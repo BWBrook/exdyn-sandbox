@@ -411,55 +411,6 @@ write_diagnostic_surfaces <- function(exp_grid, cases, dir = file.path("outputs"
   files[!is.na(files)]
 }
 
-# Design guidance -------------------------------------------------------------
-
-write_design_guidance <- function(clf_driver, clf_response, conf_driver, results, power_cv,
-                                  feature_importance_driver, feature_importance_response,
-                                  path = file.path("outputs", "experiments", "design_guidance.txt")) {
-  dir.create(dirname(path), showWarnings = FALSE)
-  driver_label <- clf_driver$primary$label
-  driver_macro <- clf_driver$primary$macro_f1
-  response_macro <- clf_response$primary$macro_f1
-  front_row <- dplyr::filter(conf_driver$per_class, scenario == "predation_front")
-  front_recall <- if (nrow(front_row)) front_row$recall else NA_real_
-  front_summary <- results %>%
-    dplyr::filter(scenario == "predation_front") %>%
-    dplyr::summarise(
-      median_r2_arrival = stats::median(r2_arrival, na.rm = TRUE),
-      median_r2_dist = stats::median(r2_dist, na.rm = TRUE),
-      median_coverage = stats::median(arrival_coverage, na.rm = TRUE)
-    )
-  driver_msg <- if (!is.na(front_recall) && front_recall < 0.5) {
-    sprintf("Driver-aware predation recall %.2f < 0.5 (median r2_arrival=%.2f, r2_dist=%.2f, coverage=%.2f).",
-            front_recall, front_summary$median_r2_arrival, front_summary$median_r2_dist, front_summary$median_coverage)
-  } else {
-    sprintf("Driver-aware predation recall %.2f with macro F1 %.2f.", front_recall, driver_macro)
-  }
-  worst_power <- power_cv$summary %>% dplyr::arrange(macro_f1) %>% dplyr::slice_head(n = 1)
-  response_msg <- if (!is.na(response_macro) && response_macro < 0.6 && nrow(worst_power)) {
-    sprintf("Response-only macro F1 %.2f < 0.6; weakest combo rate=%.4f, alpha=%.1f (macro F1 %.2f).",
-            response_macro, worst_power$presence_rate, worst_power$alpha, worst_power$macro_f1)
-  } else {
-    sprintf("Response-only macro F1 %.2f.", response_macro)
-  }
-  driver_feats <- head(feature_importance_driver, 5)
-  resp_feats <- head(feature_importance_response, 5)
-  driver_lines <- if (nrow(driver_feats)) sprintf("- %s (importance %.3f)", driver_feats$feature, driver_feats$importance) else "- (no driver-aware features)"
-  resp_lines <- if (nrow(resp_feats)) sprintf("- %s (importance %.3f)", resp_feats$feature, resp_feats$importance) else "- (no response-only features)"
-  lines <- c(
-    sprintf("Driver-aware model: %s (macro F1 = %.3f)", driver_label, driver_macro),
-    driver_msg,
-    sprintf("Response-only macro F1 = %.3f", response_macro),
-    response_msg,
-    "Top driver-aware features:",
-    driver_lines,
-    "Top response-only features:",
-    resp_lines
-  )
-  writeLines(lines, path)
-  path
-}
-
 # Power experiment outputs ----------------------------------------------------
 
 write_power_outputs <- function(power_summary, dir = file.path("outputs", "power")) {

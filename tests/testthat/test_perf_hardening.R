@@ -97,5 +97,5 @@ test_that("analytic summaries match lm-based r2 and slope", {
   proj <- idx[, 1] * dir_vec[1] + idx[, 2] * dir_vec[2]
   fit2 <- stats::lm(T_X[idx] ~ proj)
   expect_equal(speed$slope, unname(stats::coef(fit2)[2]), tolerance = 1e-10)
-  expect_equal(speed$r2, summary(fit2)$r.squared, tolerance = 1e-10)
+  expect_equal(speed$r2, suppressWarnings(summary(fit2))$r.squared, tolerance = 1e-10)
 })

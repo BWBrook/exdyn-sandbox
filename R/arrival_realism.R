@@ -233,19 +233,19 @@ exdyn_arrival_realism_comparison <- function(arrivals_real,
 
   dplyr::bind_rows(summary_rows) %>%
     dplyr::select(
-      .data$arrival_source,
-      .data$mode,
-      .data$n_reps,
-      .data$n_mask,
-      .data$n_TP_finite,
-      .data$frac_finite_TP_in_mask,
-      .data$mean_n_pairs,
-      .data$mean_n_TX_true,
-      .data$mean_n_TX_obs,
-      .data$summary_finite_rate_mean,
-      .data$summary_finite_rate_min,
-      .data$param_abs_bias_mean,
-      .data$param_coverage80_mean,
-      .data$param_coverage95_mean
+      "arrival_source",
+      "mode",
+      "n_reps",
+      "n_mask",
+      "n_TP_finite",
+      "frac_finite_TP_in_mask",
+      "mean_n_pairs",
+      "mean_n_TX_true",
+      "mean_n_TX_obs",
+      "summary_finite_rate_mean",
+      "summary_finite_rate_min",
+      "param_abs_bias_mean",
+      "param_coverage80_mean",
+      "param_coverage95_mean"
     )
 }

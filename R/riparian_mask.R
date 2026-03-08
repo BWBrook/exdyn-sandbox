@@ -83,11 +83,14 @@ exdyn_river_length_by_cell <- function(rivers_sf, grid_sf) {
     stop("grid_sf must contain column `cell_id`.")
   }
   rivers_sf <- sf::st_transform(rivers_sf, sf::st_crs(grid_sf))
-  rivers_sf <- sf::st_collection_extract(rivers_sf, "LINESTRING", warn = FALSE)
-  inter <- suppressMessages(sf::st_intersection(
+  geom_types <- unique(as.character(sf::st_geometry_type(rivers_sf, by_geometry = TRUE)))
+  if (any(geom_types %in% c("GEOMETRYCOLLECTION", "MULTILINESTRING"))) {
+    rivers_sf <- sf::st_collection_extract(rivers_sf, "LINESTRING", warn = FALSE)
+  }
+  inter <- suppressWarnings(suppressMessages(sf::st_intersection(
     rivers_sf,
     grid_sf[, "cell_id"]
-  ))
+  )))
   if (!nrow(inter)) {
     tibble::tibble(cell_id = grid_sf$cell_id, river_km = 0)
   } else {
@@ -112,7 +115,7 @@ exdyn_river_length_by_cell <- function(rivers_sf, grid_sf) {
 #' @return Character vector of region IDs aligned with `grid_sf`.
 #' @export
 exdyn_assign_region <- function(grid_sf) {
-  cent <- sf::st_centroid(grid_sf)
+  cent <- sf::st_centroid(sf::st_geometry(grid_sf))
   coords <- sf::st_coordinates(sf::st_transform(cent, 4326))
   lat <- coords[, 2]
   dplyr::case_when(

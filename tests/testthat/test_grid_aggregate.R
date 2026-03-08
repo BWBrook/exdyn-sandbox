@@ -13,8 +13,8 @@ test_that("grid aggregation maps cells to coarse lattice", {
     col = rep(1:2, times = 2),
     geometry = grid
   )
-  grid_sf$centroid_x <- st_coordinates(st_centroid(grid_sf))[, 1]
-  grid_sf$centroid_y <- st_coordinates(st_centroid(grid_sf))[, 2]
+  grid_sf$centroid_x <- st_coordinates(suppressWarnings(st_centroid(grid_sf)))[, 1]
+  grid_sf$centroid_y <- st_coordinates(suppressWarnings(st_centroid(grid_sf)))[, 2]
   agg <- exdyn_aggregate_grid(grid_sf, cell_km_new = 2)
   expect_equal(unique(agg$grid$cell_km), 2)
   expect_equal(nrow(agg$grid), 1)
@@ -38,8 +38,8 @@ test_that("cell rebin preserves counts", {
     col = rep(1:2, times = 2),
     geometry = grid
   )
-  grid_sf$centroid_x <- st_coordinates(st_centroid(grid_sf))[, 1]
-  grid_sf$centroid_y <- st_coordinates(st_centroid(grid_sf))[, 2]
+  grid_sf$centroid_x <- st_coordinates(suppressWarnings(st_centroid(grid_sf)))[, 1]
+  grid_sf$centroid_y <- st_coordinates(suppressWarnings(st_centroid(grid_sf)))[, 2]
   agg <- exdyn_aggregate_grid(grid_sf, cell_km_new = 2)
   rebinned <- exdyn_rebin_cells(cells, agg$mapping, agg$grid)
   expect_equal(nrow(rebinned), nrow(cells))

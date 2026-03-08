@@ -4,7 +4,7 @@ library(tarchetypes)
 source("pipelines/plan_server.R", local = TRUE)
 
 if (!requireNamespace("qs", quietly = TRUE)) {
-  install.packages("qs")
+  stop("Package 'qs' is required for the targets store format. Run `make setup` or `renv::restore()`.")
 }
 
 tar_option_args <- list(

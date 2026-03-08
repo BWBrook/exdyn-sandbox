@@ -2,7 +2,8 @@
 Synthetic extinction-dynamics sandbox that couples a lattice-based population simulator with observation models, discriminative summaries, and classifier tooling. The project is an R package organised around the `targets` pipeline so that single runs, experiment grids, and identifiability studies are fully reproducible.
 
 ## Quick Start
-- `make init` — restore the `renv` library, regenerate documentation, and snapshot the lockfile.
+- `make setup` — restore the `renv` library without mutating tracked files.
+- `make init` — maintainer workflow: restore, regenerate documentation, and snapshot the lockfile.
 - `make test` — run the `testthat` suite under `tests/testthat`.
 - `make run` — execute the full `targets` pipeline defined in `_targets.R` (can be expensive).
 - `make exp` — build the branched experiment grid (≥54 runs) and train both driver-aware and response-only classifiers.
@@ -84,4 +85,4 @@ For the mink → vole pipelines:
 Outputs land in `outputs/` with a simple hierarchy: baseline bundles in `outputs/baseline/` (`N.rds`, `presence_only.csv`, `fossils.csv`, `total_abundance.csv`, `default_summary.rds`), experiment summaries + confusion matrices + feature importances + design guidance in `outputs/experiments/`, QA tables in `outputs/qa/`, diagnostic PNGs in `outputs/diagnostics/`, sensitivity sweeps in `outputs/sensitivity/`, and power experiment artefacts in `outputs/power/`.
 
 ## Development Workflow
-Use conventional commits (`feat:`, `fix:`, `chore:`). Before committing, ensure `make test` passes and regenerate documentation (`devtools::document()`) if roxygen blocks change. Avoid committing `_targets/` cache; published artefacts belong in `outputs/` and rendered reports in `reports/`.
+Use conventional commits (`feat:`, `fix:`, `chore:`). Before committing, ensure `make test` passes and regenerate documentation (`make document`) if roxygen blocks change. Avoid committing `_targets/` cache; published artefacts belong in `outputs/` and rendered reports in `reports/`.

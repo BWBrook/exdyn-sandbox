@@ -57,8 +57,13 @@ No iteration, no progress.
 ## 3) Practical run patterns (minimal commands)
 
 ### Environment + tests
+- `make setup`
 - `make init`
 - `make test`
+
+Notes:
+- `make setup` is the non-mutating restore path for a fresh checkout.
+- `make init` is the maintainer path when you intentionally want to re-document and snapshot the lockfile.
 
 ### Running pipelines
 - Full pipeline (expensive): `make run`

@@ -43,7 +43,7 @@ exdyn_aggregate_grid <- function(grid_sf, cell_km_new) {
   grid_new <- sf::st_filter(grid_new, cover)
   grid_new$geometry <- sf::st_intersection(grid_new$geometry, cover)
   grid_new <- grid_new[!sf::st_is_empty(grid_new), ]
-  cent <- sf::st_coordinates(sf::st_centroid(grid_new))
+  cent <- sf::st_coordinates(sf::st_centroid(sf::st_geometry(grid_new)))
   grid_new$centroid_x <- cent[, 1]
   grid_new$centroid_y <- cent[, 2]
   x_levels <- sort(unique(round(grid_new$centroid_x, 6)))
@@ -52,7 +52,10 @@ exdyn_aggregate_grid <- function(grid_sf, cell_km_new) {
   row_match <- match(round(grid_new$centroid_y, 6), y_levels)
   grid_new$row <- length(y_levels) - row_match + 1
 
-  old_cent <- sf::st_centroid(grid_sf)
+  old_cent <- sf::st_sf(
+    cell_id = grid_sf$cell_id,
+    geometry = sf::st_centroid(sf::st_geometry(grid_sf))
+  )
   joined <- suppressMessages(sf::st_join(
     old_cent["cell_id"],
     grid_new["cell_id"],
@@ -96,11 +99,11 @@ exdyn_rebin_cells <- function(cells_df, mapping, grid_new) {
   out <- cells_df %>%
     dplyr::left_join(mapping, by = c("cell_id" = "cell_id_old")) %>%
     dplyr::filter(!is.na(.data$cell_id_new)) %>%
-    dplyr::select(
+    dplyr::transmute(
       cell_id = .data$cell_id_new,
       row = .data$row_new,
       col = .data$col_new,
-      year
+      year = .data$year
     )
   out <- out %>%
     dplyr::left_join(

@@ -1,4 +1,4 @@
-.PHONY: init test run report report-leak report-qa exp report-id report-sens pilot pilot-future synthetic graph-parallel manuscript
+.PHONY: setup document snapshot init test run report report-leak report-qa exp report-id report-sens pilot pilot-future synthetic graph-parallel manuscript
 
 EXDYN_WORKERS ?= 8
 EXDYN_DRAWS ?= 64
@@ -6,8 +6,16 @@ EXDYN_SIMS ?= 200
 EXDYN_MODE ?= full
 EXDYN_SEED ?= 1045
 
-init:
-	R --vanilla -e 'renv::restore(); devtools::document(); renv::snapshot(prompt=FALSE)'
+setup:
+	R --vanilla -e 'source("renv/activate.R"); renv::restore(prompt=FALSE)'
+
+document:
+	R --vanilla -e 'source("renv/activate.R"); devtools::document()'
+
+snapshot:
+	R --vanilla -e 'source("renv/activate.R"); renv::snapshot(prompt=FALSE)'
+
+init: setup document snapshot
 
 test:
 	R --vanilla -e 'source("renv/activate.R"); devtools::test()'

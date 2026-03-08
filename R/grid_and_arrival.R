@@ -35,9 +35,9 @@ exdyn_make_grid <- function(country_code = "GB", cell_km = 10, crs_out = "EPSG:2
   )
   grid_sf$cell_km <- cell_km
   grid_sf <- sf::st_filter(grid_sf, cntry)
-  grid_sf <- suppressMessages(sf::st_intersection(grid_sf, cntry))
+  grid_sf <- suppressWarnings(suppressMessages(sf::st_intersection(grid_sf, cntry)))
   grid_sf <- grid_sf[!sf::st_is_empty(grid_sf), ]
-  cent <- sf::st_centroid(grid_sf)
+  cent <- sf::st_centroid(sf::st_geometry(grid_sf))
   coords <- sf::st_coordinates(cent)
   x_levels <- sort(unique(round(coords[, 1], 6)))
   y_levels <- sort(unique(round(coords[, 2], 6)))
