@@ -91,6 +91,7 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - Phase 040 — Manuscript-ready package and reproducibility freeze (roadmap closure)
 
 ### Recently completed
+- 2026-03-08 reconnaissance + hygiene checkpoint: repo structure revalidated, `main` confirmed aligned with `origin/main` at scout time, and a clean-baseline commit prepared after verification.
 - Phase 000 — Takeover + harness (docs + README + Makefile refresh).
 - Completed perf profiling + scaling + guardrails + optimisation (WP‑0.2.x).
 - Completed WP‑0.3.1 → WP‑0.3.4b (canonical schema, modes, replicated recovery, alignment tests, GB preflight budgets).
