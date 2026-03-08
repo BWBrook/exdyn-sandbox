@@ -65,6 +65,19 @@ Identifiability gate configuration for pilot synthetic runs. When enabled,
 the pipeline stops before ABC if core signal checks fail (arrival coverage,
 TX coverage, coverage-curve informativeness, and screen compatibility).
 - `enabled`: boolean.
+- `thresholds`: resolved gate thresholds recorded in the manifest/report.
+  Keys:
+  - `arrival_frac_finite_min`
+  - `tx_true_min`
+  - `tx_true_coverage_min`
+  - `tx_true_coverage_max`
+  - `tx_obs_min`
+  - `tx_obs_coverage_min`
+  - `geom_finite_min`
+  - `cov_curve_mid_min`
+  - `screen_compatible_min`
+  - `accept_rate_min`
+  - `accept_rate_max`
 
 ### `arrival_realism`
 Arrival-surface realism gate (WP-0.3.4.5). Runs matched synthetic recovery
@@ -173,13 +186,20 @@ ABC configuration. Keys include:
 - optional `eps_by_mode` / `eps_tight_by_mode` named lists (keys `ideal`,
   `realistic`) to set mode-specific acceptance thresholds.
 - `scale`: named vector of summary scales
+- `required_metrics`: summary names that must stay finite for a draw to be valid
+- `optional_missing_penalty`: additive standardized penalty per missing optional metric
 - `prior`: bounds mirroring `screen`
 - `lhs`: optional seeding via Latin hypercube (`n`, `keep`, `seed`,
   `jitter_sd`, `seed_prob`)
 
 ### `tx_cfg`
 First-passage TX estimator settings (`smooth_window`, `min_years_active`,
-`baseline_window`, `drop_fraction`, `hold_years`, `normalize_by`).
+`baseline_window`, `drop_fraction`, `hold_years`, `normalize_by`,
+`threshold_mode`).
+- `threshold_mode`:
+  - `auto`: raw counts use `count_floor`; normalized series use `relative_baseline`
+  - `count_floor`: `tau = max(1, floor(drop_fraction * baseline))`
+  - `relative_baseline`: `tau = drop_fraction * baseline`
 
 ### `canonical`
 Controls canonical artefact output (WP-0.3.1+).
@@ -196,6 +216,8 @@ Canonical `manifest.yaml` also records benchmark metadata:
 - `benchmark.weak_id_parameters_declared`
 - `benchmark.weak_id_parameters_observed`
 - `benchmark.gate_abs_rel_bias`, `benchmark.gate_coverage80`
+- `benchmark.per_mode`
+- `pilot_gates.enabled`, `pilot_gates.thresholds`
 
 Environment overrides (optional, for reproducible smoke/canonical runs):
 - `EXDYN_CANONICAL_ENABLED`, `EXDYN_CANONICAL_WP`,
@@ -273,7 +295,9 @@ Key sections (high level):
 - `pilot.unit_min_tx_obs`: minimum TX_obs units required for the representation gate
 - `pilot.years`: start/end year range
 - `pilot.mink_P`: arrival field controls (ramp, scale, gamma, delta bounds)
-- `pilot.vole`: TX estimator settings and effort normalisation
+- `pilot.vole`: TX estimator settings and effort normalisation, including
+  `threshold_mode` (`auto`, `count_floor`, `relative_baseline`)
+- `pilot.loss`: loss aggregation settings; currently `unit_timing_stat: "median"`
 - `pilot.screen` / `pilot.abc`: screen + ABC settings
 - `pilot.ablation`: WP‑0.4.2 settings for δ‑only vs δ+RE comparison
   (`enabled`, `n_draws`, `n_cores`, `seed`)

@@ -31,6 +31,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       unit_lookup <- unit_info$lookup
       unit_mask <- unit_info$mask %||% matrix(TRUE, nrow = pilot_grid_info$nx, ncol = pilot_grid_info$ny)
       coverage_breaks <- unit_info$coverage_breaks
+      unit_timing_stat <- unit_info$unit_timing_stat %||% (pilot_cfg$pilot$loss$unit_timing_stat %||% "median")
       adjacency <- unit_info$adjacency
       region_lookup <- unit_info$region_lookup
       delta_cols <- grep("^delta_", names(theta), value = TRUE)
@@ -98,7 +99,8 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
         compat_cfg = pilot_cfg$pilot$compat,
         delta_lookup = delta_unit_values,
         delta_adj = adjacency,
-        delta_penalty_cfg = delta_penalty_cfg
+        delta_penalty_cfg = delta_penalty_cfg,
+        unit_timing_stat = unit_timing_stat
       )
       compat_cfg <- pilot_cfg$pilot$compat
       lag_range <- compat_cfg$lag_range %||% c(-Inf, Inf)
@@ -141,6 +143,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
           anisotropy_gap = score$anisotropy_gap,
           coverage_curve_rmse = score$coverage_curve_rmse,
           delta_penalty = score$delta_penalty,
+          unit_timing_stat = score$unit_timing_stat,
           loss = score$loss,
           compatible = compatible
         ),
@@ -162,6 +165,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
             as.list(),
           loss = result$loss,
           coverage = coverage_sim,
+          unit_timing_stat = unit_timing_stat,
           delta_region = delta_lookup_region,
           tx_path = tx_path,
           coverage_curve_obs = score$coverage_curve_obs,
@@ -366,18 +370,31 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
         dplyr::group_by(cell_id, row, col, row_idx, col_idx) %>%
         tidyr::nest(counts = c(year, n_obs, n_mammal, norm_mammal)) %>%
         dplyr::ungroup()
-      tx_norm <- purrr::map_int(
+      norm_res <- purrr::map(
         nested$counts,
-        ~ exdyn_tx_from_po(.x, pilot_cfg$pilot$years, cfg_vol, normalize_by = cfg_vol$normalize_by %||% NULL)$tx %||% NA_integer_
+        ~ exdyn_tx_from_po(.x, pilot_cfg$pilot$years, cfg_vol, normalize_by = cfg_vol$normalize_by %||% NULL)
       )
-      tx_raw <- purrr::map_int(
+      raw_res <- purrr::map(
         nested$counts,
-        ~ exdyn_tx_from_po(.x, pilot_cfg$pilot$years, cfg_vol, normalize_by = NULL)$tx %||% NA_integer_
+        ~ exdyn_tx_from_po(.x, pilot_cfg$pilot$years, cfg_vol, normalize_by = NULL)
       )
+      tx_norm <- purrr::map_int(norm_res, ~ .x$tx %||% NA_integer_)
+      tx_raw <- purrr::map_int(raw_res, ~ .x$tx %||% NA_integer_)
       changed_idx <- which(!(tx_norm == tx_raw | (is.na(tx_norm) & is.na(tx_raw))))
       changed_tbl <- if (length(changed_idx)) {
         nested[changed_idx, c("cell_id", "row", "col")] %>%
-          dplyr::mutate(tx_norm = tx_norm[changed_idx], tx_raw = tx_raw[changed_idx])
+          dplyr::mutate(
+            tx_norm = tx_norm[changed_idx],
+            tx_raw = tx_raw[changed_idx],
+            tau_norm = purrr::map_dbl(norm_res[changed_idx], ~ .x$tau %||% NA_real_),
+            tau_raw = purrr::map_dbl(raw_res[changed_idx], ~ .x$tau %||% NA_real_),
+            baseline_norm = purrr::map_dbl(norm_res[changed_idx], ~ .x$baseline %||% NA_real_),
+            baseline_raw = purrr::map_dbl(raw_res[changed_idx], ~ .x$baseline %||% NA_real_),
+            threshold_mode_norm = purrr::map_chr(norm_res[changed_idx], ~ .x$threshold_mode %||% NA_character_),
+            threshold_mode_raw = purrr::map_chr(raw_res[changed_idx], ~ .x$threshold_mode %||% NA_character_),
+            reason_norm = purrr::map_chr(norm_res[changed_idx], ~ .x$reason %||% NA_character_),
+            reason_raw = purrr::map_chr(raw_res[changed_idx], ~ .x$reason %||% NA_character_)
+          )
       } else {
         tibble::tibble()
       }
@@ -577,6 +594,9 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
     tar_target(pilot_unit_min_tx_obs, {
       as.integer(pilot_cfg$pilot$unit_min_tx_obs %||% 50L)
     }),
+    tar_target(pilot_unit_timing_stat, {
+      pilot_cfg$pilot$loss$unit_timing_stat %||% "median"
+    }),
     tar_target(pilot_unit_structure, {
       preferred <- pilot_analysis_unit_pref
       years_vec <- pilot_years
@@ -664,7 +684,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
           dplyr::select(-dplyr::any_of(c("unit_id_lookup", "region_lookup")))
         list(
           type = grid_mode,
-          lookup = lookup %>% dplyr::select(row_idx, col_idx, unit_id, region, cell_id),
+          lookup = lookup %>% dplyr::select(row_idx, col_idx, unit_id, region, cell_id, dplyr::any_of(c("centroid_x", "centroid_y"))),
           mask = make_mask(lookup),
           adjacency = build_cell_adjacency(lookup),
           tx_table = tx_tbl,
@@ -697,13 +717,21 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
         if (!"region" %in% names(lookup)) {
           lookup$region <- NA_character_
         }
+        if (!"centroid_x" %in% names(lookup)) {
+          lookup$centroid_x <- lookup$col_idx
+        }
+        if (!"centroid_y" %in% names(lookup)) {
+          lookup$centroid_y <- lookup$row_idx
+        }
         lookup <- lookup %>%
           dplyr::transmute(
             row_idx = row_idx,
             col_idx = col_idx,
             unit_id = paste0("seg_", comp_id),
             region = dplyr::coalesce(region, "UNKNOWN"),
-            cell_id = dplyr::coalesce(cell_id, NA_integer_)
+            cell_id = dplyr::coalesce(cell_id, NA_integer_),
+            centroid_x = dplyr::coalesce(centroid_x, as.numeric(col_idx)),
+            centroid_y = dplyr::coalesce(centroid_y, as.numeric(row_idx))
           )
         mask <- make_mask(lookup)
         adjacency <- exdyn_component_adjacency(pilot_riparian_components$matrix) %>%
@@ -748,16 +776,18 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       unit_info$preferred <- preferred
       unit_info$unit_threshold <- unit_min
       unit_info$unit_threshold_met <- unit_info$n_tx_obs >= unit_min
+      unit_info$unit_timing_stat <- pilot_unit_timing_stat
       dir.create("logs", showWarnings = FALSE)
       log_line <- sprintf(
-        "[%s] Analysis units=%s preferred=%s n_units=%d n_tx_obs=%d threshold=%d met=%s",
+        "[%s] Analysis units=%s preferred=%s n_units=%d n_tx_obs=%d threshold=%d met=%s timing=%s",
         format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
         unit_info$type,
         preferred,
         unit_info$n_units,
         unit_info$n_tx_obs,
         unit_min,
-        unit_info$unit_threshold_met
+        unit_info$unit_threshold_met,
+        pilot_unit_timing_stat
       )
       cat(log_line, "\n", file = file.path("logs", "wo9.log"), append = TRUE)
       cat(log_line, "\n", file = file.path("logs", "wo9b.log"), append = TRUE)
@@ -785,6 +815,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       audit <- tibble::tibble(
         analysis_unit = unit_info$type %||% pilot_analysis_unit_pref,
         preferred_unit = pilot_analysis_unit_pref,
+        unit_timing_stat = unit_info$unit_timing_stat %||% pilot_unit_timing_stat,
         n_units = unit_info$n_units %||% NA_integer_,
         n_TX_obs = counts[["n_TX_finite"]] %||% 0,
         coverage_obs = if ((counts[["n_mask"]] %||% 0) > 0) (counts[["n_TX_finite"]] %||% 0) / (counts[["n_mask"]] %||% 1) else NA_real_,
@@ -833,12 +864,12 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
             tx_obs = {
               vals <- .data$tx_obs_raw
               vals <- vals[is.finite(vals)]
-              if (length(vals)) vals[1] else NA_real_
+              if (length(vals)) suppressWarnings(stats::median(vals, na.rm = TRUE)) else NA_real_
             },
             T_P = {
               vals <- .data$tp_raw
               vals <- vals[is.finite(vals)]
-              if (length(vals)) vals[1] else NA_real_
+              if (length(vals)) suppressWarnings(stats::median(vals, na.rm = TRUE)) else NA_real_
             },
             .groups = "drop"
           )
@@ -898,7 +929,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
       segment_arrivals <- comp_lookup %>%
         dplyr::left_join(arrival_tbl %>% dplyr::select(cell_id, T_P), by = "cell_id") %>%
         dplyr::group_by(comp_id) %>%
-        dplyr::summarise(T_P = mean(.data$T_P, na.rm = TRUE), .groups = "drop")
+        dplyr::summarise(T_P = suppressWarnings(stats::median(.data$T_P, na.rm = TRUE)), .groups = "drop")
       segment_tbl <- comp_lookup %>%
         dplyr::distinct(comp_id) %>%
         dplyr::left_join(segment_arrivals, by = "comp_id") %>%
@@ -914,6 +945,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
         metric_from_tbl(segment_tbl, unit_col = "unit_id", label = "segment", class = "segment")
       ) %>%
         dplyr::mutate(
+          unit_timing_stat = pilot_unit_timing_stat,
           unit_min_threshold = pilot_unit_min_tx_obs %||% 50L,
           meets_unit_gate = .data$n_TX_obs >= .data$unit_min_threshold,
           preferred = .data$representation == pilot_analysis_unit_pref
@@ -1518,6 +1550,7 @@ targets_pilot_mink_vole <- function(cfg_path = "config/realdata.yaml") {
         mink_cfg = pilot_cfg$pilot$mink_P,
         compat_cfg = pilot_cfg$pilot$compat,
         delta_penalty_cfg = delta_penalty_cfg,
+        unit_timing_stat = pilot_unit_timing_stat,
         n_cores = n_cores,
         log_mem = FALSE
       )

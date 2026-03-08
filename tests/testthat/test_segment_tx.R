@@ -21,5 +21,5 @@ test_that("segment tx aggregates component counts", {
   )
   seg <- exdyn_segment_tx(cells, comp_lookup, years, cfg, normalize_by = "none")
   expect_equal(sort(unique(seg$comp_id)), c(1L, 2L))
-  expect_true(all(c("tx_obs", "reason") %in% names(seg)))
+  expect_true(all(c("tx_obs", "reason", "threshold_mode") %in% names(seg)))
 })

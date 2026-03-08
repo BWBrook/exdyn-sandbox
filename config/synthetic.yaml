@@ -51,6 +51,18 @@ benchmark:
   weak_id_parameters: ["alpha", "disp_mean_km"]
 pilot_gates:
   enabled: true
+  thresholds:
+    arrival_frac_finite_min: 0.90
+    tx_true_min: 50
+    tx_true_coverage_min: 0.10
+    tx_true_coverage_max: 0.80
+    tx_obs_min: 30
+    tx_obs_coverage_min: 0.05
+    geom_finite_min: 3
+    cov_curve_mid_min: 2
+    screen_compatible_min: 1
+    accept_rate_min: 0.00
+    accept_rate_max: 0.20
 arrival_realism:
   enabled: false
   sources: ["real", "synthetic_plane"]
@@ -180,6 +192,8 @@ abc:
   n_sims: 2000
   eps: 12.3
   eps_tight: 6.15
+  required_metrics: ["coverage", "lag_mean", "r2_arrival", "grad_mag", "orient_R", "speed_cells_per_year", "speed_r2"]
+  optional_missing_penalty: 1.0
   eps_by_mode:
     realistic: 15
     ideal: 23
@@ -225,6 +239,7 @@ tx_cfg:
   baseline_window: 2
   drop_fraction: 0.3
   hold_years: 1
+  threshold_mode: "auto"
   normalize_by: "none"
 canonical:
   enabled: false

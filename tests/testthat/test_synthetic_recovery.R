@@ -55,6 +55,8 @@ test_that("recovery tables expose required columns", {
   expect_true(all(c("mode", "param", "truth", "coverage_80", "shrinkage_ratio",
                     "abs_rel_bias_median", "identifiability_status", "gate_pass") %in%
                     names(tables$parameter_recovery)))
+  expect_true(all(c("mode", "overall_benchmark_pass", "n_core_params_expected") %in%
+                    names(tables$benchmark_summary)))
 })
 
 test_that("identifiability status respects weak-id declaration", {
@@ -62,23 +64,58 @@ test_that("identifiability status respects weak-id declaration", {
     abs_rel_bias = 0.1,
     coverage_80 = 0.8,
     param = "disp_mean_km",
-    benchmark_cfg = list(gate_abs_rel_bias = 0.2, gate_coverage80 = 0.6, weak_id_parameters = "alpha")
+    benchmark_cfg = list(
+      stance = "weak_id",
+      gate_abs_rel_bias = 0.2,
+      gate_coverage80 = 0.6,
+      weak_id_parameters = "alpha"
+    )
   )
   status_weak <- exdyn_identifiability_status(
     abs_rel_bias = 0.4,
     coverage_80 = 0.7,
     param = "alpha",
-    benchmark_cfg = list(gate_abs_rel_bias = 0.2, gate_coverage80 = 0.6, weak_id_parameters = "alpha")
+    benchmark_cfg = list(
+      stance = "weak_id",
+      gate_abs_rel_bias = 0.2,
+      gate_coverage80 = 0.6,
+      weak_id_parameters = "alpha"
+    )
   )
   status_partial <- exdyn_identifiability_status(
     abs_rel_bias = 0.3,
     coverage_80 = 0.6,
     param = "disp_mean_km",
-    benchmark_cfg = list(gate_abs_rel_bias = 0.2, gate_coverage80 = 0.6, weak_id_parameters = "alpha")
+    benchmark_cfg = list(
+      stance = "weak_id",
+      gate_abs_rel_bias = 0.2,
+      gate_coverage80 = 0.6,
+      weak_id_parameters = "alpha"
+    )
   )
   expect_identical(status_recoverable, "recoverable")
   expect_identical(status_weak, "weakly_identifiable")
-  expect_identical(status_partial, "partially_recoverable")
+  expect_identical(status_partial, "not_recoverable")
+})
+
+test_that("benchmark summary depends only on configured core params", {
+  param_tbl <- tibble::tibble(
+    mode = c("ideal", "ideal", "ideal"),
+    param = c("alpha", "disp_mean_km", "pred_c"),
+    core_param = c(TRUE, TRUE, FALSE),
+    identifiability_status = c("weakly_identifiable", "recoverable", "not_recoverable"),
+    gate_pass = c(FALSE, TRUE, FALSE)
+  )
+  summ <- exdyn_benchmark_summary(
+    param_tbl,
+    benchmark_cfg = list(
+      stance = "weak_id",
+      core_params = c("alpha", "disp_mean_km"),
+      weak_id_parameters = "alpha"
+    )
+  )
+  expect_true(summ$overall_benchmark_pass[[1]])
+  expect_equal(summ$n_core_not_recoverable[[1]], 0)
 })
 
 test_that("replicate metrics respect coverage-aware best_index", {

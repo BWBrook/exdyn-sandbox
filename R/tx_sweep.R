@@ -56,6 +56,7 @@ exdyn_tx_apply_cfg <- function(cells_df, years, cfg_base, grid_info,
     last_presence = integer(),
     baseline = numeric(),
     tau = numeric(),
+    threshold_mode = character(),
     reason = character()
   )
   if (!is.null(mask)) {
@@ -88,6 +89,7 @@ exdyn_tx_apply_cfg <- function(cells_df, years, cfg_base, grid_info,
       last_presence = purrr::map_int(res, ~ .x$last_presence %||% NA_integer_),
       baseline = purrr::map_dbl(res, ~ .x$baseline %||% NA_real_),
       tau = purrr::map_dbl(res, ~ .x$tau %||% NA_real_),
+      threshold_mode = purrr::map_chr(res, ~ .x$threshold_mode %||% NA_character_),
       reason = purrr::map_chr(res, ~ .x$reason %||% NA_character_)
     ) |>
     dplyr::ungroup()
@@ -120,7 +122,7 @@ exdyn_funnel_summary <- function(tx_results) {
     return(tibble::tibble())
   }
   tx_results |>
-    dplyr::group_by(dplyr::across(-c(cell_id, reason, tx_obs, last_presence, baseline, tau))) |>
+    dplyr::group_by(dplyr::across(-c(cell_id, reason, tx_obs, last_presence, baseline, tau, threshold_mode))) |>
     dplyr::summarise(
       n_total = dplyr::n(),
       n_success = sum(is.na(reason)),

@@ -16,7 +16,7 @@ NULL
 #' @param effort_cells Optional effort dataframe (`cell_id`, `year`).
 #'
 #' @return Tibble with columns `comp_id`, `tx_obs`, `last_presence`,
-#'   `reason`, `baseline`, `tau`, `n_cells`, and `n_years_active`.
+#'   `reason`, `baseline`, `tau`, `threshold_mode`, `n_cells`, and `n_years_active`.
 #' @export
 exdyn_segment_tx <- function(cells_df, comp_lookup, years, cfg_base,
                              normalize_by = "mammal", effort_cells = NULL) {
@@ -28,6 +28,7 @@ exdyn_segment_tx <- function(cells_df, comp_lookup, years, cfg_base,
       reason = character(),
       baseline = numeric(),
       tau = numeric(),
+      threshold_mode = character(),
       n_cells = integer(),
       n_years_active = integer()
     ))
@@ -50,6 +51,7 @@ exdyn_segment_tx <- function(cells_df, comp_lookup, years, cfg_base,
       reason = character(),
       baseline = numeric(),
       tau = numeric(),
+      threshold_mode = character(),
       n_cells = integer(),
       n_years_active = integer()
     ))
@@ -80,6 +82,7 @@ exdyn_segment_tx <- function(cells_df, comp_lookup, years, cfg_base,
       reason = purrr::map_chr(res, ~ .x$reason %||% NA_character_),
       baseline = purrr::map_dbl(res, ~ .x$baseline %||% NA_real_),
       tau = purrr::map_dbl(res, ~ .x$tau %||% NA_real_),
+      threshold_mode = purrr::map_chr(res, ~ .x$threshold_mode %||% NA_character_),
       n_years_active = purrr::map_int(data, ~ sum(.x$n_obs > 0, na.rm = TRUE))
     ) |>
     dplyr::left_join(
@@ -87,6 +90,6 @@ exdyn_segment_tx <- function(cells_df, comp_lookup, years, cfg_base,
         dplyr::distinct(comp_id, n_cells = n_cells_comp),
       by = "comp_id"
     ) |>
-    dplyr::select(comp_id, tx_obs, last_presence, reason, baseline, tau, n_cells, n_years_active)
+    dplyr::select(comp_id, tx_obs, last_presence, reason, baseline, tau, threshold_mode, n_cells, n_years_active)
   segments
 }

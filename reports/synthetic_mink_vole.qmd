@@ -9,21 +9,31 @@ format:
 ---
 
 ```{r setup}
+project_root <- if (dir.exists("_targets")) "." else if (dir.exists("../_targets")) ".." else stop("Could not locate _targets store.")
+renv_activate <- file.path(project_root, "renv", "activate.R")
+if (file.exists(renv_activate)) {
+  source(renv_activate)
+}
 library(targets)
 library(dplyr)
 library(ggplot2)
 if (requireNamespace("pkgload", quietly = TRUE)) {
-  pkgload::load_all(export_all = FALSE, helpers = FALSE)
+  pkgload::load_all(path = normalizePath(project_root), export_all = FALSE, helpers = FALSE)
 } else if (requireNamespace("devtools", quietly = TRUE)) {
-  devtools::load_all(export_all = FALSE)
+  devtools::load_all(path = normalizePath(project_root), export_all = FALSE)
 }
+tar_config_set(store = file.path(project_root, "_targets"))
 truth <- tar_read(synthetic_reference_truth)
 mode_runs <- tar_read(synthetic_reference_runs)
 theta_star <- tar_read(synthetic_theta_star)
+synthetic_cfg <- tar_read(synthetic_cfg)
 recovery <- tar_read(synthetic_recovery_tables)
 rep_metrics <- recovery$replicate_metrics
 param_recovery <- recovery$parameter_recovery
+benchmark_summary <- recovery$benchmark_summary %||% tibble::tibble()
 pilot_gates <- recovery$pilot_gates %||% tibble::tibble()
+benchmark_cfg <- tryCatch(tar_read(synthetic_benchmark_cfg), error = function(...) list())
+pilot_gate_cfg <- tryCatch(tar_read(synthetic_pilot_gate_cfg), error = function(...) list())
 stress_outputs <- tryCatch(tar_read(synthetic_stress_outputs), error = function(...) list())
 stress_scenarios <- stress_outputs$scenarios %||% tibble::tibble()
 stress_gate_pass <- stress_outputs$gate_pass %||% tibble::tibble()
@@ -40,6 +50,7 @@ plot_surface <- function(mat, title) exdyn_plot_surface(mat, grid_info, title)
 - **TX_true**: simulator ground truth extirpation year per cell.
 - **TX_obs**: extirpation year inferred after observation + TX estimator (what ABC sees).
 - **Screen**: fast filter over parameter draws; simulates TX, computes summaries, ranks draws.
+- **Benchmark**: config-driven recovery classification over declared `benchmark.core_params`.
 - **Pilot gates**: hard pass/fail checks (arrival coverage, TX coverage, informative summaries) that stop the pipeline if data are uninformative.
 - **TX_best / TX_diff**: best screen draw and its difference vs TX_true (only written if screen runs and gates pass).
 :::
@@ -50,7 +61,10 @@ plot_surface <- function(mat, title) exdyn_plot_surface(mat, grid_info, title)
 tibble::tibble(
   n_reps = recovery_cfg$n_reps %||% NA_integer_,
   reference_rep = recovery_cfg$reference_rep %||% NA_integer_,
-  modes = paste(unique(rep_metrics$mode), collapse = ", ")
+  modes = paste(unique(rep_metrics$mode), collapse = ", "),
+  benchmark_stance = benchmark_cfg$stance %||% NA_character_,
+  benchmark_core_params = paste(benchmark_cfg$core_params %||% character(), collapse = ", "),
+  abc_optional_missing_penalty = synthetic_cfg$abc$optional_missing_penalty %||% NA_real_
 )
 ```
 
@@ -75,6 +89,29 @@ rep_metrics %>%
   )
 ```
 
+## Benchmark status
+
+```{r benchmark-summary}
+if (nrow(benchmark_summary)) {
+  benchmark_summary %>%
+    arrange(.data$mode) %>%
+    select(
+      .data$mode,
+      .data$stance,
+      .data$n_core_params_expected,
+      .data$n_core_params_present,
+      .data$n_core_recoverable,
+      .data$n_core_weak_id,
+      .data$n_core_not_recoverable,
+      .data$n_core_unassessed,
+      .data$core_params_missing,
+      .data$overall_benchmark_pass
+    )
+} else {
+  tibble::tibble(note = "No benchmark summary available for this run.")
+}
+```
+
 ```{r recovery-table}
 if (nrow(param_recovery) && all(c("mode", "abs_bias") %in% names(param_recovery))) {
   param_recovery %>%
@@ -82,6 +119,7 @@ if (nrow(param_recovery) && all(c("mode", "abs_bias") %in% names(param_recovery)
     select(
       .data$mode,
       .data$param,
+      tidyselect::any_of("core_param"),
       .data$truth,
       .data$bias,
       .data$rel_bias_median,
@@ -110,6 +148,14 @@ if (nrow(param_recovery) && all(c("abs_bias", "coverage_80", "mode") %in% names(
 ```
 
 ## Pilot gate checks
+
+```{r pilot-gate-thresholds}
+if (length(pilot_gate_cfg$thresholds %||% list())) {
+  tibble::enframe(pilot_gate_cfg$thresholds, name = "threshold", value = "value")
+} else {
+  tibble::tibble(note = "No resolved pilot-gate thresholds available for this run.")
+}
+```
 
 ```{r pilot-gates}
 if (nrow(pilot_gates)) {

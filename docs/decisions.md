@@ -86,6 +86,24 @@ Format for entries:
 
 ---
 
+- **Date:** 2026-03-08
+- **Decision:** Make benchmark/gate semantics config-authoritative, require finite ABC core summaries, score real-data fits on a unit-consistent median-timing table, and use `threshold_mode = auto` for TX estimation.
+- **Rationale:**
+  - Benchmark pass/fail meaning should live in YAML and canonical manifests, not in hidden fallback code paths.
+  - ABC should not silently accept draws on a reduced objective when core summaries are non-finite.
+  - The real-data loss must not mix unit-level timing with cell-level geometry if we want interpretable screening and ablation diagnostics.
+  - Normalized series need relative thresholds; forcing `tau >= 1` after normalization reintroduces count-scale semantics.
+- **Implications:**
+  - Synthetic benchmark outputs now classify only `recoverable`, `weakly_identifiable`, `not_recoverable`, or `unassessed`, and overall benchmark pass/fail depends only on configured `core_params`.
+  - Synthetic schema is bumped to **0.4.0** and manifests now record resolved pilot-gate thresholds and per-mode benchmark summaries.
+  - `exdyn_loss_real()` now builds a canonical unit timing table and uses median finite unit timing by default.
+  - `threshold_mode` is surfaced through TX maps, sweeps, segment outputs, and QC/report tables.
+- **Alternatives considered:**
+  - Retaining hidden benchmark heuristics and silent ABC dimension dropping (rejected: not auditable).
+  - Keeping the old mixed-scale real loss and count-floor thresholds for normalized series (rejected: inconsistent scientific semantics).
+
+---
+
 ## Performance budgets (Phase 020)
 
 - **Date:** 2025-12-19  

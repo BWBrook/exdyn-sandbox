@@ -27,5 +27,6 @@ test_that("tx sweep funnels capture drop-off reasons", {
   res <- exdyn_tx_apply_cfg(cells, years, cfg, grid_info, normalize_by = "none")
   expect_equal(nrow(res$results), 2)
   expect_true("reason" %in% names(res$results))
+  expect_true("threshold_mode" %in% names(res$results))
   expect_equal(res$funnel$n_units[res$funnel$stage == "any_record"], 2)
 })

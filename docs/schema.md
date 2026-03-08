@@ -8,7 +8,7 @@ If schemas change, bump `exdyn_schema_version()` in `R/schema.R` and update this
 ## Schema version
 
 - **Authoritative source:** `R/schema.R` (`exdyn_schema_version()`).
-- **Current version:** 0.3.3
+- **Current version:** 0.4.0
 
 ---
 
@@ -64,7 +64,33 @@ Required columns:
 - `bias`, `abs_bias`, `rel_bias`, `mae`
 - `coverage_50`, `coverage_80`, `coverage_95`
 - `posterior_sd_median`, `prior_sd`, `shrinkage_ratio`
+- `identifiability_status`, `gate_pass`, `core_param`
 - `n_reps`
+
+Status taxonomy (0.4.0):
+- `recoverable`
+- `weakly_identifiable`
+- `not_recoverable`
+- `unassessed`
+
+### `benchmark_summary.csv`
+One row per mode summarising the config-authoritative benchmark verdict.
+
+Required columns:
+- `mode`, `stance`
+- `n_core_params_expected`, `n_core_params_present`
+- `core_params_missing`
+- `n_core_recoverable`, `n_core_weak_id`, `n_core_not_recoverable`, `n_core_unassessed`
+- `overall_benchmark_pass`
+
+### `pilot_gates.csv`
+One row per gate, replicate, and mode.
+
+Required columns:
+- `mode`, `replicate`, `gate`, `pass`
+- `value`, `threshold`
+
+Resolved pilot-gate thresholds are also recorded in canonical manifests from 0.4.0 onward.
 
 ---
 
@@ -77,4 +103,7 @@ coverage-curve breakpoints (4), the summary names are:
   `orient_R`, `speed_cells_per_year`, `speed_r2`, `tx_mean`, `tx_sd`,
   `cov_curve_1`, `cov_curve_2`, `cov_curve_3`, `cov_curve_4`.
 
-If the summary vector changes length or naming, bump the schema version.
+In schema 0.4.0 the summary-vector names are unchanged, but benchmark semantics,
+pilot-gate provenance, and recovery status meanings changed materially. Future
+changes to summary names, benchmark semantics, or canonical provenance fields
+should trigger another schema bump.

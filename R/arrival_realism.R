@@ -212,14 +212,24 @@ exdyn_arrival_realism_comparison <- function(arrivals_real,
       )
 
     param_tbl <- exdyn_recovery_param_table(mode_runs, screen_cfg_use, abc_cfg_use)
-    param_summary <- param_tbl %>%
-      dplyr::group_by(.data$mode) %>%
-      dplyr::summarise(
-        param_abs_bias_mean = mean(.data$abs_bias, na.rm = TRUE),
-        param_coverage80_mean = mean(.data$coverage_80, na.rm = TRUE),
-        param_coverage95_mean = mean(.data$coverage_95, na.rm = TRUE),
-        .groups = "drop"
-      )
+    if (!nrow(param_tbl) || !"mode" %in% names(param_tbl)) {
+      param_summary <- run_summary %>%
+        dplyr::transmute(
+          mode = .data$mode,
+          param_abs_bias_mean = NA_real_,
+          param_coverage80_mean = NA_real_,
+          param_coverage95_mean = NA_real_
+        )
+    } else {
+      param_summary <- param_tbl %>%
+        dplyr::group_by(.data$mode) %>%
+        dplyr::summarise(
+          param_abs_bias_mean = mean(.data$abs_bias, na.rm = TRUE),
+          param_coverage80_mean = mean(.data$coverage_80, na.rm = TRUE),
+          param_coverage95_mean = mean(.data$coverage_95, na.rm = TRUE),
+          .groups = "drop"
+        )
+    }
 
     summary_rows[[src_idx]] <- run_summary %>%
       dplyr::left_join(param_summary, by = "mode") %>%

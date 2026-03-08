@@ -32,4 +32,8 @@ test_that("fast TX map matches slow path on toy data", {
   slow_tbl <- slow$table %>% dplyr::arrange(cell_id)
   expect_equal(fast_tbl$tx_obs, slow_tbl$tx_obs)
   expect_equal(fast_tbl$last_presence, slow_tbl$last_presence)
+  expect_equal(fast_tbl$baseline, slow_tbl$baseline)
+  expect_equal(fast_tbl$tau, slow_tbl$tau)
+  expect_equal(fast_tbl$threshold_mode, slow_tbl$threshold_mode)
+  expect_equal(fast_tbl$reason, slow_tbl$reason)
 })

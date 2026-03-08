@@ -34,6 +34,7 @@ pilot:
     baseline_window: 10
     drop_fraction: 0.2
     hold_years: 5
+    threshold_mode: "auto"
     normalize_by: "taxa"
     normalize_taxa:
       - name: "Mustelidae"
@@ -59,6 +60,8 @@ pilot:
   delta_penalty:
     lambda_mag: 0.02
     lambda_tv: 0.05
+  loss:
+    unit_timing_stat: "median"
   pred_scale_re:
     enable: true
     sigma: [0.0, 0.6]

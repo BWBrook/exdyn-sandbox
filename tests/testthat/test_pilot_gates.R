@@ -63,3 +63,56 @@ test_that("pilot gate post checks screen and ABC acceptance", {
   gate_post <- exdyn_pilot_gate_post(screen, abc, abc_cfg, skipped = FALSE)
   expect_true(gate_post$pass)
 })
+
+test_that("pilot gates honor threshold overrides from config", {
+  thresholds <- list(
+    thresholds = list(
+      arrival_frac_finite_min = 0.2,
+      tx_true_min = 1,
+      tx_true_coverage_min = 0,
+      tx_true_coverage_max = 1,
+      tx_obs_min = 1,
+      tx_obs_coverage_min = 0,
+      geom_finite_min = 1,
+      cov_curve_mid_min = 1,
+      screen_compatible_min = 2,
+      accept_rate_min = 0.01,
+      accept_rate_max = 0.10
+    )
+  )
+  truth <- list(T_P = matrix(2000, nrow = 2, ncol = 2))
+  summary_obs <- c(
+    coverage = 0.1,
+    lag_mean = 2,
+    lag_sd = 1,
+    r2_arrival = 0.3,
+    grad_mag = 1,
+    orient_R = 0.5,
+    speed_cells_per_year = 1,
+    speed_r2 = 0.4,
+    tx_mean = 2005,
+    tx_sd = 1,
+    cov_curve_1 = 0.5
+  )
+  counts <- c(
+    n_mask = 4,
+    n_TP_finite = 4,
+    n_pairs = 1,
+    n_TX_use = 1,
+    n_TX_true = 1,
+    n_TX_obs = 1,
+    n_pairs_true = 1,
+    n_pairs_obs = 1
+  )
+  gate_pre <- exdyn_pilot_gate_pre(truth, summary_obs, counts, matrix(TRUE, 2, 2), gate_cfg = thresholds)
+  expect_true(gate_pre$pass)
+
+  gate_post <- exdyn_pilot_gate_post(
+    screen_results = tibble::tibble(compatible = c(TRUE, TRUE, FALSE)),
+    abc = list(samples = tibble::tibble(a = 1:5)),
+    abc_cfg = list(n_sims = 100),
+    gate_cfg = thresholds,
+    skipped = FALSE
+  )
+  expect_true(gate_post$pass)
+})

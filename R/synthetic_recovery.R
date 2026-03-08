@@ -59,41 +59,87 @@ exdyn_abc_empty <- function(abc_cfg) {
     distances = numeric(),
     all = tibble::tibble(),
     eps = abc_cfg$eps %||% NA_real_,
-    scale = abc_cfg$scale %||% NULL
+    scale = abc_cfg$scale %||% NULL,
+    required_metrics = abc_cfg$required_metrics %||% NULL,
+    optional_missing_penalty = abc_cfg$optional_missing_penalty %||% 0
   )
 }
 
-exdyn_pilot_gate_pre <- function(truth, summary_obs, counts, mask) {
+exdyn_benchmark_cfg_resolve <- function(cfg = NULL) {
+  cfg <- cfg %||% list()
+  stance <- tolower(cfg$stance %||% "strict")
+  if (!stance %in% c("strict", "weak_id")) {
+    stop("benchmark.stance must be 'strict' or 'weak_id'")
+  }
+  list(
+    stance = stance,
+    core_params = sort(unique(as.character(cfg$core_params %||% c("alpha", "disp_mean_km")))),
+    gate_abs_rel_bias = cfg$gate_abs_rel_bias %||% 0.20,
+    gate_coverage80 = cfg$gate_coverage80 %||% 0.60,
+    weak_id_parameters = sort(unique(as.character(cfg$weak_id_parameters %||% character())))
+  )
+}
+
+exdyn_pilot_gate_cfg_resolve <- function(cfg = NULL) {
+  cfg <- cfg %||% list()
+  th <- cfg$thresholds %||% list()
+  list(
+    enabled = isTRUE(cfg$enabled),
+    thresholds = list(
+      arrival_frac_finite_min = th$arrival_frac_finite_min %||% 0.90,
+      tx_true_min = th$tx_true_min %||% 50L,
+      tx_true_coverage_min = th$tx_true_coverage_min %||% 0.10,
+      tx_true_coverage_max = th$tx_true_coverage_max %||% 0.80,
+      tx_obs_min = th$tx_obs_min %||% 30L,
+      tx_obs_coverage_min = th$tx_obs_coverage_min %||% 0.05,
+      geom_finite_min = th$geom_finite_min %||% 3L,
+      cov_curve_mid_min = th$cov_curve_mid_min %||% 2L,
+      screen_compatible_min = th$screen_compatible_min %||% 1L,
+      accept_rate_min = th$accept_rate_min %||% 0,
+      accept_rate_max = th$accept_rate_max %||% 0.20
+    )
+  )
+}
+
+exdyn_pilot_gate_pre <- function(truth, summary_obs, counts, mask, gate_cfg = NULL) {
+  gate_cfg <- exdyn_pilot_gate_cfg_resolve(gate_cfg)
+  th <- gate_cfg$thresholds
   arrival_stats <- exdyn_arrival_coverage_stats(truth$T_P, mask = mask)
   frac_finite <- arrival_stats$frac_finite_mask %||% NA_real_
-  g1_pass <- is.finite(frac_finite) && frac_finite >= 0.9
+  g1_pass <- is.finite(frac_finite) && frac_finite >= th$arrival_frac_finite_min
 
   n_TP_finite <- counts[["n_TP_finite"]] %||% 0
   n_pairs_true <- counts[["n_pairs_true"]] %||% 0
   n_TX_true <- counts[["n_TX_true"]] %||% 0
   coverage_true <- if (n_TP_finite > 0) n_pairs_true / n_TP_finite else NA_real_
-  g2_pass <- (is.finite(n_TX_true) && n_TX_true >= 50) ||
-    (is.finite(coverage_true) && coverage_true >= 0.1 && coverage_true <= 0.8)
+  g2_pass <- (is.finite(n_TX_true) && n_TX_true >= th$tx_true_min) ||
+    (is.finite(coverage_true) &&
+       coverage_true >= th$tx_true_coverage_min &&
+       coverage_true <= th$tx_true_coverage_max)
 
   coverage_obs <- summary_obs[["coverage"]] %||% NA_real_
   n_TX_obs <- counts[["n_TX_obs"]] %||% 0
   geom_keys <- c("grad_mag", "pc_ratio", "r2_arrival", "orient_R", "speed_cells_per_year", "speed_r2")
   geom_vals <- summary_obs[geom_keys]
   geom_finite <- sum(is.finite(geom_vals))
-  g3_signal <- (is.finite(n_TX_obs) && n_TX_obs >= 30) ||
-    (is.finite(coverage_obs) && coverage_obs >= 0.05)
-  g3_pass <- g3_signal && geom_finite >= 3
+  g3_signal <- (is.finite(n_TX_obs) && n_TX_obs >= th$tx_obs_min) ||
+    (is.finite(coverage_obs) && coverage_obs >= th$tx_obs_coverage_min)
+  g3_pass <- g3_signal && geom_finite >= th$geom_finite_min
 
   cov_vals <- summary_obs[grepl("^cov_curve_", names(summary_obs))]
   cov_mid <- if (length(cov_vals)) sum(cov_vals > 0 & cov_vals < 1, na.rm = TRUE) else 0
-  g4_pass <- cov_mid >= 2
+  g4_pass <- cov_mid >= th$cov_curve_mid_min
 
   gate_tbl <- tibble::tibble(
     gate = c("G1_arrival", "G2_TX_true", "G3_TX_obs", "G4_cov_curve"),
     pass = c(g1_pass, g2_pass, g3_pass, g4_pass),
     value = c(frac_finite, coverage_true, coverage_obs, cov_mid),
-    threshold = c(">=0.90", "n_TX_true>=50 or coverage in [0.10,0.80]",
-                  "n_TX_obs>=30 or coverage>=0.05 AND geom>=3", ">=2 breakpoints"),
+    threshold = c(
+      sprintf(">=%.2f", th$arrival_frac_finite_min),
+      sprintf("n_TX_true>=%s or coverage in [%.2f,%.2f]", th$tx_true_min, th$tx_true_coverage_min, th$tx_true_coverage_max),
+      sprintf("n_TX_obs>=%s or coverage>=%.2f AND geom>=%s", th$tx_obs_min, th$tx_obs_coverage_min, th$geom_finite_min),
+      sprintf(">=%s breakpoints", th$cov_curve_mid_min)
+    ),
     detail = c(
       sprintf("n_finite_mask=%s n_mask=%s", arrival_stats$n_finite_mask, arrival_stats$n_mask),
       sprintf("n_TX_true=%s n_pairs_true=%s n_TP_finite=%s", n_TX_true, n_pairs_true, n_TP_finite),
@@ -104,13 +150,17 @@ exdyn_pilot_gate_pre <- function(truth, summary_obs, counts, mask) {
   list(table = gate_tbl, pass = all(gate_tbl$pass))
 }
 
-exdyn_pilot_gate_post <- function(screen_results, abc, abc_cfg, skipped = FALSE) {
+exdyn_pilot_gate_post <- function(screen_results, abc, abc_cfg, gate_cfg = NULL, skipped = FALSE) {
+  gate_cfg <- exdyn_pilot_gate_cfg_resolve(gate_cfg)
+  th <- gate_cfg$thresholds
   n_compatible <- if (is.null(screen_results) || !nrow(screen_results)) 0 else sum(screen_results$compatible %||% FALSE)
   n_accept <- if (!is.null(abc) && !is.null(abc$samples)) nrow(abc$samples) else 0
   n_sims <- abc_cfg$n_sims %||% NA_real_
   accept_rate <- if (is.finite(n_sims) && n_sims > 0) n_accept / n_sims else NA_real_
-  g5_pass <- is.finite(n_compatible) && n_compatible >= 1 &&
-    is.finite(accept_rate) && accept_rate > 0 && accept_rate < 0.2
+  g5_pass <- is.finite(n_compatible) && n_compatible >= th$screen_compatible_min &&
+    is.finite(accept_rate) &&
+    accept_rate > th$accept_rate_min &&
+    accept_rate < th$accept_rate_max
   if (isTRUE(skipped)) {
     g5_pass <- FALSE
   }
@@ -118,7 +168,8 @@ exdyn_pilot_gate_post <- function(screen_results, abc, abc_cfg, skipped = FALSE)
     gate = "G5_screen_abc",
     pass = g5_pass,
     value = accept_rate,
-    threshold = "n_compatible>=1 & 0<accept_rate<0.20",
+    threshold = sprintf("n_compatible>=%s & %.2f<accept_rate<%.2f",
+                        th$screen_compatible_min, th$accept_rate_min, th$accept_rate_max),
     detail = sprintf("n_compatible=%s n_accept=%s n_sims=%s%s",
                      n_compatible, n_accept, n_sims,
                      if (isTRUE(skipped)) " (skipped)" else "")
@@ -280,6 +331,8 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
       scale_vec[valid_names] <- scale_cfg[valid_names]
     }
   }
+  required_metrics <- abc_cfg$required_metrics %||% names(summary_obs)
+  optional_missing_penalty <- abc_cfg$optional_missing_penalty %||% 0
 
   simulate_once <- function(theta) {
     delta_lookup <- theta$delta_region %||% list()
@@ -410,7 +463,14 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
         coverage_breaks = coverage_breaks
       )
       S_sim <- S_sim[names(summary_obs)]
-      dist <- sqrt(sum(((S_sim - summary_obs) / scale_vec)^2))
+      dist_info <- .exdyn_abc_distance_components(
+        S_obs = summary_obs,
+        S_sim = S_sim,
+        scale = scale_vec,
+        required_metrics = required_metrics,
+        optional_missing_penalty = optional_missing_penalty
+      )
+      dist <- dist_info$distance_total
       results[[i]] <- dplyr::bind_cols(theta_row, tibble::tibble(distance = dist))
     }
     dplyr::bind_rows(results)
@@ -463,6 +523,8 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
     n_sims = abc_cfg$n_sims %||% 2000,
     eps = abc_cfg$eps %||% 1,
     scale = scale_vec,
+    required_metrics = required_metrics,
+    optional_missing_penalty = optional_missing_penalty,
     progress = FALSE
   )
   if (nrow(abc$samples)) {
@@ -509,6 +571,8 @@ exdyn_synthetic_abc_bundle <- function(summary_obs,
       n_sims = abc_cfg$n_sims %||% 2000,
       eps = eps_tight,
       scale = scale_vec,
+      required_metrics = required_metrics,
+      optional_missing_penalty = optional_missing_penalty,
       progress = FALSE
     )
     if (nrow(abc_refined$samples)) {
@@ -533,6 +597,8 @@ exdyn_synthetic_mode_run <- function(truth,
                                      screen_cfg,
                                      compat_cfg,
                                      abc_cfg,
+                                     benchmark_cfg = NULL,
+                                     gate_cfg = NULL,
                                      coverage_breaks,
                                      keep_best_tx = FALSE,
                                      enforce_gates = FALSE) {
@@ -564,7 +630,7 @@ exdyn_synthetic_mode_run <- function(truth,
     n_pairs_obs = counts_obs[["n_pairs"]]
   )
   gate_pre <- if (isTRUE(enforce_gates)) {
-    exdyn_pilot_gate_pre(truth, summary_obs, counts, mask)
+    exdyn_pilot_gate_pre(truth, summary_obs, counts, mask, gate_cfg = gate_cfg)
   } else {
     list(table = tibble::tibble(), pass = TRUE)
   }
@@ -591,30 +657,30 @@ exdyn_synthetic_mode_run <- function(truth,
     if (!isTRUE(enforce_gates) || n_compatible >= 1) {
       abc_bundle <- exdyn_synthetic_abc_bundle(
         summary_obs = summary_obs,
-        truth = truth,
-        grid_info = grid_info,
+          truth = truth,
+          grid_info = grid_info,
         years_vec = years_vec,
         mask = mask,
-        screen_cfg = screen_cfg,
-        abc_cfg = abc_cfg_use,
-        coverage_breaks = coverage_breaks_use
-      )
+          screen_cfg = screen_cfg,
+          abc_cfg = abc_cfg_use,
+          coverage_breaks = coverage_breaks_use
+        )
       if (isTRUE(enforce_gates)) {
         gate_table <- dplyr::bind_rows(
           gate_table,
-          exdyn_pilot_gate_post(screen$results, abc_bundle$abc, abc_cfg_use, skipped = FALSE)
+          exdyn_pilot_gate_post(screen$results, abc_bundle$abc, abc_cfg_use, gate_cfg = gate_cfg, skipped = FALSE)
         )
       }
     } else if (isTRUE(enforce_gates)) {
       gate_table <- dplyr::bind_rows(
         gate_table,
-        exdyn_pilot_gate_post(screen$results, abc_bundle$abc, abc_cfg_use, skipped = TRUE)
+        exdyn_pilot_gate_post(screen$results, abc_bundle$abc, abc_cfg_use, gate_cfg = gate_cfg, skipped = TRUE)
       )
     }
   } else if (isTRUE(enforce_gates)) {
     gate_table <- dplyr::bind_rows(
       gate_table,
-      exdyn_pilot_gate_post(screen$results, abc_bundle$abc, abc_cfg_use, skipped = TRUE)
+      exdyn_pilot_gate_post(screen$results, abc_bundle$abc, abc_cfg_use, gate_cfg = gate_cfg, skipped = TRUE)
     )
   }
 
@@ -784,23 +850,48 @@ exdyn_identifiability_status <- function(abs_rel_bias,
                                          coverage_80,
                                          param,
                                          benchmark_cfg = NULL) {
-  cfg <- benchmark_cfg %||% list()
-  gate_abs <- cfg$gate_abs_rel_bias %||% 0.20
-  gate_cov <- cfg$gate_coverage80 %||% 0.60
-  weak_params <- unique(as.character(cfg$weak_id_parameters %||% character()))
+  cfg <- exdyn_benchmark_cfg_resolve(benchmark_cfg)
+  gate_abs <- cfg$gate_abs_rel_bias
+  gate_cov <- cfg$gate_coverage80
+  weak_params <- cfg$weak_id_parameters
   if (!is.finite(abs_rel_bias) || !is.finite(coverage_80)) {
     return("unassessed")
   }
   if (abs_rel_bias <= gate_abs && coverage_80 >= gate_cov) {
     return("recoverable")
   }
-  if (param %in% weak_params) {
+  if (identical(cfg$stance, "weak_id") && param %in% weak_params) {
     return("weakly_identifiable")
   }
-  if (abs_rel_bias <= max(gate_abs, 0.35) && coverage_80 >= max(gate_cov - 0.10, 0.40)) {
-    return("partially_recoverable")
+  "not_recoverable"
+}
+
+exdyn_benchmark_summary <- function(param_tbl, benchmark_cfg = NULL) {
+  cfg <- exdyn_benchmark_cfg_resolve(benchmark_cfg)
+  if (!nrow(param_tbl)) {
+    return(tibble::tibble())
   }
-  "weakly_identifiable"
+  allowed_status <- if (identical(cfg$stance, "weak_id")) {
+    c("recoverable", "weakly_identifiable")
+  } else {
+    "recoverable"
+  }
+  param_tbl %>%
+    dplyr::filter(.data$core_param) %>%
+    dplyr::group_by(.data$mode) %>%
+    dplyr::summarise(
+      stance = cfg$stance,
+      n_core_params_expected = length(cfg$core_params),
+      n_core_params_present = dplyr::n(),
+      core_params_missing = paste(setdiff(cfg$core_params, .data$param), collapse = ","),
+      n_core_recoverable = sum(.data$identifiability_status == "recoverable", na.rm = TRUE),
+      n_core_weak_id = sum(.data$identifiability_status == "weakly_identifiable", na.rm = TRUE),
+      n_core_not_recoverable = sum(.data$identifiability_status == "not_recoverable", na.rm = TRUE),
+      n_core_unassessed = sum(.data$identifiability_status == "unassessed", na.rm = TRUE),
+      overall_benchmark_pass = dplyr::n() == length(cfg$core_params) &&
+        all(.data$identifiability_status %in% allowed_status),
+      .groups = "drop"
+    )
 }
 
 exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg, benchmark_cfg = NULL) {
@@ -819,9 +910,9 @@ exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg, benchmark
     return(tibble::tibble())
   }
   prior_sd <- exdyn_prior_sd_table(screen_cfg, abc_cfg)
-  cfg <- benchmark_cfg %||% list()
-  gate_abs <- cfg$gate_abs_rel_bias %||% 0.20
-  gate_cov <- cfg$gate_coverage80 %||% 0.60
+  cfg <- exdyn_benchmark_cfg_resolve(benchmark_cfg)
+  gate_abs <- cfg$gate_abs_rel_bias
+  gate_cov <- cfg$gate_coverage80
   summaries %>%
     dplyr::group_by(.data$mode, .data$param) %>%
     dplyr::summarise(
@@ -840,6 +931,7 @@ exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg, benchmark
     ) %>%
     dplyr::left_join(prior_sd, by = "param") %>%
     dplyr::mutate(
+      core_param = .data$param %in% cfg$core_params,
       shrinkage_ratio = .data$posterior_sd_median / .data$prior_sd,
       abs_rel_bias_median = abs(.data$rel_bias_median),
       gate_abs_rel_bias = gate_abs,
@@ -854,9 +946,11 @@ exdyn_recovery_param_table <- function(mode_runs, screen_cfg, abc_cfg, benchmark
 }
 
 exdyn_synthetic_recovery_tables <- function(mode_runs, screen_cfg, abc_cfg, benchmark_cfg = NULL) {
+  param_tbl <- exdyn_recovery_param_table(mode_runs, screen_cfg, abc_cfg, benchmark_cfg = benchmark_cfg)
   list(
     replicate_metrics = exdyn_recovery_rep_metrics(mode_runs),
-    parameter_recovery = exdyn_recovery_param_table(mode_runs, screen_cfg, abc_cfg, benchmark_cfg = benchmark_cfg),
+    parameter_recovery = param_tbl,
+    benchmark_summary = exdyn_benchmark_summary(param_tbl, benchmark_cfg = benchmark_cfg),
     pilot_gates = exdyn_pilot_gate_table(mode_runs)
   )
 }
@@ -864,19 +958,22 @@ exdyn_synthetic_recovery_tables <- function(mode_runs, screen_cfg, abc_cfg, benc
 exdyn_write_synthetic_recovery_tables <- function(recovery_tables, output_root) {
   rep_tbl <- recovery_tables$replicate_metrics %||% tibble::tibble()
   param_tbl <- recovery_tables$parameter_recovery %||% tibble::tibble()
+  benchmark_tbl <- recovery_tables$benchmark_summary %||% tibble::tibble()
   gate_tbl <- recovery_tables$pilot_gates %||% tibble::tibble()
-  if (!nrow(rep_tbl) && !nrow(param_tbl)) {
+  if (!nrow(rep_tbl) && !nrow(param_tbl) && !nrow(benchmark_tbl)) {
     return(character())
   }
   rep_modes <- if ("mode" %in% names(rep_tbl)) rep_tbl$mode else character()
   param_modes <- if ("mode" %in% names(param_tbl)) param_tbl$mode else character()
-  modes <- sort(unique(c(rep_modes, param_modes)))
+  benchmark_modes <- if ("mode" %in% names(benchmark_tbl)) benchmark_tbl$mode else character()
+  modes <- sort(unique(c(rep_modes, param_modes, benchmark_modes)))
   out_paths <- character()
   for (mode in modes) {
     mode_dir <- file.path(output_root, "recovery", mode)
     dir.create(mode_dir, recursive = TRUE, showWarnings = FALSE)
     rep_path <- file.path(mode_dir, "replicate_metrics.csv")
     param_path <- file.path(mode_dir, "parameter_recovery.csv")
+    benchmark_path <- file.path(mode_dir, "benchmark_summary.csv")
     if (nrow(rep_tbl)) {
       readr::write_csv(rep_tbl %>% dplyr::filter(.data$mode == .env$mode), rep_path)
       out_paths <- c(out_paths, rep_path)
@@ -884,6 +981,10 @@ exdyn_write_synthetic_recovery_tables <- function(recovery_tables, output_root) 
     if (nrow(param_tbl) && "mode" %in% names(param_tbl)) {
       readr::write_csv(param_tbl %>% dplyr::filter(.data$mode == .env$mode), param_path)
       out_paths <- c(out_paths, param_path)
+    }
+    if (nrow(benchmark_tbl) && "mode" %in% names(benchmark_tbl)) {
+      readr::write_csv(benchmark_tbl %>% dplyr::filter(.data$mode == .env$mode), benchmark_path)
+      out_paths <- c(out_paths, benchmark_path)
     }
   }
   if (nrow(gate_tbl)) {

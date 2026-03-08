@@ -228,7 +228,7 @@ exdyn_riparian_components <- function(riparian_matrix, grid_info = NULL) {
     dplyr::rename(n_cells_comp = n_cells)
   if (!is.null(grid_info) && "lookup" %in% names(grid_info)) {
     lookup <- grid_info$lookup %>%
-      dplyr::select(cell_id, row_idx, col_idx, dplyr::any_of(c("river_km", "riparian", "region")))
+      dplyr::select(cell_id, row_idx, col_idx, dplyr::any_of(c("river_km", "riparian", "region", "centroid_x", "centroid_y")))
     per_cell <- per_cell %>%
       dplyr::left_join(lookup, by = c("row_idx", "col_idx"))
   }

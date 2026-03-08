@@ -84,6 +84,7 @@ exdyn_real_ablation_screen <- function(theta_tbl,
                                        mink_cfg,
                                        compat_cfg,
                                        delta_penalty_cfg = list(lambda_mag = 0, lambda_tv = 0),
+                                       unit_timing_stat = "median",
                                        n_cores = 1L,
                                        seed_base = 3201L,
                                        log_mem = FALSE) {
@@ -133,7 +134,8 @@ exdyn_real_ablation_screen <- function(theta_tbl,
       compat_cfg = compat_cfg,
       delta_lookup = delta_unit_values,
       delta_adj = adjacency,
-      delta_penalty_cfg = delta_penalty_cfg
+      delta_penalty_cfg = delta_penalty_cfg,
+      unit_timing_stat = unit_timing_stat
     )
 
     lag_range <- compat_cfg$lag_range %||% c(-Inf, Inf)
@@ -154,6 +156,7 @@ exdyn_real_ablation_screen <- function(theta_tbl,
       coverage_curve_rmse = score$coverage_curve_rmse,
       anisotropy_gap = score$anisotropy_gap,
       delta_penalty = score$delta_penalty,
+      unit_timing_stat = score$unit_timing_stat,
       loss = score$loss,
       compatible = compatible
     )

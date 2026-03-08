@@ -11,6 +11,7 @@ test_that("ABC rejection recovers simple lag parameter", {
     list(TX_sim = TX_sim, T_P = T_P)
   }
   summary_fn <- function(sim) suppressWarnings(exdyn_summary_tx_response(sim$TX_sim, sim$T_P))
+  required_metrics <- names(S_obs)[is.finite(S_obs)]
   abc <- exdyn_abc_rejection(
     S_obs = S_obs,
     prior_sampler = prior_fun,
@@ -19,6 +20,8 @@ test_that("ABC rejection recovers simple lag parameter", {
     n_sims = 200,
     eps = 0.6,
     scale = rep(5, length(S_obs)),
+    required_metrics = required_metrics,
+    optional_missing_penalty = 0,
     progress = FALSE
   )
   expect_gt(nrow(abc$samples), 0)

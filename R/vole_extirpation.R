@@ -103,7 +103,28 @@ exdyn_ts_smooth <- function(counts, k = 5) {
 }
 
 # Internal helper -------------------------------------------------------------
-.exdyn_first_passage_hold <- function(smooth_vals, years, cfg) {
+.exdyn_resolve_threshold_mode <- function(cfg, normalize_by = NULL) {
+  requested <- cfg$threshold_mode %||% "auto"
+  requested <- match.arg(requested, c("auto", "count_floor", "relative_baseline"))
+  norm_mode <- if (is.null(normalize_by)) "none" else match.arg(normalize_by, c("none", "mammal", "taxa"))
+  if (identical(requested, "auto")) {
+    if (identical(norm_mode, "none")) "count_floor" else "relative_baseline"
+  } else {
+    requested
+  }
+}
+
+.exdyn_threshold_tau <- function(baseline, cfg, threshold_mode) {
+  threshold_mode <- match.arg(threshold_mode, c("count_floor", "relative_baseline"))
+  raw_tau <- (cfg$drop_fraction %||% 0) * baseline
+  if (identical(threshold_mode, "count_floor")) {
+    return(max(1, floor(raw_tau)))
+  }
+  raw_tau
+}
+
+.exdyn_first_passage_hold <- function(smooth_vals, years, cfg, normalize_by = NULL) {
+  threshold_mode <- .exdyn_resolve_threshold_mode(cfg, normalize_by = normalize_by)
   detections <- which(smooth_vals > 0 & is.finite(smooth_vals))
   if (!length(detections)) {
     return(list(
@@ -111,6 +132,7 @@ exdyn_ts_smooth <- function(counts, k = 5) {
       last_presence = NA_integer_,
       baseline = NA_real_,
       tau = NA_real_,
+      threshold_mode = threshold_mode,
       reason = "no_records"
     ))
   }
@@ -124,6 +146,7 @@ exdyn_ts_smooth <- function(counts, k = 5) {
       last_presence = last_presence,
       baseline = NA_real_,
       tau = NA_real_,
+      threshold_mode = threshold_mode,
       reason = "too_few_years"
     ))
   }
@@ -137,10 +160,11 @@ exdyn_ts_smooth <- function(counts, k = 5) {
       last_presence = years[max(detections)],
       baseline = B,
       tau = NA_real_,
+      threshold_mode = threshold_mode,
       reason = "no_baseline"
     ))
   }
-  tau <- max(1, floor(cfg$drop_fraction * B))
+  tau <- .exdyn_threshold_tau(B, cfg, threshold_mode = threshold_mode)
   hold <- max(1L, cfg$hold_years)
   last_presence <- years[max(detections)]
   for (idx in seq_len(length(years))) {
@@ -162,6 +186,7 @@ exdyn_ts_smooth <- function(counts, k = 5) {
           last_presence = last_presence,
           baseline = B,
           tau = tau,
+          threshold_mode = threshold_mode,
           reason = NA_character_
         ))
       }
@@ -172,6 +197,7 @@ exdyn_ts_smooth <- function(counts, k = 5) {
     last_presence = last_presence,
     baseline = B,
     tau = tau,
+    threshold_mode = threshold_mode,
     reason = "no_hold_crossing"
   )
 }
@@ -199,11 +225,12 @@ exdyn_tx_from_po <- function(counts_by_cell, years, cfg, normalize_by = NULL) {
   series[!is.finite(series)] <- 0
   smooth_vals <- exdyn_ts_smooth(series, cfg$smooth_window %||% 5)
   if (!any(is.finite(smooth_vals))) smooth_vals <- series
-  res <- .exdyn_first_passage_hold(smooth_vals, yrs, cfg)
+  res <- .exdyn_first_passage_hold(smooth_vals, yrs, cfg, normalize_by = norm_mode)
   res$series <- series
   res$series_raw <- raw_counts
   res$baseline <- res$baseline %||% NA_real_
   res$tau <- res$tau %||% NA_real_
+  res$threshold_mode <- res$threshold_mode %||% .exdyn_resolve_threshold_mode(cfg, normalize_by = norm_mode)
   res$reason <- res$reason %||% NA_character_
   res
 }
@@ -233,7 +260,17 @@ exdyn_tx_map <- function(cells_df, years, cfg, grid_info,
   if (!nrow(counts)) {
     mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
     return(list(
-      table = tibble::tibble(cell_id = integer(), row = integer(), col = integer(), tx_obs = integer()),
+      table = tibble::tibble(
+        cell_id = integer(),
+        row = integer(),
+        col = integer(),
+        tx_obs = integer(),
+        last_presence = integer(),
+        baseline = numeric(),
+        tau = numeric(),
+        threshold_mode = character(),
+        reason = character()
+      ),
       matrix = mat,
       last_presence = mat,
       grid_info = grid_info
@@ -249,6 +286,7 @@ exdyn_tx_map <- function(cells_df, years, cfg, grid_info,
       last_presence = purrr::map_int(res, ~ .x$last_presence %||% NA_integer_),
       baseline = purrr::map_dbl(res, ~ .x$baseline %||% NA_real_),
       tau = purrr::map_dbl(res, ~ .x$tau %||% NA_real_),
+      threshold_mode = purrr::map_chr(res, ~ .x$threshold_mode %||% NA_character_),
       reason = purrr::map_chr(res, ~ .x$reason %||% NA_character_)
     ) %>%
     dplyr::ungroup()
@@ -271,7 +309,7 @@ exdyn_tx_map <- function(cells_df, years, cfg, grid_info,
     dplyr::left_join(lookup_extra, by = "cell_id")
 
   list(
-    table = per_cell %>% dplyr::select(cell_id, row, col, tx_obs, last_presence,
+    table = per_cell %>% dplyr::select(cell_id, row, col, tx_obs, last_presence, baseline, tau, threshold_mode, reason,
                                        dplyr::any_of(c("river_km", "riparian", "region"))),
     matrix = tx_mat,
     last_presence = lp_mat,
@@ -328,6 +366,7 @@ exdyn_tx_map_counts <- function(counts_mat, years, cfg, grid_info,
   last_presence <- rep(NA_integer_, n_cells)
   baseline <- rep(NA_real_, n_cells)
   tau <- rep(NA_real_, n_cells)
+  threshold_mode <- rep(NA_character_, n_cells)
   reason <- rep(NA_character_, n_cells)
   for (i in seq_len(n_cells)) {
     series <- series_mat[i, ]
@@ -335,11 +374,12 @@ exdyn_tx_map_counts <- function(counts_mat, years, cfg, grid_info,
     series[!is.finite(series)] <- 0
     smooth_vals <- exdyn_ts_smooth(series, cfg$smooth_window %||% 5)
     if (!any(is.finite(smooth_vals))) smooth_vals <- series
-    res <- .exdyn_first_passage_hold(smooth_vals, years_vec, cfg)
+    res <- .exdyn_first_passage_hold(smooth_vals, years_vec, cfg, normalize_by = norm_mode)
     tx_obs[i] <- res$tx %||% NA_integer_
     last_presence[i] <- res$last_presence %||% NA_integer_
     baseline[i] <- res$baseline %||% NA_real_
     tau[i] <- res$tau %||% NA_real_
+    threshold_mode[i] <- res$threshold_mode %||% NA_character_
     reason[i] <- res$reason %||% NA_character_
   }
   per_cell <- tibble::tibble(
@@ -352,6 +392,7 @@ exdyn_tx_map_counts <- function(counts_mat, years, cfg, grid_info,
     last_presence = last_presence,
     baseline = baseline,
     tau = tau,
+    threshold_mode = threshold_mode,
     reason = reason
   )
   tx_mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
@@ -393,7 +434,7 @@ exdyn_tx_map_counts <- function(counts_mat, years, cfg, grid_info,
     counts_tbl <- tibble::as_tibble(counts_tbl)
   }
   list(
-    table = per_cell %>% dplyr::select(cell_id, row, col, tx_obs, last_presence,
+    table = per_cell %>% dplyr::select(cell_id, row, col, tx_obs, last_presence, baseline, tau, threshold_mode, reason,
                                        dplyr::any_of(c("river_km", "riparian", "region"))),
     matrix = tx_mat,
     last_presence = lp_mat,
@@ -411,7 +452,17 @@ exdyn_tx_map_fast <- function(cells_df, years, cfg, grid_info,
   if (!nrow(cells_df)) {
     mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
     return(list(
-      table = tibble::tibble(cell_id = integer(), row = integer(), col = integer(), tx_obs = integer()),
+      table = tibble::tibble(
+        cell_id = integer(),
+        row = integer(),
+        col = integer(),
+        tx_obs = integer(),
+        last_presence = integer(),
+        baseline = numeric(),
+        tau = numeric(),
+        threshold_mode = character(),
+        reason = character()
+      ),
       matrix = mat,
       last_presence = mat,
       grid_info = grid_info
@@ -433,7 +484,17 @@ exdyn_tx_map_fast <- function(cells_df, years, cfg, grid_info,
   if (!nrow(dt)) {
     mat <- matrix(NA_real_, nrow = grid_info$nx, ncol = grid_info$ny)
     return(list(
-      table = tibble::tibble(cell_id = integer(), row = integer(), col = integer(), tx_obs = integer()),
+      table = tibble::tibble(
+        cell_id = integer(),
+        row = integer(),
+        col = integer(),
+        tx_obs = integer(),
+        last_presence = integer(),
+        baseline = numeric(),
+        tau = numeric(),
+        threshold_mode = character(),
+        reason = character()
+      ),
       matrix = mat,
       last_presence = mat,
       grid_info = grid_info
@@ -468,6 +529,7 @@ exdyn_tx_map_fast <- function(cells_df, years, cfg, grid_info,
   last_presence <- rep(NA_integer_, n_cells)
   baseline <- rep(NA_real_, n_cells)
   tau <- rep(NA_real_, n_cells)
+  threshold_mode <- rep(NA_character_, n_cells)
   reason <- rep(NA_character_, n_cells)
 
   for (i in seq_len(n_cells)) {
@@ -476,11 +538,12 @@ exdyn_tx_map_fast <- function(cells_df, years, cfg, grid_info,
     series[!is.finite(series)] <- 0
     smooth_vals <- exdyn_ts_smooth(series, cfg$smooth_window %||% 5)
     if (!any(is.finite(smooth_vals))) smooth_vals <- series
-    res <- .exdyn_first_passage_hold(smooth_vals, years_vec, cfg)
+    res <- .exdyn_first_passage_hold(smooth_vals, years_vec, cfg, normalize_by = norm_mode)
     tx_obs[i] <- res$tx %||% NA_integer_
     last_presence[i] <- res$last_presence %||% NA_integer_
     baseline[i] <- res$baseline %||% NA_real_
     tau[i] <- res$tau %||% NA_real_
+    threshold_mode[i] <- res$threshold_mode %||% NA_character_
     reason[i] <- res$reason %||% NA_character_
   }
 
@@ -510,6 +573,7 @@ exdyn_tx_map_fast <- function(cells_df, years, cfg, grid_info,
     last_presence = last_presence,
     baseline = baseline,
     tau = tau,
+    threshold_mode = threshold_mode,
     reason = reason
   )
 
@@ -531,7 +595,7 @@ exdyn_tx_map_fast <- function(cells_df, years, cfg, grid_info,
     dplyr::left_join(lookup_extra, by = "cell_id")
 
   list(
-    table = per_cell %>% dplyr::select(cell_id, row, col, tx_obs, last_presence,
+    table = per_cell %>% dplyr::select(cell_id, row, col, tx_obs, last_presence, baseline, tau, threshold_mode, reason,
                                        dplyr::any_of(c("river_km", "riparian", "region"))),
     matrix = tx_mat,
     last_presence = lp_mat,

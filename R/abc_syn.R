@@ -124,6 +124,67 @@ exdyn_summary_tx_response <- function(TX, T_P, years = NULL, coverage_breaks = N
   )
 }
 
+.exdyn_abc_distance_components <- function(S_obs,
+                                          S_sim,
+                                          scale,
+                                          required_metrics = NULL,
+                                          optional_missing_penalty = 0) {
+  names_obs <- names(S_obs)
+  if (is.null(names_obs)) {
+    stop("S_obs must be a named numeric vector.")
+  }
+  S_sim <- S_sim[names_obs]
+  scale <- scale[names_obs]
+  required_metrics <- required_metrics %||% names_obs
+  required_metrics <- intersect(required_metrics, names_obs)
+  if (!length(required_metrics)) {
+    required_metrics <- names_obs
+  }
+  optional_metrics <- setdiff(names_obs, required_metrics)
+  required_finite <- is.finite(S_sim[required_metrics]) &
+    is.finite(S_obs[required_metrics]) &
+    is.finite(scale[required_metrics])
+  valid_required <- all(required_finite)
+  if (!valid_required) {
+    return(list(
+      valid_required = FALSE,
+      n_required = length(required_metrics),
+      n_required_finite = sum(required_finite, na.rm = TRUE),
+      n_optional = length(optional_metrics),
+      n_optional_finite = NA_integer_,
+      n_optional_missing = length(optional_metrics),
+      distance_core = Inf,
+      distance_optional_penalty = Inf,
+      distance_total = Inf
+    ))
+  }
+  finite_all <- is.finite(S_sim) & is.finite(S_obs) & is.finite(scale)
+  distance_core <- if (any(finite_all)) {
+    sqrt(sum(((S_sim[finite_all] - S_obs[finite_all]) / scale[finite_all])^2))
+  } else {
+    Inf
+  }
+  optional_missing <- if (length(optional_metrics)) {
+    sum(!(is.finite(S_sim[optional_metrics]) &
+            is.finite(S_obs[optional_metrics]) &
+            is.finite(scale[optional_metrics])))
+  } else {
+    0L
+  }
+  distance_optional_penalty <- optional_missing * (optional_missing_penalty %||% 0)
+  list(
+    valid_required = TRUE,
+    n_required = length(required_metrics),
+    n_required_finite = sum(required_finite, na.rm = TRUE),
+    n_optional = length(optional_metrics),
+    n_optional_finite = if (length(optional_metrics)) sum(finite_all[optional_metrics], na.rm = TRUE) else 0L,
+    n_optional_missing = optional_missing,
+    distance_core = distance_core,
+    distance_optional_penalty = distance_optional_penalty,
+    distance_total = distance_core + distance_optional_penalty
+  )
+}
+
 #' Simple rejection ABC for synthetic response-only summaries
 #'
 #' Run a rejection ABC routine given a summary statistic, prior sampler,
@@ -157,6 +218,8 @@ exdyn_abc_rejection <- function(S_obs,
                                 n_sims = 2000L,
                                 eps = 1,
                                 scale = NULL,
+                                required_metrics = NULL,
+                                optional_missing_penalty = 0,
                                 progress = TRUE) {
   if (is.null(scale)) {
     scale <- pmax(abs(S_obs), 1e-6)
@@ -173,21 +236,33 @@ exdyn_abc_rejection <- function(S_obs,
   theta_list <- vector("list", n_sims)
   summary_list <- vector("list", n_sims)
   dist_vec <- rep(NA_real_, n_sims)
+  dist_core_vec <- rep(NA_real_, n_sims)
+  dist_pen_vec <- rep(NA_real_, n_sims)
+  valid_required_vec <- rep(FALSE, n_sims)
+  n_required_finite_vec <- rep(NA_integer_, n_sims)
+  n_optional_missing_vec <- rep(NA_integer_, n_sims)
   accepted <- rep(FALSE, n_sims)
   for (i in seq_len(n_sims)) {
     theta <- prior_sampler()
     sim <- simulator(theta)
     S_sim <- summary_fn(sim)
     S_sim <- S_sim[names_obs]
-    valid <- is.finite(S_sim) & is.finite(S_obs) & is.finite(scale)
-    if (!any(valid)) {
-      dist <- Inf
-    } else {
-      dist <- sqrt(sum(((S_sim[valid] - S_obs[valid]) / scale[valid])^2))
-    }
+    dist_info <- .exdyn_abc_distance_components(
+      S_obs = S_obs,
+      S_sim = S_sim,
+      scale = scale,
+      required_metrics = required_metrics,
+      optional_missing_penalty = optional_missing_penalty
+    )
+    dist <- dist_info$distance_total
     theta_list[[i]] <- theta
     summary_list[[i]] <- S_sim
     dist_vec[i] <- dist
+    dist_core_vec[i] <- dist_info$distance_core
+    dist_pen_vec[i] <- dist_info$distance_optional_penalty
+    valid_required_vec[i] <- dist_info$valid_required
+    n_required_finite_vec[i] <- dist_info$n_required_finite
+    n_optional_missing_vec[i] <- dist_info$n_optional_missing
     accepted[i] <- is.finite(dist) && dist <= eps
     if (progress && i %% 100L == 0L) {
       message(sprintf("[abc] %d/%d simulations, accepted %d", i, n_sims, sum(accepted)))
@@ -217,7 +292,12 @@ exdyn_abc_rejection <- function(S_obs,
   all_log <- tibble::tibble(
     sim = seq_len(n_sims),
     accepted = accepted,
-    distance = dist_vec
+    distance = dist_vec,
+    distance_core = dist_core_vec,
+    distance_optional_penalty = dist_pen_vec,
+    valid_required = valid_required_vec,
+    n_required_finite = n_required_finite_vec,
+    n_optional_missing = n_optional_missing_vec
   ) %>%
     dplyr::mutate(parameters = theta_list, summaries = summary_list)
   list(
@@ -226,7 +306,9 @@ exdyn_abc_rejection <- function(S_obs,
     distances = dist_vec[accepted_idx],
     all = all_log,
     eps = eps,
-    scale = scale
+    scale = scale,
+    required_metrics = required_metrics,
+    optional_missing_penalty = optional_missing_penalty
   )
 }
 

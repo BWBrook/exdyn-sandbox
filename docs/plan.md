@@ -91,6 +91,7 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 - Phase 040 — Manuscript-ready package and reproducibility freeze (roadmap closure)
 
 ### Recently completed
+- 2026-03-08 high-risk semantics redesign: synthetic benchmark/gate semantics are now config-authoritative, ABC requires finite core summaries with explicit optional-metric penalties, the real-data loss is unit-consistent with median timing aggregation, and TX threshold semantics are explicit via `threshold_mode`.
 - 2026-03-08 repo hardening + characterization slice: added CI, split bootstrap from maintenance (`make setup` vs `make init`), removed `_targets.R` self-install behavior, replaced live-network GBIF test coverage with fixtures/mocks, added characterization tests for ABC non-finite summaries / real-loss aggregation / parallel determinism, and removed duplicate helper definitions.
 - 2026-03-08 reconnaissance + hygiene checkpoint: repo structure revalidated, `main` confirmed aligned with `origin/main` at scout time, and a clean-baseline commit prepared after verification.
 - Phase 000 — Takeover + harness (docs + README + Makefile refresh).
@@ -132,9 +133,6 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
   - split `targets_pilot_mink_vole()` into sub-builders,
   - thin report-local analysis code,
   - rationalise shared screen/ABC orchestration between pilot and synthetic paths.
-- High-risk science redesigns remain deferred pending explicit human approval:
-  - ABC handling of non-finite summaries,
-  - real-loss aggregation/scale semantics,
-  - normalized-series first-passage threshold semantics,
-  - config-driven benchmark/gate semantics.
+- Regenerate smoke-level synthetic and pilot outputs under schema `0.4.0` before refreshing any canonical benchmark or real-data bundles.
+- Decide whether historical canonical runs should remain frozen as pre-0.4 references or be superseded by new semantic-baseline runs.
 - Keep visual sanity review as a hard gate for any new canonical run (maps and key summary tables).

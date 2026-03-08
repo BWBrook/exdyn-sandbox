@@ -1,103 +1,289 @@
 #' Loss components for the real-data pilot
 #'
-#' Aggregates cell-level matrices to analysis units and computes the mixed
-#' response-only loss used during the screen/ABC stages.
+#' Aggregates cell-level matrices to analysis units and computes the
+#' unit-consistent response-only loss used during the screen/ABC stages.
 #'
 #' @param TX_obs Matrix of observed extirpation years (cells).
 #' @param T_P Matrix of arrival years (cells).
 #' @param TX_sim Matrix of simulated extirpations (cells).
-#' @param unit_lookup Tibble with `row_idx`, `col_idx`, `unit_id`.
+#' @param unit_lookup Tibble with `row_idx`, `col_idx`, and `unit_id`.
 #' @param coverage_breaks Numeric vector of year thresholds for coverage curves.
 #' @param compat_cfg Compatibility configuration (lag range etc.).
 #' @param delta_lookup Named numeric vector of delta values.
 #' @param delta_adj Adjacency tibble for delta units.
 #' @param delta_penalty_cfg List with `lambda_mag` and `lambda_tv`.
+#' @param unit_timing_stat Unit-level aggregation rule for timings.
 #'
-#' @return List with metrics, per-term losses, and coverage curves.
+#' @return List with metrics, per-term losses, and unit timing diagnostics.
 #' @export
+
+.exdyn_reduce_unit_time <- function(values, stat = "median") {
+  stat <- match.arg(stat, c("median", "mean", "min"))
+  vals <- values[is.finite(values)]
+  if (!length(vals)) {
+    return(NA_real_)
+  }
+  switch(
+    stat,
+    median = suppressWarnings(stats::median(vals, na.rm = TRUE)),
+    mean = mean(vals, na.rm = TRUE),
+    min = suppressWarnings(min(vals, na.rm = TRUE))
+  )
+}
+
+.exdyn_unit_timing_table <- function(TX_obs, T_P, TX_sim,
+                                     unit_lookup,
+                                     unit_timing_stat = "median") {
+  required_cols <- c("row_idx", "col_idx", "unit_id")
+  if (!all(required_cols %in% names(unit_lookup))) {
+    stop("unit_lookup must contain row_idx, col_idx, unit_id")
+  }
+  if (!all(dim(TX_obs) == dim(T_P), dim(T_P) == dim(TX_sim))) {
+    stop("TX_obs, T_P, and TX_sim must have matching dimensions.")
+  }
+
+  lookup <- unit_lookup %>%
+    dplyr::filter(!is.na(.data$unit_id), !is.na(.data$row_idx), !is.na(.data$col_idx)) %>%
+    dplyr::distinct(.data$row_idx, .data$col_idx, .data$unit_id, .keep_all = TRUE)
+
+  if (!nrow(lookup)) {
+    return(tibble::tibble(
+      unit_id = character(),
+      region = character(),
+      centroid_x = numeric(),
+      centroid_y = numeric(),
+      n_cells = integer(),
+      tp = numeric(),
+      tx_obs = numeric(),
+      tx_sim = numeric(),
+      n_tp_finite = integer(),
+      n_tx_obs_finite = integer(),
+      n_tx_sim_finite = integer()
+    ))
+  }
+
+  if (!"region" %in% names(lookup)) {
+    lookup$region <- NA_character_
+  }
+  if (!"centroid_x" %in% names(lookup)) {
+    lookup$centroid_x <- lookup$col_idx
+  }
+  if (!"centroid_y" %in% names(lookup)) {
+    lookup$centroid_y <- lookup$row_idx
+  }
+
+  if (any(lookup$row_idx < 1L | lookup$row_idx > nrow(T_P) |
+          lookup$col_idx < 1L | lookup$col_idx > ncol(T_P))) {
+    stop("unit_lookup indices fall outside the supplied matrix dimensions.")
+  }
+
+  cell_index <- cbind(lookup$row_idx, lookup$col_idx)
+  lookup <- lookup %>%
+    dplyr::mutate(
+      tp_cell = T_P[cell_index],
+      tx_obs_cell = TX_obs[cell_index],
+      tx_sim_cell = TX_sim[cell_index]
+    )
+
+  lookup %>%
+    dplyr::group_by(.data$unit_id) %>%
+    dplyr::summarise(
+      region = {
+        vals <- unique(stats::na.omit(.data$region))
+        if (length(vals)) as.character(vals[[1]]) else NA_character_
+      },
+      centroid_x = {
+        vals <- .data$centroid_x[is.finite(.data$centroid_x)]
+        if (length(vals)) mean(vals, na.rm = TRUE) else NA_real_
+      },
+      centroid_y = {
+        vals <- .data$centroid_y[is.finite(.data$centroid_y)]
+        if (length(vals)) mean(vals, na.rm = TRUE) else NA_real_
+      },
+      n_cells = dplyr::n(),
+      tp = .exdyn_reduce_unit_time(.data$tp_cell, stat = unit_timing_stat),
+      tx_obs = .exdyn_reduce_unit_time(.data$tx_obs_cell, stat = unit_timing_stat),
+      tx_sim = .exdyn_reduce_unit_time(.data$tx_sim_cell, stat = unit_timing_stat),
+      n_tp_finite = sum(is.finite(.data$tp_cell)),
+      n_tx_obs_finite = sum(is.finite(.data$tx_obs_cell)),
+      n_tx_sim_finite = sum(is.finite(.data$tx_sim_cell)),
+      .groups = "drop"
+    )
+}
+
+.exdyn_unit_paired_stats <- function(unit_tbl, tx_col) {
+  tx_vals <- unit_tbl[[tx_col]]
+  tp_vals <- unit_tbl$tp
+  tp_finite <- is.finite(tp_vals)
+  paired <- tp_finite & is.finite(tx_vals)
+
+  coverage <- if (sum(tp_finite) > 0) sum(paired) / sum(tp_finite) else 0
+  r2 <- NA_real_
+  lag_mean <- NA_real_
+  if (sum(paired) >= 3) {
+    tx_ok <- tx_vals[paired]
+    tp_ok <- tp_vals[paired]
+    var_tp <- stats::var(tp_ok)
+    var_tx <- stats::var(tx_ok)
+    if (!is.finite(var_tp) || var_tp <= 0 || !is.finite(var_tx) || var_tx <= 0) {
+      r2 <- 0
+    } else {
+      r <- suppressWarnings(stats::cor(tx_ok, tp_ok, use = "complete.obs"))
+      r2 <- if (is.finite(r)) max(0, min(1, r^2)) else NA_real_
+    }
+    lag_mean <- mean(tx_ok - tp_ok, na.rm = TRUE)
+  } else if (sum(paired) > 0) {
+    lag_mean <- mean(tx_vals[paired] - tp_vals[paired], na.rm = TRUE)
+  }
+
+  list(
+    coverage = coverage,
+    r2 = r2,
+    lag_mean = lag_mean,
+    n_pairs = sum(paired),
+    n_tp_finite = sum(tp_finite),
+    n_tx_finite = sum(is.finite(tx_vals))
+  )
+}
+
+.exdyn_unit_coverage_curve <- function(unit_tbl, tx_col, breaks) {
+  if (is.null(breaks) || !length(breaks)) {
+    return(numeric())
+  }
+  tx_vals <- unit_tbl[[tx_col]]
+  tp_finite <- is.finite(unit_tbl$tp)
+  denom <- sum(tp_finite)
+  if (!denom) {
+    return(rep(NA_real_, length(breaks)))
+  }
+  purrr::map_dbl(breaks, function(brk) {
+    sum(tp_finite & is.finite(tx_vals) & tx_vals <= brk) / denom
+  })
+}
+
+.exdyn_unit_orientation_metrics <- function(unit_tbl, tx_col) {
+  df <- unit_tbl %>%
+    dplyr::transmute(
+      tx = .data[[tx_col]],
+      centroid_x = .data$centroid_x,
+      centroid_y = .data$centroid_y
+    ) %>%
+    dplyr::filter(
+      is.finite(.data$tx),
+      is.finite(.data$centroid_x),
+      is.finite(.data$centroid_y)
+    )
+
+  if (nrow(df) < 3) {
+    return(list(R = NA_real_, dominant = c(NA_real_, NA_real_), count = 0L))
+  }
+
+  centroids <- df %>%
+    dplyr::group_by(.data$tx) %>%
+    dplyr::summarise(
+      centroid_x = mean(.data$centroid_x, na.rm = TRUE),
+      centroid_y = mean(.data$centroid_y, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::arrange(.data$tx)
+
+  if (nrow(centroids) < 2) {
+    return(list(R = NA_real_, dominant = c(NA_real_, NA_real_), count = 0L))
+  }
+
+  dx <- diff(centroids$centroid_x)
+  dy <- diff(centroids$centroid_y)
+  mags <- sqrt(dx^2 + dy^2)
+  positive <- mags > 0
+  if (!any(positive)) {
+    return(list(R = NA_real_, dominant = c(NA_real_, NA_real_), count = nrow(centroids) - 1L))
+  }
+
+  dx <- dx[positive]
+  dy <- dy[positive]
+  angles <- atan2(dy, dx)
+  dominant <- c(sum(dx), sum(dy))
+  dom_mag <- sqrt(sum(dominant^2))
+  if (dom_mag > 0) {
+    dominant <- dominant / dom_mag
+  } else {
+    dominant <- c(NA_real_, NA_real_)
+  }
+
+  list(
+    R = sqrt(sum(cos(angles))^2 + sum(sin(angles))^2) / length(angles),
+    dominant = dominant,
+    count = length(angles)
+  )
+}
+
 exdyn_loss_real <- function(TX_obs, T_P, TX_sim,
                             unit_lookup,
                             coverage_breaks,
                             compat_cfg,
                             delta_lookup = NULL,
                             delta_adj = NULL,
-                            delta_penalty_cfg = list(lambda_mag = 0, lambda_tv = 0)) {
-  required_cols <- c("row_idx", "col_idx", "unit_id")
-  if (!all(required_cols %in% names(unit_lookup))) {
-    stop("unit_lookup must contain row_idx, col_idx, unit_id")
-  }
+                            delta_penalty_cfg = list(lambda_mag = 0, lambda_tv = 0),
+                            unit_timing_stat = "median") {
+  unit_tbl <- .exdyn_unit_timing_table(
+    TX_obs = TX_obs,
+    T_P = T_P,
+    TX_sim = TX_sim,
+    unit_lookup = unit_lookup,
+    unit_timing_stat = unit_timing_stat
+  )
 
-  agg_values <- function(mat) {
-    vals <- tibble::tibble(
-      row_idx = rep(seq_len(nrow(mat)), times = ncol(mat)),
-      col_idx = rep(seq_len(ncol(mat)), each = nrow(mat)),
-      value = as.vector(mat)
-    ) %>%
-      dplyr::left_join(unit_lookup, by = c("row_idx", "col_idx")) %>%
-      dplyr::filter(!is.na(.data$unit_id)) %>%
-      dplyr::group_by(.data$unit_id) %>%
-      dplyr::summarise(value = suppressWarnings(min(.data$value, na.rm = TRUE)), .groups = "drop")
-    if (!nrow(vals)) {
-      return(tibble::tibble(unit_id = character(), value = numeric()))
-    }
-    vals$value[!is.finite(vals$value)] <- NA_real_
-    vals
-  }
+  obs_stats <- .exdyn_unit_paired_stats(unit_tbl, "tx_obs")
+  sim_stats <- .exdyn_unit_paired_stats(unit_tbl, "tx_sim")
 
-  obs_units <- agg_values(TX_obs)
-  sim_units <- agg_values(TX_sim)
-  arrival_units <- agg_values(T_P)
+  coverage_obs <- obs_stats$coverage
+  coverage_sim <- sim_stats$coverage
+  r2_obs <- obs_stats$r2
+  r2_sim <- sim_stats$r2
+  lag_obs <- obs_stats$lag_mean
+  lag_sim <- sim_stats$lag_mean
 
-  units_joined <- obs_units %>%
-    dplyr::rename(tx_obs = value) %>%
-    dplyr::full_join(sim_units %>% dplyr::rename(tx_sim = value), by = "unit_id") %>%
-    dplyr::left_join(arrival_units %>% dplyr::rename(tp = value), by = "unit_id")
-
-  valid_idx <- with(units_joined, is.finite(tx_obs) & is.finite(tp))
-  coverage <- mean(valid_idx)
-  r2 <- NA_real_
-  lag_mean <- NA_real_
-  if (sum(valid_idx) >= 3) {
-    fit <- stats::lm(tx_obs ~ tp, data = units_joined[valid_idx, ])
-    r2 <- max(0, min(1, summary(fit)$r.squared))
-    lag_mean <- mean(units_joined$tx_obs[valid_idx] - units_joined$tp[valid_idx])
-  }
-
-  coverage_norm <- min(coverage, 0.3) / 0.3
-  lag_range <- compat_cfg$lag_range %||% c(0, Inf)
-  if (!is.finite(lag_mean)) {
-    lag_pen <- 1
-  } else if (lag_mean < lag_range[1]) {
-    lag_pen <- (lag_range[1] - lag_mean) / max(1, diff(lag_range))
-  } else if (lag_mean > lag_range[2]) {
-    lag_pen <- (lag_mean - lag_range[2]) / max(1, diff(lag_range))
-  } else {
-    lag_pen <- 0
-  }
-
-  cov_curve_obs <- exdyn_coverage_curve(TX_obs, T_P, coverage_breaks)
-  cov_curve_sim <- exdyn_coverage_curve(TX_sim, T_P, coverage_breaks)
+  cov_curve_obs <- .exdyn_unit_coverage_curve(unit_tbl, "tx_obs", coverage_breaks)
+  cov_curve_sim <- .exdyn_unit_coverage_curve(unit_tbl, "tx_sim", coverage_breaks)
   curve_rmse <- if (length(cov_curve_obs) && length(cov_curve_sim)) {
     sqrt(mean((cov_curve_obs - cov_curve_sim)^2, na.rm = TRUE))
   } else {
     NA_real_
   }
 
-  orient_obs <- tryCatch(exdyn_orientation_metrics(TX_obs), error = function(...) list(R = NA_real_))
-  orient_sim <- tryCatch(exdyn_orientation_metrics(TX_sim), error = function(...) list(R = NA_real_))
+  orient_obs <- .exdyn_unit_orientation_metrics(unit_tbl, "tx_obs")
+  orient_sim <- .exdyn_unit_orientation_metrics(unit_tbl, "tx_sim")
   anis_gap <- if (is.finite(orient_obs$R %||% NA_real_) && is.finite(orient_sim$R %||% NA_real_)) {
     abs((orient_obs$R %||% NA_real_) - (orient_sim$R %||% NA_real_))
   } else {
     NA_real_
   }
 
+  r2_term <- if (is.finite(r2_obs) && is.finite(r2_sim)) abs(r2_obs - r2_sim) else 1
+  coverage_term <- if (is.finite(coverage_obs) && is.finite(coverage_sim)) {
+    abs(coverage_obs - coverage_sim)
+  } else {
+    1
+  }
+
+  lag_range <- compat_cfg$lag_range %||% c(0, Inf)
+  if (!is.finite(lag_sim)) {
+    lag_pen <- 1
+  } else if (lag_sim < lag_range[1]) {
+    lag_pen <- (lag_range[1] - lag_sim) / max(1, diff(lag_range))
+  } else if (lag_sim > lag_range[2]) {
+    lag_pen <- (lag_sim - lag_range[2]) / max(1, diff(lag_range))
+  } else {
+    lag_pen <- 0
+  }
+
   lambda_mag <- delta_penalty_cfg$lambda_mag %||% 0
   lambda_tv <- delta_penalty_cfg$lambda_tv %||% 0
   pen_delta <- exdyn_delta_penalty(delta_lookup, delta_adj, lambda_mag, lambda_tv)
 
-  L_r2 <- 0.4 * ifelse(is.finite(r2), 1 - r2, 1)
+  L_r2 <- 0.4 * r2_term
   L_lag <- 0.2 * lag_pen
-  L_cov <- 0.15 * (1 - coverage_norm)
+  L_cov <- 0.15 * coverage_term
   L_aniso <- 0.1 * ifelse(is.finite(anis_gap), anis_gap, 1)
   L_curve <- 0.1 * ifelse(is.finite(curve_rmse), curve_rmse, 1)
   L_delta <- 0.05 * pen_delta
@@ -105,9 +291,12 @@ exdyn_loss_real <- function(TX_obs, T_P, TX_sim,
   loss <- L_r2 + L_lag + L_cov + L_aniso + L_curve + L_delta
 
   list(
-    r2_arrival = r2,
-    lag_mean = lag_mean,
-    coverage = coverage,
+    r2_arrival = r2_sim,
+    lag_mean = lag_sim,
+    coverage = coverage_sim,
+    r2_arrival_obs = r2_obs,
+    lag_mean_obs = lag_obs,
+    coverage_obs = coverage_obs,
     anisotropy_obs = orient_obs$R %||% NA_real_,
     anisotropy_sim = orient_sim$R %||% NA_real_,
     anisotropy_gap = anis_gap,
@@ -117,6 +306,8 @@ exdyn_loss_real <- function(TX_obs, T_P, TX_sim,
     loss_terms = c(r2 = L_r2, lag = L_lag, coverage = L_cov, anis = L_aniso, curve = L_curve, delta = L_delta),
     coverage_curve_obs = cov_curve_obs,
     coverage_curve_sim = cov_curve_sim,
-    units_joined = units_joined
+    units_joined = unit_tbl,
+    unit_timing_table = unit_tbl,
+    unit_timing_stat = unit_timing_stat
   )
 }

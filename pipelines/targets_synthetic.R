@@ -86,14 +86,15 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
     }),
     tar_target(synthetic_modes, exdyn_synthetic_modes(synthetic_cfg)),
     tar_target(synthetic_recovery_cfg, synthetic_cfg$recovery %||% list(n_reps = 1L, seed = 1234L, reference_rep = 1L)),
-    tar_target(synthetic_benchmark_cfg, synthetic_cfg$benchmark %||% list()),
-    tar_target(synthetic_pilot_gates, {
-      cfg <- synthetic_cfg$pilot_gates %||% list()
-      if (!is.null(cfg$enabled)) {
-        return(isTRUE(cfg$enabled))
+    tar_target(synthetic_benchmark_cfg, exdyn_benchmark_cfg_resolve(synthetic_cfg$benchmark %||% list())),
+    tar_target(synthetic_pilot_gate_cfg, {
+      cfg <- exdyn_pilot_gate_cfg_resolve(synthetic_cfg$pilot_gates %||% list())
+      if (is.null((synthetic_cfg$pilot_gates %||% list())$enabled)) {
+        cfg$enabled <- identical(synthetic_grid_cfg$type %||% "pilot", "pilot")
       }
-      identical(synthetic_grid_cfg$type %||% "pilot", "pilot")
+      cfg
     }),
+    tar_target(synthetic_pilot_gates, isTRUE(synthetic_pilot_gate_cfg$enabled)),
     tar_target(synthetic_theta_star, synthetic_cfg$theta_star),
     tar_target(synthetic_suitability_cfg, synthetic_cfg$suitability %||% list(enabled = FALSE)),
     tar_target(synthetic_suitability_matrix, {
@@ -487,6 +488,8 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
             screen_cfg = synthetic_screen_cfg,
             compat_cfg = synthetic_compat_cfg,
             abc_cfg = synthetic_abc_cfg,
+            benchmark_cfg = synthetic_benchmark_cfg,
+            gate_cfg = synthetic_pilot_gate_cfg,
             coverage_breaks = synthetic_coverage_breaks,
             keep_best_tx = keep_best,
             enforce_gates = synthetic_pilot_gates
@@ -596,10 +599,10 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
       )
       copied <- exdyn_copy_to_canonical(outputs, canonical_dir)
       param_tbl <- synthetic_recovery_tables$parameter_recovery %||% tibble::tibble()
-      benchmark_cfg <- synthetic_benchmark_cfg %||% list()
-      benchmark_stance <- benchmark_cfg$stance %||% "strict"
-      weak_declared <- sort(unique(as.character(benchmark_cfg$weak_id_parameters %||% character())))
-      core_params <- sort(unique(as.character(benchmark_cfg$core_params %||% c("alpha", "disp_mean_km"))))
+      benchmark_cfg <- synthetic_benchmark_cfg %||% exdyn_benchmark_cfg_resolve(list())
+      benchmark_stance <- benchmark_cfg$stance
+      weak_declared <- benchmark_cfg$weak_id_parameters
+      core_params <- benchmark_cfg$core_params
       weak_observed <- if (nrow(param_tbl) &&
                            all(c("mode", "param", "identifiability_status") %in% names(param_tbl))) {
         param_tbl %>%
@@ -616,6 +619,25 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
           dplyr::arrange(.data$mode, .data$identifiability_status) %>%
           dplyr::mutate(key = paste(.data$mode, .data$identifiability_status, sep = "::")) %>%
           {stats::setNames(as.list(.$n), .$key)}
+      } else {
+        list()
+      }
+      benchmark_summary <- synthetic_recovery_tables$benchmark_summary %||% tibble::tibble()
+      benchmark_overall <- if (nrow(benchmark_summary)) {
+        split(benchmark_summary, benchmark_summary$mode) %>%
+          purrr::imap(function(tbl, mode) {
+            row <- tbl[1, , drop = FALSE]
+            list(
+              mode = mode,
+              n_core_params_expected = row$n_core_params_expected[[1]],
+              n_core_params_present = row$n_core_params_present[[1]],
+              n_core_recoverable = row$n_core_recoverable[[1]],
+              n_core_weak_id = row$n_core_weak_id[[1]],
+              n_core_not_recoverable = row$n_core_not_recoverable[[1]],
+              n_core_unassessed = row$n_core_unassessed[[1]],
+              overall_benchmark_pass = isTRUE(row$overall_benchmark_pass[[1]])
+            )
+          })
       } else {
         list()
       }
@@ -637,8 +659,13 @@ targets_synthetic_mink_vole <- function(cfg_path = "config/synthetic.yaml") {
           core_params = core_params,
           weak_id_parameters_declared = weak_declared,
           weak_id_parameters_observed = weak_observed,
-          gate_abs_rel_bias = benchmark_cfg$gate_abs_rel_bias %||% 0.20,
-          gate_coverage80 = benchmark_cfg$gate_coverage80 %||% 0.60
+          gate_abs_rel_bias = benchmark_cfg$gate_abs_rel_bias,
+          gate_coverage80 = benchmark_cfg$gate_coverage80,
+          per_mode = benchmark_overall
+        ),
+        pilot_gates = list(
+          enabled = isTRUE(synthetic_pilot_gate_cfg$enabled),
+          thresholds = synthetic_pilot_gate_cfg$thresholds
         ),
         recovery_status_counts = status_counts,
         commands = cfg$commands %||% character()

@@ -11,12 +11,17 @@ execute:
 ---
 
 ```{r setup}
+project_root <- if (dir.exists("_targets")) "." else if (dir.exists("../_targets")) ".." else stop("Could not locate _targets store.")
+renv_activate <- file.path(project_root, "renv", "activate.R")
+if (file.exists(renv_activate)) {
+  source(renv_activate)
+}
 library(targets)
-tar_config_set(store = file.path("..", "_targets"))
+tar_config_set(store = file.path(project_root, "_targets"))
 if (requireNamespace("exdyn.sandbox", quietly = TRUE)) {
   library(exdyn.sandbox)
 } else if (requireNamespace("pkgload", quietly = TRUE)) {
-  pkgload::load_all(path = normalizePath(".."), export_all = FALSE, helpers = FALSE, attach_testthat = FALSE)
+  pkgload::load_all(path = normalizePath(project_root), export_all = FALSE, helpers = FALSE, attach_testthat = FALSE)
 } else {
   stop("Package exdyn.sandbox not available.")
 }
@@ -55,6 +60,7 @@ pilot_ablation_summary <- tar_read(pilot_ablation_summary)
 pilot_gate_evaluation <- tar_read(pilot_gate_evaluation)
 pilot_posterior_predictive <- tar_read(pilot_posterior_predictive)
 compat_cfg <- pilot_cfg$pilot$compat
+pilot_loss_cfg <- pilot_cfg$pilot$loss %||% list(unit_timing_stat = "median")
 safe_tar_read <- function(name, default) {
   tryCatch(
     targets::tar_read_raw(name),
@@ -204,11 +210,30 @@ knitr::kable(riparian_stats, caption = "Riparian coverage summary")
 ## Effort normalisation QA
 
 ```{r normalization-summary}
+cfg_threshold_mode <- pilot_cfg$pilot$vole$threshold_mode %||% "auto"
+cfg_norm_mode <- pilot_cfg$pilot$vole$normalize_by %||% "none"
+resolved_norm_mode <- if (identical(cfg_threshold_mode, "auto")) {
+  if (identical(cfg_norm_mode, "none")) "count_floor" else "relative_baseline"
+} else {
+  cfg_threshold_mode
+}
+resolved_raw_mode <- if (identical(cfg_threshold_mode, "auto")) "count_floor" else cfg_threshold_mode
 norm_summary <- tibble::tibble(
   spearman = pilot_vole_tx_qc$correlation,
-  changed_cells = pilot_vole_tx_qc$n_changed
+  changed_cells = pilot_vole_tx_qc$n_changed,
+  configured_threshold_mode = cfg_threshold_mode,
+  normalized_series_mode = resolved_norm_mode,
+  raw_series_mode = resolved_raw_mode,
+  unit_timing_stat = pilot_unit_structure$unit_timing_stat %||% pilot_loss_cfg$unit_timing_stat %||% "median"
 )
 knitr::kable(norm_summary, caption = "Effort normalisation diagnostics")
+
+threshold_diag <- tibble::tibble(
+  median_baseline = median(pilot_vole_tx$table$baseline, na.rm = TRUE),
+  median_tau = median(pilot_vole_tx$table$tau, na.rm = TRUE),
+  threshold_modes = paste(sort(unique(stats::na.omit(pilot_vole_tx$table$threshold_mode))), collapse = ", ")
+)
+knitr::kable(threshold_diag, digits = 3, caption = "Resolved threshold diagnostics for baseline TX map")
 
 if (nrow(effort_taxa_tbl)) {
   knitr::kable(effort_taxa_tbl, caption = "Effort taxa fetched for normalisation")
@@ -217,11 +242,13 @@ if (nrow(effort_taxa_tbl)) {
 if (pilot_vole_tx_qc$n_changed > 0) {
   knitr::kable(
     pilot_vole_tx_qc$changed %>% head(10),
-    caption = "Cells where effort normalisation changed TX decisions (first 10)",
+    caption = "Cells where effort normalisation changed TX decisions and thresholds (first 10)",
     digits = 0
   )
 }
 ```
+
+The baseline pilot run uses `threshold_mode = "auto"` for the TX estimator, which resolves to `count_floor` on raw series and `relative_baseline` on effort-normalised series. The real-data loss now aggregates arrival and extirpation timing to analysis units using the median finite cell timing before computing compatibility and geometry diagnostics.
 
 ## Triage: mask, estimator, and resolution
 

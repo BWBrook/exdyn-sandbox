@@ -164,3 +164,13 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - Real-case narrative explicitly reports negative gate outcomes to avoid overclaiming.
 - Reproducibility section now names canonical run IDs and standard commands (`make synthetic`, `make pilot`, `make manuscript`, `make test`).
 - Remaining manuscript risk is inferential depth, not build/reproducibility plumbing.
+
+## 2026-03-08 — Semantic redesign sanity notes
+- Synthetic benchmark semantics are now easier to explain: config decides the benchmark, and only declared core parameters control pass/fail.
+- ABC diagnostics are more honest now that missing core summaries hard-fail draws instead of quietly shrinking the objective.
+- The real-data loss is materially different in meaning: compatibility metrics now come from simulated unit timings, not the observed surface alone.
+- Median unit timing is a better default than earliest-hit timing for multi-cell units; it should reduce sensitivity to single anomalous cells.
+- Threshold mode now depends on whether a series is raw or normalized, which matches the scale of the underlying signal better than a universal integer floor.
+- Historical canonical runs before schema `0.4.0` should be treated as legacy references, not numerically comparable benchmarks.
+- The next thing to sanity-check visually is whether the new unit-consistent pilot loss changes which simulated fronts rank near the top.
+- The next thing to sanity-check numerically is whether synthetic benchmark pass/fail counts change in a scientifically sensible way under the config-authoritative rules.
