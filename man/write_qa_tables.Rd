@@ -4,7 +4,12 @@
 \alias{write_qa_tables}
 \title{Write QA tables}
 \usage{
-write_qa_tables(qa_summary, qa_outliers, qa_metrics, dir = "outputs")
+write_qa_tables(
+  qa_summary,
+  qa_outliers,
+  qa_metrics,
+  dir = file.path("outputs", "qa")
+)
 }
 \description{
 Write QA tables

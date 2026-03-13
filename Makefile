@@ -1,4 +1,4 @@
-.PHONY: setup document snapshot init test run report report-leak report-qa exp report-id report-sens pilot pilot-future synthetic graph-parallel manuscript
+.PHONY: setup document snapshot init test check run report report-leak report-qa exp report-id report-sens pilot pilot-future synthetic graph-parallel manuscript
 
 EXDYN_WORKERS ?= 8
 EXDYN_DRAWS ?= 64
@@ -19,6 +19,10 @@ init: setup document snapshot
 
 test:
 	R --vanilla -e 'source("renv/activate.R"); devtools::test()'
+
+check:
+	R --vanilla -e 'source("renv/activate.R"); devtools::document()'
+	R --vanilla -e 'source("renv/activate.R"); devtools::check(document = FALSE, manual = FALSE, error_on = "error", args = c("--no-tests"))'
 
 run:
 	R --vanilla -e 'source("renv/activate.R"); targets::tar_make()'

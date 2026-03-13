@@ -4,7 +4,15 @@
 \alias{exdyn_tx_map}
 \title{Map extirpation results across all cells}
 \usage{
-exdyn_tx_map(cells_df, years, cfg, grid_info, effort_cells = NULL, mask = NULL)
+exdyn_tx_map(
+  cells_df,
+  years,
+  cfg,
+  grid_info,
+  effort_cells = NULL,
+  mask = NULL,
+  fast = TRUE
+)
 }
 \arguments{
 \item{cells_df}{Tibble with columns \code{cell_id,row,col,year}.}

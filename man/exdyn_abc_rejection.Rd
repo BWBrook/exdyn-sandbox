@@ -12,6 +12,8 @@ exdyn_abc_rejection(
   n_sims = 2000L,
   eps = 1,
   scale = NULL,
+  required_metrics = NULL,
+  optional_missing_penalty = 0,
   progress = TRUE
 )
 }

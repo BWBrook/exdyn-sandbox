@@ -28,7 +28,7 @@ exdyn_segment_tx(
 }
 \value{
 Tibble with columns \code{comp_id}, \code{tx_obs}, \code{last_presence},
-\code{reason}, \code{baseline}, \code{tau}, \code{n_cells}, and \code{n_years_active}.
+\code{reason}, \code{baseline}, \code{tau}, \code{threshold_mode}, \code{n_cells}, and \code{n_years_active}.
 }
 \description{
 Compute extirpation times for riparian segments

@@ -19,7 +19,15 @@ exdyn_simulate_tx_only(
   pre_leak = 0,
   log_mem = FALSE,
   log_tag = NULL,
-  mask = NULL
+  mask = NULL,
+  profile = FALSE,
+  conv_reuse = TRUE,
+  crop = FALSE,
+  crop_pad = NULL,
+  dispersal_mode = c("fft", "graph"),
+  graph = NULL,
+  graph_radius = 5L,
+  graph_include_self = TRUE
 )
 }
 \arguments{
@@ -55,6 +63,15 @@ exdyn_simulate_tx_only(
 \item{mask}{Optional logical matrix (nx × ny). Cells with \code{FALSE} are treated
 as outside the simulation: their abundance is fixed at zero and they do not
 receive or donate dispersers.}
+
+\item{profile}{If TRUE, attaches timing diagnostics as an attribute.}
+
+\item{conv_reuse}{If TRUE, reuse convolution buffers to reduce allocations.}
+
+\item{crop}{If TRUE, crop the simulation domain to the bounding box of
+\code{mask} (with padding) to reduce FFT size.}
+
+\item{crop_pad}{Padding (cells) to include around the mask bounding box.}
 }
 \value{
 Matrix of first-passage times (year indices).

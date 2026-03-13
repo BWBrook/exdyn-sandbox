@@ -4,7 +4,7 @@
 \alias{exdyn_conv2_plan}
 \title{Precompute FFT plan for 2D convolution}
 \usage{
-exdyn_conv2_plan(nx, ny, kernel)
+exdyn_conv2_plan(nx, ny, kernel, reuse_buffer = FALSE)
 }
 \description{
 Precompute FFT plan for 2D convolution

@@ -7,7 +7,7 @@
 exdyn_fetch_rivers_ne(country_code = "GB", crs_out = "EPSG:27700")
 }
 \arguments{
-\item{country_code}{ISO2/ISO3 code (default \code{"GB"}).}
+\item{country_code}{ISO2/ISO3 code or vector (default \code{"GB"}).}
 
 \item{crs_out}{CRS string of the desired output.}
 }

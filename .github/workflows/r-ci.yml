@@ -35,3 +35,6 @@ jobs:
 
       - name: Run test suite
         run: make test
+
+      - name: Run package check
+        run: make check

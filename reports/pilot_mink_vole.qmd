@@ -25,6 +25,9 @@ if (requireNamespace("exdyn.sandbox", quietly = TRUE)) {
 } else {
   stop("Package exdyn.sandbox not available.")
 }
+exdyn_safe_tar_read <- getFromNamespace("exdyn_safe_tar_read", "exdyn.sandbox")
+exdyn_effort_taxa_table <- getFromNamespace("exdyn_effort_taxa_table", "exdyn.sandbox")
+exdyn_metrics_from_tx_df <- getFromNamespace("exdyn_metrics_from_tx_df", "exdyn.sandbox")
 library(dplyr)
 library(ggplot2)
 library(knitr)
@@ -61,13 +64,7 @@ pilot_gate_evaluation <- tar_read(pilot_gate_evaluation)
 pilot_posterior_predictive <- tar_read(pilot_posterior_predictive)
 compat_cfg <- pilot_cfg$pilot$compat
 pilot_loss_cfg <- pilot_cfg$pilot$loss %||% list(unit_timing_stat = "median")
-safe_tar_read <- function(name, default) {
-  tryCatch(
-    targets::tar_read_raw(name),
-    error = function(e) default
-  )
-}
-mask_summary <- safe_tar_read(
+mask_summary <- exdyn_safe_tar_read(
   "pilot_mask_summary",
   tibble::tibble(
     tau_km = numeric(),
@@ -76,7 +73,7 @@ mask_summary <- safe_tar_read(
     coverage = numeric()
   )
 )
-mask_results_tbl <- safe_tar_read(
+mask_results_tbl <- exdyn_safe_tar_read(
   "pilot_mask_results_csv",
   tibble::tibble(
     cell_id = character(),
@@ -85,8 +82,8 @@ mask_results_tbl <- safe_tar_read(
     reason = character()
   )
 )
-mask_matrices <- safe_tar_read("pilot_mask_matrices", list())
-tx_sweep <- safe_tar_read(
+mask_matrices <- exdyn_safe_tar_read("pilot_mask_matrices", list())
+tx_sweep <- exdyn_safe_tar_read(
   "pilot_tx_sweep",
   list(
     results = tibble::tibble(
@@ -101,8 +98,8 @@ tx_sweep <- safe_tar_read(
   )
 )
 tx_hyper_results <- tx_sweep$results
-tx_hyper_summary <- safe_tar_read("pilot_tx_hyper_summary", tibble::tibble())
-resolution_sweep <- safe_tar_read(
+tx_hyper_summary <- exdyn_safe_tar_read("pilot_tx_hyper_summary", tibble::tibble())
+resolution_sweep <- exdyn_safe_tar_read(
   "pilot_resolution_sweep",
   list(
     summary = tibble::tibble(
@@ -118,12 +115,12 @@ resolution_sweep <- safe_tar_read(
 )
 resolution_summary <- resolution_sweep$summary
 resolution_details <- resolution_sweep$details
-baseline_funnel <- safe_tar_read("pilot_baseline_funnel", tibble::tibble(stage = character(), n_units = numeric()))
-segment_tx <- safe_tar_read(
+baseline_funnel <- exdyn_safe_tar_read("pilot_baseline_funnel", tibble::tibble(stage = character(), n_units = numeric()))
+segment_tx <- exdyn_safe_tar_read(
   "pilot_segment_tx",
   tibble::tibble(comp_id = character(), n_cells = numeric(), tx_obs = numeric(), reason = character())
 )
-segment_cell_tx <- safe_tar_read(
+segment_cell_tx <- exdyn_safe_tar_read(
   "pilot_segment_cell_tx",
   tibble::tibble(cell_id = character(), comp_id = character(), tx_obs = numeric(), reason = character())
 )
@@ -139,12 +136,7 @@ pilot_bounds <- tibble::tibble(
     pilot_guard_cfg$cfg$pred_scale[2]
   )
 )
-effort_taxa_tbl <- purrr::map_dfr(pilot_cfg$pilot$vole$normalize_taxa %||% list(), function(x) {
-  tibble::tibble(
-    name = x$name %||% x[[1]] %||% NA_character_,
-    rank = x$rank %||% x[[2]] %||% NA_character_
-  )
-})
+effort_taxa_tbl <- exdyn_effort_taxa_table(pilot_cfg$pilot$vole$normalize_taxa)
 ```
 
 ## Data overview
@@ -259,30 +251,10 @@ arrival_tbl <- pilot_grid_info$lookup %>%
     T_P = pilot_mink_field_default$T_P[cbind(.data$row_idx, .data$col_idx)]
   )
 
-metrics_from_df <- function(df) {
-  n_units <- nrow(df)
-  n_tx <- sum(!is.na(df$tx_obs))
-  coverage <- if (n_units > 0) n_tx / n_units else NA_real_
-  valid <- df %>% dplyr::filter(is.finite(.data$tx_obs), is.finite(.data$T_P))
-  r2 <- if (nrow(valid) >= 3) {
-    summary(stats::lm(tx_obs ~ T_P, data = valid))$r.squared
-  } else {
-    NA_real_
-  }
-  lag <- if (nrow(valid)) mean(valid$tx_obs - valid$T_P) else NA_real_
-  tibble::tibble(
-    n_units = n_units,
-    n_tx = n_tx,
-    coverage = coverage,
-    r2_arrival = r2,
-    lag_mean = lag
-  )
-}
-
 baseline_tbl <- pilot_vole_tx$table %>%
   dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
   dplyr::left_join(arrival_tbl, by = "cell_id")
-baseline_metrics <- metrics_from_df(baseline_tbl)
+baseline_metrics <- exdyn_metrics_from_tx_df(baseline_tbl)
 
 mask_metrics <- mask_results_tbl %>%
   dplyr::mutate(cell_id = as.character(.data$cell_id)) %>%
@@ -291,7 +263,7 @@ mask_groups <- if (nrow(mask_metrics)) dplyr::group_split(mask_metrics, tau_km) 
 mask_metrics <- if (length(mask_groups)) {
   purrr::map_dfr(mask_groups, function(df) {
     tau <- df$tau_km[1]
-    metrics_from_df(df) %>%
+    exdyn_metrics_from_tx_df(df) %>%
       dplyr::mutate(tau_km = tau, .before = 1)
   }) %>%
     dplyr::arrange(tau_km)
@@ -319,7 +291,7 @@ hyper_metrics <- if (length(hyper_groups)) {
     bw <- df$baseline_window[1]
     hold <- df$hold_years[1]
     drop <- df$drop_fraction[1]
-    metrics_from_df(df) %>%
+    exdyn_metrics_from_tx_df(df) %>%
       dplyr::mutate(
         baseline_window = bw,
         hold_years = hold,
@@ -360,7 +332,7 @@ segment_joined <- segment_tx %>%
   dplyr::mutate(
     n_cells = dplyr::coalesce(.data$n_cells, .data$n_cells_arrival)
   )
-segment_metrics <- metrics_from_df(segment_joined)
+segment_metrics <- exdyn_metrics_from_tx_df(segment_joined)
 
 best_mask <- if (nrow(mask_metrics)) mask_metrics %>% dplyr::arrange(dplyr::desc(coverage)) %>% dplyr::slice_head(n = 1) else NULL
 best_hyper <- if (nrow(hyper_metrics)) hyper_metrics %>% dplyr::arrange(dplyr::desc(coverage)) %>% dplyr::slice_head(n = 1) else NULL

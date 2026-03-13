@@ -22,8 +22,8 @@ fields: \code{rmax}, \code{A_over_K}, \code{alpha}, \code{disp_mean_km}, \code{p
 \code{pred_type}, \code{pre_leak}.}
 
 \item{noise_cfg}{Named list describing observation noise with entries
-\code{po_rate}, \code{effort_strength}, \code{missing_years_prob}, and
-\code{random_tx_dropout}.}
+\code{po_rate}, \code{effort_strength}, \code{missing_years_prob},
+\code{random_tx_dropout}, and \code{obs_mode} (\code{counts} or \code{points}).}
 
 \item{arrivals}{Tibble with at least \code{cell_id} and arrival year column(s).}
 
@@ -44,10 +44,10 @@ List containing the generating parameters (\code{theta_star}),
 applied noise configuration (\code{noise_cfg}), yearly sequence (\code{years}),
 adjusted arrival matrix (\code{T_P}), full simulated abundance array
 (\code{N_true}, \code{NULL} when counts-only streaming is used), true
-extirpation matrix (\code{TX_true}), noisy observed extirpations
-(\code{TX_obs}), per-cell table (\code{tx_table}), occurrence counts
-(\code{tx_counts}), presence-only samples (\code{po_points}), effort
-samples (\code{effort_points}), and the mask used.
+extirpation matrix (\code{TX_true}), noisy observed extirpations (\code{TX_obs}),
+per-cell table (\code{tx_table}), occurrence counts (\code{tx_counts}),
+presence-only samples (\code{po_points}), effort samples
+(\code{effort_points}), and the mask used.
 }
 \description{
 Construct a synthetic mink-driven vole extirpation scenario on the

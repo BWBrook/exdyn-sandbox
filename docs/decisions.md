@@ -639,3 +639,19 @@ Format for entries:
   - New characterization coverage now protects ABC non-finite-summary behaviour, real-loss aggregation, and multicore determinism.  
 - **Alternatives considered:**  
   - Keep live GBIF tests and tolerate warning-heavy output (rejected: poor signal for the refactor phase).  
+
+---
+
+- **Date:** 2026-03-13
+- **Decision:** Adopt a two-tier verification path (`make test` for behavioral safety, `make check` for packaging smoke only) and allow low/medium-risk internal cleanup to remove dead private exports without compatibility shims.
+- **Rationale:**
+  - The repo needed a real package-check path, but full CRAN-style cleanliness is not the immediate bottleneck for the scientific refactor.
+  - `make test` already covers the behavioral regression surface we care about right now; package smoke should catch install/build breakage without blocking on inherited documentation/import debt.
+  - Unused legacy helpers (`exdyn_simulate_params`, `exdyn_screen_and_rank`) were increasing surface area without protecting any real workflow.
+- **Implications:**
+  - CI now runs both `make test` and `make check`, with `make check` implemented as a non-test packaging smoke check (`devtools::check(..., error_on = "error", args = c("--no-tests"))`).
+  - Packaging warnings/notes are now visible and auditable, but they are not treated as the main gate for the current refactor phase.
+  - Internal cleanup may continue to delete dead private surface area before the high-risk scientific redesign.
+- **Alternatives considered:**
+  - Keep package checking absent from CI (rejected: too easy to miss broken package plumbing).
+  - Make full CRAN-style `R CMD check` a hard gate immediately (rejected: too much inherited packaging debt for the current priority order).

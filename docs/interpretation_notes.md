@@ -174,3 +174,13 @@ Write in blunt bullets. This is where we catch ourselves rationalising noise.
 - Historical canonical runs before schema `0.4.0` should be treated as legacy references, not numerically comparable benchmarks.
 - The next thing to sanity-check visually is whether the new unit-consistent pilot loss changes which simulated fronts rank near the top.
 - The next thing to sanity-check numerically is whether synthetic benchmark pass/fail counts change in a scientifically sensible way under the config-authoritative rules.
+
+## 2026-03-13 — Aggressive refactor slice (pre-redesign)
+- The repo is mechanically safer now: `make test` still passes, and package-level smoke checking is no longer absent.
+- The new package smoke path immediately exposed a lot of inherited packaging debt; that is useful signal, but it is not the main blocker for the scientific benchmark.
+- Splitting shared TX/T_P comparison logic out of `exdyn_score()` and `exdyn_loss_real()` reduced duplicated mechanics without yet changing the scientific objective.
+- Extracting synthetic gate/recovery-table helpers and report-only calculations materially reduced change radius in the biggest files.
+- Removing dead legacy exports was safe in practice; nothing in the repo depended on them.
+- The dominant remaining problem is still conceptual: screen, ABC, and real-data fitting do not yet share one coherent objective story.
+- The phrase “response-only” is still overloaded because some current summaries remain arrival-conditioned.
+- The next risky step should be deliberate and explicit: redesign the objective/summary stack, not keep polishing boundary cleanup forever.

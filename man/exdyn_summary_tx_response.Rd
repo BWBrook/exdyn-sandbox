@@ -4,7 +4,13 @@
 \alias{exdyn_summary_tx_response}
 \title{Response-only summary vector for extirpation maps}
 \usage{
-exdyn_summary_tx_response(TX, T_P, years = NULL, coverage_breaks = NULL)
+exdyn_summary_tx_response(
+  TX,
+  T_P,
+  years = NULL,
+  coverage_breaks = NULL,
+  mask = NULL
+)
 }
 \arguments{
 \item{TX}{Matrix of observed or simulated extirpation years.}
@@ -16,6 +22,8 @@ exdyn_summary_tx_response(TX, T_P, years = NULL, coverage_breaks = NULL)
 \item{coverage_breaks}{Optional numeric vector of year thresholds used
 to derive cumulative coverage values. If NULL, evenly spaced breaks
 over the provided years are used (when available).}
+
+\item{mask}{Optional logical matrix specifying the analysis domain.}
 }
 \value{
 Named numeric vector containing gradient magnitude, principal

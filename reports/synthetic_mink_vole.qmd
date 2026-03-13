@@ -41,7 +41,6 @@ stress_scenario_pass <- stress_outputs$scenario_pass %||% tibble::tibble()
 stress_metrics <- stress_outputs$metrics %||% tibble::tibble()
 grid_info <- tar_read(synthetic_grid_info)
 recovery_cfg <- tar_read(synthetic_recovery_cfg)
-plot_surface <- function(mat, title) exdyn_plot_surface(mat, grid_info, title)
 ```
 
 ::: {.callout-note}
@@ -244,10 +243,10 @@ if (nrow(stress_scenario_pass)) {
 ```{r ref-maps}
 plots <- lapply(mode_runs, function(run) {
   best <- run$best_tx
-  p_true <- plot_surface(truth$TX_true, "TX_true")
-  p_obs <- plot_surface(truth$TX_obs, "TX_obs")
-  p_best <- if (!is.null(best)) plot_surface(best, paste("Best TX (", run$mode, ")", sep = "")) else ggplot()
-  p_diff <- if (!is.null(best)) plot_surface(best - truth$TX_true, paste("Best - true (", run$mode, ")", sep = "")) else ggplot()
+  p_true <- exdyn_plot_surface(truth$TX_true, grid_info, "TX_true")
+  p_obs <- exdyn_plot_surface(truth$TX_obs, grid_info, "TX_obs")
+  p_best <- if (!is.null(best)) exdyn_plot_surface(best, grid_info, paste("Best TX (", run$mode, ")", sep = "")) else ggplot()
+  p_diff <- if (!is.null(best)) exdyn_plot_surface(best - truth$TX_true, grid_info, paste("Best - true (", run$mode, ")", sep = "")) else ggplot()
   patchwork::wrap_plots(p_true, p_obs, p_best, p_diff, ncol = 2)
 })
 if (length(plots)) {

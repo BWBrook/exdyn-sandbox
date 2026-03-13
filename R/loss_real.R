@@ -112,53 +112,11 @@
 }
 
 .exdyn_unit_paired_stats <- function(unit_tbl, tx_col) {
-  tx_vals <- unit_tbl[[tx_col]]
-  tp_vals <- unit_tbl$tp
-  tp_finite <- is.finite(tp_vals)
-  paired <- tp_finite & is.finite(tx_vals)
-
-  coverage <- if (sum(tp_finite) > 0) sum(paired) / sum(tp_finite) else 0
-  r2 <- NA_real_
-  lag_mean <- NA_real_
-  if (sum(paired) >= 3) {
-    tx_ok <- tx_vals[paired]
-    tp_ok <- tp_vals[paired]
-    var_tp <- stats::var(tp_ok)
-    var_tx <- stats::var(tx_ok)
-    if (!is.finite(var_tp) || var_tp <= 0 || !is.finite(var_tx) || var_tx <= 0) {
-      r2 <- 0
-    } else {
-      r <- suppressWarnings(stats::cor(tx_ok, tp_ok, use = "complete.obs"))
-      r2 <- if (is.finite(r)) max(0, min(1, r^2)) else NA_real_
-    }
-    lag_mean <- mean(tx_ok - tp_ok, na.rm = TRUE)
-  } else if (sum(paired) > 0) {
-    lag_mean <- mean(tx_vals[paired] - tp_vals[paired], na.rm = TRUE)
-  }
-
-  list(
-    coverage = coverage,
-    r2 = r2,
-    lag_mean = lag_mean,
-    n_pairs = sum(paired),
-    n_tp_finite = sum(tp_finite),
-    n_tx_finite = sum(is.finite(tx_vals))
-  )
+  .exdyn_vector_pair_stats(unit_tbl[[tx_col]], unit_tbl$tp)
 }
 
 .exdyn_unit_coverage_curve <- function(unit_tbl, tx_col, breaks) {
-  if (is.null(breaks) || !length(breaks)) {
-    return(numeric())
-  }
-  tx_vals <- unit_tbl[[tx_col]]
-  tp_finite <- is.finite(unit_tbl$tp)
-  denom <- sum(tp_finite)
-  if (!denom) {
-    return(rep(NA_real_, length(breaks)))
-  }
-  purrr::map_dbl(breaks, function(brk) {
-    sum(tp_finite & is.finite(tx_vals) & tx_vals <= brk) / denom
-  })
+  .exdyn_vector_coverage_curve(unit_tbl[[tx_col]], unit_tbl$tp, breaks)
 }
 
 .exdyn_unit_orientation_metrics <- function(unit_tbl, tx_col) {
@@ -245,50 +203,25 @@ exdyn_loss_real <- function(TX_obs, T_P, TX_sim,
 
   cov_curve_obs <- .exdyn_unit_coverage_curve(unit_tbl, "tx_obs", coverage_breaks)
   cov_curve_sim <- .exdyn_unit_coverage_curve(unit_tbl, "tx_sim", coverage_breaks)
-  curve_rmse <- if (length(cov_curve_obs) && length(cov_curve_sim)) {
-    sqrt(mean((cov_curve_obs - cov_curve_sim)^2, na.rm = TRUE))
-  } else {
-    NA_real_
-  }
+  curve_rmse <- .exdyn_curve_rmse(cov_curve_obs, cov_curve_sim)
 
   orient_obs <- .exdyn_unit_orientation_metrics(unit_tbl, "tx_obs")
   orient_sim <- .exdyn_unit_orientation_metrics(unit_tbl, "tx_sim")
-  anis_gap <- if (is.finite(orient_obs$R %||% NA_real_) && is.finite(orient_sim$R %||% NA_real_)) {
-    abs((orient_obs$R %||% NA_real_) - (orient_sim$R %||% NA_real_))
-  } else {
-    NA_real_
-  }
-
-  r2_term <- if (is.finite(r2_obs) && is.finite(r2_sim)) abs(r2_obs - r2_sim) else 1
-  coverage_term <- if (is.finite(coverage_obs) && is.finite(coverage_sim)) {
-    abs(coverage_obs - coverage_sim)
-  } else {
-    1
-  }
+  anis_gap <- .exdyn_anis_gap(orient_obs$R %||% NA_real_, orient_sim$R %||% NA_real_)
 
   lag_range <- compat_cfg$lag_range %||% c(0, Inf)
-  if (!is.finite(lag_sim)) {
-    lag_pen <- 1
-  } else if (lag_sim < lag_range[1]) {
-    lag_pen <- (lag_range[1] - lag_sim) / max(1, diff(lag_range))
-  } else if (lag_sim > lag_range[2]) {
-    lag_pen <- (lag_sim - lag_range[2]) / max(1, diff(lag_range))
-  } else {
-    lag_pen <- 0
-  }
-
   lambda_mag <- delta_penalty_cfg$lambda_mag %||% 0
   lambda_tv <- delta_penalty_cfg$lambda_tv %||% 0
   pen_delta <- exdyn_delta_penalty(delta_lookup, delta_adj, lambda_mag, lambda_tv)
-
-  L_r2 <- 0.4 * r2_term
-  L_lag <- 0.2 * lag_pen
-  L_cov <- 0.15 * coverage_term
-  L_aniso <- 0.1 * ifelse(is.finite(anis_gap), anis_gap, 1)
-  L_curve <- 0.1 * ifelse(is.finite(curve_rmse), curve_rmse, 1)
-  L_delta <- 0.05 * pen_delta
-
-  loss <- L_r2 + L_lag + L_cov + L_aniso + L_curve + L_delta
+  score <- .exdyn_weighted_gap_score(
+    obs_stats = obs_stats,
+    sim_stats = sim_stats,
+    lag_range = lag_range,
+    anis_gap = anis_gap,
+    curve_rmse = curve_rmse,
+    weights = list(r2 = 0.4, lag = 0.2, coverage = 0.15, anis = 0.1, curve = 0.1, delta = 0.05),
+    delta_penalty = pen_delta
+  )
 
   list(
     r2_arrival = r2_sim,
@@ -302,8 +235,8 @@ exdyn_loss_real <- function(TX_obs, T_P, TX_sim,
     anisotropy_gap = anis_gap,
     coverage_curve_rmse = curve_rmse,
     delta_penalty = pen_delta,
-    loss = loss,
-    loss_terms = c(r2 = L_r2, lag = L_lag, coverage = L_cov, anis = L_aniso, curve = L_curve, delta = L_delta),
+    loss = score$loss,
+    loss_terms = score$loss_terms,
     coverage_curve_obs = cov_curve_obs,
     coverage_curve_sim = cov_curve_sim,
     units_joined = unit_tbl,

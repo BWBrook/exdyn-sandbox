@@ -4,7 +4,14 @@
 \alias{exdyn_score}
 \title{Score simulated extirpations against observed data}
 \usage{
-exdyn_score(TX_obs, T_P, TX_sim, compat_cfg, coverage_breaks = NULL, mask = NULL)
+exdyn_score(
+  TX_obs,
+  T_P,
+  TX_sim,
+  compat_cfg,
+  coverage_breaks = NULL,
+  mask = NULL
+)
 }
 \arguments{
 \item{TX_obs}{Matrix of observed extirpation times.}
@@ -21,7 +28,7 @@ to compare cumulative coverage between observed and simulated maps.}
 \item{mask}{Optional logical matrix specifying the analysis domain.}
 }
 \value{
-Tibble (one row) with metrics and loss, including mask-aware count fields.
+Tibble (one row) with metrics and loss.
 }
 \description{
 Score simulated extirpations against observed data

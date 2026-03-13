@@ -93,6 +93,7 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
 ### Recently completed
 - 2026-03-08 high-risk semantics redesign: synthetic benchmark/gate semantics are now config-authoritative, ABC requires finite core summaries with explicit optional-metric penalties, the real-data loss is unit-consistent with median timing aggregation, and TX threshold semantics are explicit via `threshold_mode`.
 - 2026-03-08 repo hardening + characterization slice: added CI, split bootstrap from maintenance (`make setup` vs `make init`), removed `_targets.R` self-install behavior, replaced live-network GBIF test coverage with fixtures/mocks, added characterization tests for ABC non-finite summaries / real-loss aggregation / parallel determinism, and removed duplicate helper definitions.
+- 2026-03-13 aggressive refactor slice (low/medium risk only): fixed package-test entrypoint naming, added `make check` as a package smoke path, extracted shared TX/T_P comparison helpers, split synthetic gate/recovery-table helpers out of `R/synthetic_recovery.R`, moved plotting/report logic into more cohesive helper modules, and removed dead legacy exports (`exdyn_simulate_params`, `exdyn_screen_and_rank`) without changing tested numerical behavior.
 - 2026-03-08 reconnaissance + hygiene checkpoint: repo structure revalidated, `main` confirmed aligned with `origin/main` at scout time, and a clean-baseline commit prepared after verification.
 - Phase 000 — Takeover + harness (docs + README + Makefile refresh).
 - Completed perf profiling + scaling + guardrails + optimisation (WP‑0.2.x).
@@ -129,10 +130,10 @@ At the best-supported spatial unit/resolution, is a mink-front-only mechanism su
   - reproducibility checklist and render commands in place.
 
 ### Next steps (short queue)
-- Next engineering slice should tackle medium-risk boundary cleanup:
-  - split `targets_pilot_mink_vole()` into sub-builders,
-  - thin report-local analysis code,
-  - rationalise shared screen/ABC orchestration between pilot and synthetic paths.
+- Next work is the explicit high-risk redesign checkpoint:
+  - unify screen / ABC / real-data objective semantics,
+  - split strict response-only summaries from driver-conditioned compatibility metrics,
+  - decide whether to retire the legacy weighted `exdyn_score()` objective rather than continue refactoring around it.
 - Regenerate smoke-level synthetic and pilot outputs under schema `0.4.0` before refreshing any canonical benchmark or real-data bundles.
 - Decide whether historical canonical runs should remain frozen as pre-0.4 references or be superseded by new semantic-baseline runs.
 - Keep visual sanity review as a hard gate for any new canonical run (maps and key summary tables).

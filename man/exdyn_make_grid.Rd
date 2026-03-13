@@ -7,7 +7,7 @@
 exdyn_make_grid(country_code = "GB", cell_km = 10, crs_out = "EPSG:27700")
 }
 \arguments{
-\item{country_code}{ISO3 code (e.g. \code{"GB"}).}
+\item{country_code}{ISO2/ISO3 code or vector (e.g. \code{"GB"} or \code{c("GB","IE")}).}
 
 \item{cell_km}{Cell size in kilometres.}
 

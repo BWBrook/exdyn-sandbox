@@ -13,8 +13,12 @@ exdyn_simulate(
   K0 = 100,
   alpha = 0.2,
   disp_mean_cells = 1,
-  pred = list(type = "II", c = 0.6, h = 30)
+  pred = list(type = "II", c = 0.6, h = 30),
+  conv_reuse = TRUE
 )
+}
+\arguments{
+\item{conv_reuse}{If TRUE, reuse convolution buffers to reduce allocations.}
 }
 \description{
 Full simulation with dispersal

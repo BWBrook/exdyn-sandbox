@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(exdyn-sandbox)
+library(exdyn.sandbox)
 
-test_check("exdyn-sandbox")
+test_check("exdyn.sandbox")
