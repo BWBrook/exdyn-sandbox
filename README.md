@@ -1,4 +1,6 @@
 # exdyn-sandbox
+
+> **Status:** developed in the open as a working record. This is work in progress: contents may change, and nothing here is peer-reviewed unless stated.
 Synthetic extinction-dynamics sandbox that couples a lattice-based population simulator with observation models, discriminative summaries, and classifier tooling. The project is an R package organised around the `targets` pipeline so that single runs, experiment grids, and identifiability studies are fully reproducible.
 
 ## Quick Start
